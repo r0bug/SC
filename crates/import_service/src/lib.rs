@@ -3,12 +3,18 @@ pub mod mapper;
 pub mod validator;
 pub mod importer;
 pub mod transaction;
+pub mod connector;
+pub mod connectors;
+pub mod deduplication;
 
 pub use config::{ImportConfig, ColumnMapping, ImportFormat};
 pub use mapper::DataMapper;
 pub use validator::{ValidationResult, BatchValidator};
 pub use importer::{ImportService, ImportResult};
 pub use transaction::{ImportTransaction, TransactionState};
+pub use connector::{ImportConnector, ConnectorMetadata, ConnectorRegistry, ParseResult};
+pub use connectors::create_default_registry;
+pub use deduplication::{DeduplicationEngine, DeduplicationConfig, DuplicateStrategy, MatchCriteria};
 
 use thiserror::Error;
 

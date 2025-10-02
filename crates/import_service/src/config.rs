@@ -13,13 +13,18 @@ pub struct ImportConfig {
     pub last_used_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ImportFormat {
     Csv,
     Vcard,
     Json,
     Excel,
     Sms,
+    Email,
+    LinkedIn,
+    Twitter,
+    Facebook,
+    Instagram,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
