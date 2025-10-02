@@ -20,7 +20,7 @@
 set -e
 
 # Configuration
-REPO_URL="${REPO_URL:-https://github.com/your-org/sagenscontact-alpha.git}"
+REPO_URL="${REPO_URL:-https://github.com/r0bug/SC.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/sagenscontact}"
 TEMP_DIR="/tmp/sagenscontact-setup-$$"
