@@ -1,0 +1,30 @@
+[package]
+name = "communication_queue"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "worker"
+path = "src/bin/worker.rs"
+
+[dependencies]
+core_domain = { path = "../core_domain" }
+local_store = { path = "../local_store" }
+
+tracing-subscriber.workspace = true
+
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+tokio-cron-scheduler = "0.10"
+axum.workspace = true
+sqlx.workspace = true
+reqwest.workspace = true
+async-trait = "0.1"

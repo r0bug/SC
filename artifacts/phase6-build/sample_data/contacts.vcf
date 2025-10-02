@@ -1,0 +1,23 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Sarah Connor
+N:Connor;Sarah;;;
+EMAIL:sarah.connor@resistance.org
+TEL;TYPE=CELL:+1-555-0200
+ORG:Resistance
+TITLE:Leader
+X-SOCIALPROFILE;TYPE=twitter:@sarahconnor
+X-SOCIALPROFILE;TYPE=linkedin:linkedin.com/in/sarahconnor
+END:VCARD
+
+BEGIN:VCARD
+VERSION:3.0
+FN:James Martinez
+N:Martinez;James;;;
+EMAIL:jmartinez@archive.gov
+TEL;TYPE=WORK:+1-555-0201
+ORG:National Archives
+TITLE:Senior Archivist
+X-SOCIALPROFILE;TYPE=linkedin:linkedin.com/in/jamesmartinez
+NOTE:Specializes in military artifacts from WWII
+END:VCARD

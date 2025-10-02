@@ -1,0 +1,41 @@
+{
+  "conversations": [
+    {
+      "contact_name": "Emily Davis",
+      "phone": "+1-555-0103",
+      "messages": [
+        {
+          "timestamp": "2024-01-15T10:30:00Z",
+          "direction": "incoming",
+          "text": "Hi! I found some interesting information about that WWII artifact you mentioned."
+        },
+        {
+          "timestamp": "2024-01-15T10:35:00Z",
+          "direction": "outgoing",
+          "text": "Great! Can you send me the details?"
+        },
+        {
+          "timestamp": "2024-01-15T10:40:00Z",
+          "direction": "incoming",
+          "text": "I'll email you the photos and provenance documentation today."
+        }
+      ]
+    },
+    {
+      "contact_name": "Robert Johnson",
+      "phone": "+1-555-0102",
+      "messages": [
+        {
+          "timestamp": "2024-01-20T14:00:00Z",
+          "direction": "incoming",
+          "text": "Need to discuss the artifact authentication process. Are you available tomorrow?"
+        },
+        {
+          "timestamp": "2024-01-20T14:15:00Z",
+          "direction": "outgoing",
+          "text": "Yes, 2 PM works for me. Your office or mine?"
+        }
+      ]
+    }
+  ]
+}

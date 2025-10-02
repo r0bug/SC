@@ -1,0 +1,49 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Node
+node_modules/
+.pnpm-store/
+dist/
+build/
+.svelte-kit/
+.next/
+.turbo/
+*.log
+pnpm-lock.yaml
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# App data
+*.db
+*.db-shm
+*.db-wal
+data/
+uploads/
+
+# Credentials (alpha placeholder only)
+config/credentials.toml
+*.key
+*.pem
+
+# Tauri
+src-tauri/target/
+src-tauri/WixTools/
+
+# Environment
+.env
+.env.local
+.env.*.local

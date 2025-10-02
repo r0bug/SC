@@ -1,0 +1,37 @@
+[package]
+name = "sagenscontact-desktop"
+version = "0.1.0"
+description = "SagensContact Desktop Application"
+authors = ["SagensContact Team"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.5", features = ["dialog-all", "fs-all", "notification-all", "path-all", "shell-open"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.11", features = ["json"] }
+sha2 = "0.10"
+hex = "0.4"
+mime_guess = "2.0"
+tracing = "0.1"
+
+# Local crates
+local_store = { path = "../../../crates/local_store" }
+core_domain = { path = "../../../crates/core_domain" }
+import_service = { path = "../../../crates/import_service" }
+communication_queue = { path = "../../../crates/communication_queue" }
+ai_middleware = { path = "../../../crates/ai_middleware" }
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

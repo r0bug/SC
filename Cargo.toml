@@ -1,0 +1,47 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core_domain",
+    "crates/local_store",
+    "crates/sync_service",
+    "crates/communication_queue",
+    "crates/ai_middleware",
+    "crates/cli_client",
+    "crates/import_service",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.83"
+authors = ["SagensContact Team"]
+license = "MIT"
+
+[workspace.dependencies]
+tokio = { version = "1.35", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.6", features = ["v4", "serde"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "postgres", "uuid", "chrono", "migrate"] }
+axum = { version = "0.7", features = ["ws"] }
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["fs", "trace", "cors"] }
+
+reqwest = { version = "0.11", features = ["json"] }
+csv = "1.3"
+vcard = "0.3"
+
+bcrypt = "0.15"
+jsonwebtoken = "9.2"
+axum-extra = { version = "0.9", features = ["cookie", "typed-header"] }
+rand = "0.8"
+
+clap = { version = "4.4", features = ["derive"] }
+config = "0.14"
+toml = "0.8"

@@ -1,0 +1,18 @@
+[Unit]
+Description=SagensContact Sync Service
+After=network.target
+
+[Service]
+Type=simple
+User=sagenscontact
+WorkingDirectory=/opt/sagenscontact
+Environment="DATABASE_URL=sqlite:/opt/sagenscontact/data/contacts.db"
+Environment="PORT=3002"
+Environment="JWT_SECRET=CHANGE_ME"
+Environment="LOG_FORMAT=json"
+ExecStart=/opt/sagenscontact/binaries/sync_service
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

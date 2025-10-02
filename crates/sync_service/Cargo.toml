@@ -1,0 +1,53 @@
+[package]
+name = "sync_service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "sync_service"
+path = "src/main.rs"
+
+[dependencies]
+core_domain = { path = "../core_domain" }
+local_store = { path = "../local_store" }
+ai_middleware = { path = "../ai_middleware" }
+communication_queue = { path = "../communication_queue" }
+
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["json", "env-filter"] }
+
+axum = { workspace = true, features = ["multipart"] }
+axum-extra.workspace = true
+tower.workspace = true
+tower-http = { workspace = true, features = ["trace", "request-id", "util"] }
+sqlx.workspace = true
+
+bcrypt.workspace = true
+jsonwebtoken.workspace = true
+rand.workspace = true
+futures-util = "0.3"
+bytes = "1"
+mime = "0.3"
+sha2 = "0.10"
+hex = "0.4"
+
+# Phase 7: Observability & Security
+metrics = "0.22"
+metrics-exporter-prometheus = "0.15"
+
+[dev-dependencies]
+axum-test = "16.0"
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "api_bench"
+harness = false
