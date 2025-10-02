@@ -1,0 +1,11 @@
+Given Name,Family Name,E-mail 1 - Value,Phone 1 - Value,Organization 1 - Name,Organization 1 - Title,Notes
+John,Doe,john.doe@example.com,+1-555-0101,Acme Corp,Senior Engineer,"Met at tech conference in 2023. Interested in Rust."
+Jane,Smith,jane.smith@example.com,+1-555-0102,TechStart Inc,Product Manager,"Former colleague from StartupXYZ. Great product insights."
+Robert,Johnson,robert.j@example.com,+1-555-0103,Global Solutions,CTO,"Keynote speaker at DevCon 2024. Expert in distributed systems."
+Maria,Garcia,maria.garcia@example.com,+1-555-0104,Innovation Labs,Data Scientist,"PhD in ML. Working on recommendation systems."
+Michael,Brown,michael.brown@example.com,+1-555-0105,CloudTech,DevOps Lead,"Kubernetes expert. Gave workshop at our office."
+Sarah,Davis,sarah.davis@example.com,+1-555-0106,WebWorks,Frontend Developer,"React specialist. Open source contributor."
+David,Martinez,david.martinez@example.com,+1-555-0107,API First,Backend Developer,"Go and Python expert. Created popular CLI tool."
+Lisa,Anderson,lisa.anderson@example.com,+1-555-0108,SecureStack,Security Engineer,"CISSP certified. Pen testing specialist."
+James,Wilson,james.wilson@example.com,+1-555-0109,DataFlow,ML Engineer,"Built our recommendation engine. TensorFlow contributor."
+Jennifer,Taylor,jennifer.taylor@example.com,+1-555-0110,Mobile Innovations,iOS Developer,"Published 5 apps. Swift expert."

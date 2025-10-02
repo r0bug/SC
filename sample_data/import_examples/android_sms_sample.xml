@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<smses count="15">
+  <sms address="+15550101" contact_name="John Doe" date="1704067200000" type="1" body="Hey, are you coming to the meetup tonight?" />
+  <sms address="+15550101" contact_name="John Doe" date="1704070800000" type="2" body="Yes! I'll be there around 7pm" />
+  <sms address="+15550101" contact_name="John Doe" date="1704074400000" type="1" body="Great! See you then" />
+
+  <sms address="+15550102" contact_name="Jane Smith" date="1704153600000" type="1" body="Can you review my PR when you get a chance?" />
+  <sms address="+15550102" contact_name="Jane Smith" date="1704157200000" type="2" body="Sure, I'll take a look this afternoon" />
+  <sms address="+15550102" contact_name="Jane Smith" date="1704160800000" type="1" body="Thanks! It's the one about the auth refactor" />
+
+  <sms address="+15550103" contact_name="Robert Johnson" date="1704240000000" type="2" body="Remember we have the architecture review at 2pm tomorrow" />
+  <sms address="+15550103" contact_name="Robert Johnson" date="1704243600000" type="1" body="Got it, thanks for the reminder!" />
+
+  <sms address="+15550104" contact_name="Maria Garcia" date="1704326400000" type="1" body="The data pipeline is ready for testing" />
+  <sms address="+15550104" contact_name="Maria Garcia" date="1704330000000" type="2" body="Excellent! I'll start the QA process" />
+
+  <sms address="+15550105" contact_name="Michael Brown" date="1704412800000" type="1" body="Kubernetes cluster is having issues. Can you check?" />
+  <sms address="+15550105" contact_name="Michael Brown" date="1704416400000" type="2" body="On it. Looks like a node went down. Fixing now." />
+
+  <sms address="+15550106" contact_name="Sarah Davis" date="1704499200000" type="2" body="New UI components are deployed to staging" />
+  <sms address="+15550106" contact_name="Sarah Davis" date="1704502800000" type="1" body="They look great! Approving the changes" />
+
+  <sms address="+15550107" contact_name="David Martinez" date="1704585600000" type="1" body="API rate limits need adjustment. Current settings too restrictive" />
+</smses>
