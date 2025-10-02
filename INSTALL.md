@@ -22,12 +22,17 @@ This will:
 
 Download the complete bundle (works without internet):
 ```bash
-# Download from releases
-wget https://github.com/r0bug/SC/releases/download/v0.1.0-alpha/sagenscontact-installer-bundle.sh
+# Create the bundle from source
+git clone https://github.com/r0bug/SC.git
+cd SC
+./create-bundle.sh
 
-# Or if you have it locally
+# Run the bundle
 sudo ./sagenscontact-installer-bundle.sh
 ```
+
+**Note:** The 114MB self-contained bundle is not stored in git due to GitHub's 100MB file size limit.
+You can create it locally using the `create-bundle.sh` script, or it will be available as a release asset.
 
 **Size:** ~114MB (includes all source code)
 **Requirements:** None (completely self-contained)
