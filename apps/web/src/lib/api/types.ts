@@ -236,17 +236,131 @@ export interface WorkerMetrics {
 	updated_at: string;
 }
 
-export interface ImportPreview {
-	headers: string[];
-	rows: string[][];
-	field_mappings: Record<string, string>;
+// Import types
+export interface Connector {
+	id: string;
+	name: string;
+	description: string;
+	file_extensions: string[];
+	supports_preview: boolean;
+}
+
+export interface ImportPreviewResponse {
+	connector_id: string;
+	file_name: string;
+	total_rows: number;
+	preview_rows: PreviewRow[];
+	detected_fields: DetectedField[];
 	validation_errors: ValidationError[];
+	warnings: ValidationWarning[];
+}
+
+export interface PreviewRow {
+	row_number: number;
+	data: Record<string, string>;
+	has_errors: boolean;
+}
+
+export interface DetectedField {
+	field_name: string;
+	suggested_mapping: string;
+	sample_values: string[];
+	confidence: number;
 }
 
 export interface ValidationError {
 	row: number;
 	field: string;
 	error: string;
+}
+
+export interface ValidationWarning {
+	row: number;
+	field: string;
+	warning: string;
+	severity: 'Low' | 'Medium' | 'High';
+}
+
+export interface ImportConfig {
+	connector_id?: string;
+	field_mappings?: Record<string, string>;
+	dedupe_strategy: 'Skip' | 'Update' | 'Merge' | 'KeepBoth' | 'Ask';
+	match_criteria: 'Email' | 'Phone' | 'FullName' | 'EmailOrPhone' | 'Custom';
+	dry_run?: boolean;
+}
+
+export interface JobResponse {
+	job_id: string;
+	status: JobStatus;
+	created_at: string;
+}
+
+export interface ImportJob {
+	id: string;
+	file_name: string;
+	connector_id: string;
+	status: JobStatus;
+	progress: ImportProgress;
+	result?: ImportResult;
+	created_at: string;
+	updated_at: string;
+}
+
+export type JobStatus = 'Pending' | 'Validating' | 'Parsing' | 'Deduplicating' | 'Importing' | 'Completed' | 'Failed' | 'Cancelled';
+
+export interface ImportProgress {
+	current: number;
+	total: number;
+	phase: string;
+}
+
+export interface ImportResult {
+	imported: number;
+	updated: number;
+	skipped: number;
+	failed: number;
+	duplicates_found: number;
+	elapsed_seconds: number;
+}
+
+export interface ImportLog {
+	id: string;
+	job_id: string;
+	file_name: string;
+	connector_id: string;
+	total_rows: number;
+	imported: number;
+	skipped: number;
+	failed: number;
+	duplicates_found: number;
+	dedupe_strategy: string;
+	match_criteria: string;
+	status: string;
+	elapsed_seconds: number;
+	peak_memory_mb?: number;
+	created_at: string;
+	completed_at?: string;
+}
+
+export interface ImportHistoryFilters {
+	status?: string;
+	connector_id?: string;
+	start_date?: string;
+	end_date?: string;
+}
+
+export interface RollbackResult {
+	success: boolean;
+	records_reverted: number;
+	errors: string[];
+}
+
+// Legacy import types (deprecated)
+export interface ImportPreview {
+	headers: string[];
+	rows: string[][];
+	field_mappings: Record<string, string>;
+	validation_errors: ValidationError[];
 }
 
 export interface AuthResponse {

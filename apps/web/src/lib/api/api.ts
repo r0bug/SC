@@ -1,8 +1,10 @@
 import type {
 	Contact, Group, Concept, Project, CalendarEvent, Note, Attachment,
 	Tag, CommunicationAttempt, CommunicationMethod, ShareInvite,
-	AiInsight, SearchHistory, WorkerMetrics, ImportPreview, AuthResponse,
-	DashboardSummary, User, Permission
+	AiInsight, SearchHistory, WorkerMetrics, AuthResponse,
+	DashboardSummary, User, Permission, Connector, ImportPreviewResponse,
+	ImportConfig, JobResponse, ImportJob, ImportLog, ImportHistoryFilters,
+	RollbackResult
 } from './types';
 
 export class ApiError extends Error {
@@ -469,40 +471,90 @@ export class ApiClient {
 		return this.request('/search/history', { method: 'DELETE' });
 	}
 
-	// Import
-	async previewImport(file: File, format: string): Promise<ImportPreview> {
+	// Import - Real API integration
+	async getConnectors(): Promise<Connector[]> {
+		return this.request('/import/connectors');
+	}
+
+	async previewImport(file: File, limit: number = 10): Promise<ImportPreviewResponse> {
 		const formData = new FormData();
 		formData.append('file', file);
-		formData.append('format', format);
 
-		const res = await fetch(`${this.baseUrl}/import/preview`, {
+		const res = await fetch(`${this.baseUrl}/import/preview?limit=${limit}`, {
 			method: 'POST',
 			headers: this.getAuthHeaders(false),
 			body: formData
 		});
 
-		if (!res.ok) throw new Error('Failed to preview import');
+		if (!res.ok) {
+			await this.handleErrorResponse(res, '/import/preview');
+		}
+
 		return res.json();
 	}
 
-	async confirmImport(
+	async executeImport(
 		file: File,
-		format: string,
-		mappings: Record<string, string>
-	): Promise<{ imported: number; errors: ValidationError[] }> {
+		config: ImportConfig
+	): Promise<JobResponse> {
 		const formData = new FormData();
 		formData.append('file', file);
-		formData.append('format', format);
-		formData.append('mappings', JSON.stringify(mappings));
+		formData.append('config', JSON.stringify(config));
 
-		const res = await fetch(`${this.baseUrl}/import/confirm`, {
+		const res = await fetch(`${this.baseUrl}/import/execute`, {
 			method: 'POST',
 			headers: this.getAuthHeaders(false),
 			body: formData
 		});
 
-		if (!res.ok) throw new Error('Failed to import');
+		if (!res.ok) {
+			await this.handleErrorResponse(res, '/import/execute');
+		}
+
 		return res.json();
+	}
+
+	async getJobStatus(jobId: string): Promise<ImportJob> {
+		return this.request(`/import/jobs/${jobId}`);
+	}
+
+	async listJobs(): Promise<ImportJob[]> {
+		return this.request('/import/jobs');
+	}
+
+	async cancelJob(jobId: string): Promise<void> {
+		return this.request(`/import/jobs/${jobId}/cancel`, { method: 'POST' });
+	}
+
+	async getImportHistory(filters?: ImportHistoryFilters): Promise<ImportLog[]> {
+		const params = new URLSearchParams();
+		if (filters?.status) params.append('status', filters.status);
+		if (filters?.connector_id) params.append('connector_id', filters.connector_id);
+		if (filters?.start_date) params.append('start_date', filters.start_date);
+		if (filters?.end_date) params.append('end_date', filters.end_date);
+		const query = params.toString() ? `?${params}` : '';
+		return this.request(`/import/history${query}`);
+	}
+
+	async rollbackImport(logId: string): Promise<RollbackResult> {
+		return this.request(`/import/history/${logId}/rollback`, { method: 'POST' });
+	}
+
+	async downloadErrorReport(logId: string): Promise<void> {
+		const res = await fetch(`${this.baseUrl}/import/history/${logId}/errors`, {
+			headers: this.getAuthHeaders()
+		});
+		if (!res.ok) throw new Error('Failed to download error report');
+
+		const blob = await res.blob();
+		const url = window.URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `import-errors-${logId}.csv`;
+		document.body.appendChild(a);
+		a.click();
+		window.URL.revokeObjectURL(url);
+		document.body.removeChild(a);
 	}
 
 	// Worker Metrics

@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct ImportState {
-    pub pool: Pool<Sqlite>,
+    pub pool: Arc<Pool<Sqlite>>,
     pub jobs: Arc<RwLock<Vec<ImportJob>>>,
 }
 
@@ -68,7 +68,7 @@ pub struct PreviewQuery {
     pub limit: Option<usize>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ImportRequest {
     pub connector_id: Option<String>,
     pub dedupe_strategy: Option<String>,
@@ -170,32 +170,49 @@ pub async fn preview_import(
 /// POST /api/import/execute - Execute import with options
 pub async fn execute_import(
     State(state): State<ImportState>,
-    Json(request): Json<ImportRequest>,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    // Extract file
+    // Extract file and config from multipart
     let mut file_data = Vec::new();
     let mut file_name = String::new();
+    let mut request = ImportRequest {
+        connector_id: None,
+        dedupe_strategy: None,
+        match_criteria: None,
+        dry_run: None,
+    };
 
     while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?
     {
-        if let Some(name) = field.file_name() {
-            file_name = name.to_string();
-        }
+        let field_name = field.name().unwrap_or("").to_string();
 
-        let data = field
-            .bytes()
-            .await
-            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-        file_data.extend_from_slice(&data);
+        if field.file_name().is_some() {
+            file_name = field.file_name().unwrap().to_string();
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            file_data.extend_from_slice(&data);
+        } else {
+            // Handle config fields
+            let value = field.text().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            match field_name.as_str() {
+                "config" => {
+                    // Parse JSON config
+                    request = serde_json::from_str(&value)
+                        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid config JSON: {}", e)))?;
+                }
+                _ => {}
+            }
+        }
     }
 
     // Create job
     let job_id = Uuid::new_v4();
-    let connector_id = request.connector_id.unwrap_or_else(|| "auto".to_string());
+    let connector_id = request.connector_id.clone().unwrap_or_else(|| "auto".to_string());
 
     let job = ImportJob {
         id: job_id,
@@ -242,6 +259,7 @@ pub async fn get_job_status(
     let job = jobs
         .iter()
         .find(|j| j.id == job_id)
+        .cloned()
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Job not found".to_string()))?;
 
     Ok(Json(job))
@@ -282,12 +300,15 @@ async fn process_import(
     let start_time = std::time::Instant::now();
 
     // Update job status
-    let update_status = |status: JobStatus, phase: &str| async {
-        let mut jobs = state.jobs.write().await;
-        if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
-            job.status = status.clone();
-            job.progress.phase = phase.to_string();
-            job.updated_at = chrono::Utc::now();
+    let update_status = |status: JobStatus, phase: String| {
+        let state = state.clone();
+        async move {
+            let mut jobs = state.jobs.write().await;
+            if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
+                job.status = status;
+                job.progress.phase = phase;
+                job.updated_at = chrono::Utc::now();
+            }
         }
     };
 
@@ -296,36 +317,36 @@ async fn process_import(
     let temp_path = temp_dir.join(format!("import_{}_{}", job_id, file_name));
     if let Err(e) = std::fs::write(&temp_path, &file_data) {
         tracing::error!("Failed to write temp file: {}", e);
-        update_status(JobStatus::Failed, "File write error").await;
+        update_status(JobStatus::Failed, "File write error".to_string()).await;
         return;
     }
 
     // Find connector
-    update_status(JobStatus::Validating, "Detecting format").await;
+    update_status(JobStatus::Validating, "Detecting format".to_string()).await;
     let registry = create_default_registry();
     let connector = match registry.find_connector(&temp_path) {
         Some(c) => c,
         None => {
-            update_status(JobStatus::Failed, "No suitable connector found").await;
+            update_status(JobStatus::Failed, "No suitable connector found".to_string()).await;
             let _ = std::fs::remove_file(&temp_path);
             return;
         }
     };
 
     // Parse file
-    update_status(JobStatus::Parsing, "Parsing file").await;
+    update_status(JobStatus::Parsing, "Parsing file".to_string()).await;
     let parse_result = match connector.parse(&temp_path).await {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Parse error: {}", e);
-            update_status(JobStatus::Failed, &format!("Parse error: {}", e)).await;
+            update_status(JobStatus::Failed, format!("Parse error: {}", e)).await;
             let _ = std::fs::remove_file(&temp_path);
             return;
         }
     };
 
     // Deduplicate
-    update_status(JobStatus::Deduplicating, "Checking duplicates").await;
+    update_status(JobStatus::Deduplicating, "Checking duplicates".to_string()).await;
     let dedupe_strategy = match request.dedupe_strategy.as_deref() {
         Some("skip") => DuplicateStrategy::Skip,
         Some("update") => DuplicateStrategy::Update,
@@ -357,7 +378,7 @@ async fn process_import(
     };
 
     // Import (placeholder - would call actual import logic)
-    update_status(JobStatus::Importing, "Importing contacts").await;
+    update_status(JobStatus::Importing, "Importing contacts".to_string()).await;
 
     // TODO: Actual import implementation
     let imported = parse_result.rows.len();
@@ -389,10 +410,10 @@ async fn process_import(
 /// Router configuration
 pub fn import_routes() -> axum::Router<ImportState> {
     axum::Router::new()
-        .route("/connectors", axum::routing::get(list_connectors))
-        .route("/preview", axum::routing::post(preview_import))
-        .route("/execute", axum::routing::post(execute_import))
-        .route("/jobs", axum::routing::get(list_jobs))
-        .route("/jobs/:job_id", axum::routing::get(get_job_status))
-        .route("/jobs/:job_id/cancel", axum::routing::post(cancel_job))
+        .route("/api/import/connectors", axum::routing::get(list_connectors))
+        .route("/api/import/preview", axum::routing::post(preview_import))
+        .route("/api/import/execute", axum::routing::post(execute_import))
+        .route("/api/import/jobs", axum::routing::get(list_jobs))
+        .route("/api/import/jobs/:job_id", axum::routing::get(get_job_status))
+        .route("/api/import/jobs/:job_id/cancel", axum::routing::post(cancel_job))
 }

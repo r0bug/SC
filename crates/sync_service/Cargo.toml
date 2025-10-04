@@ -13,6 +13,7 @@ core_domain = { path = "../core_domain" }
 local_store = { path = "../local_store" }
 ai_middleware = { path = "../ai_middleware" }
 communication_queue = { path = "../communication_queue" }
+import_service = { path = "../import_service" }
 
 tokio.workspace = true
 serde.workspace = true

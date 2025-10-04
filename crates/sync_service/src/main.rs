@@ -12,6 +12,7 @@ mod search_history_routes;
 mod attachment_routes;
 mod websocket;
 mod worker_routes;
+mod import_routes;
 mod observability;
 mod validation;
 mod security_headers;
@@ -55,6 +56,12 @@ async fn main() -> anyhow::Result<()> {
     // Create WebSocket broadcaster
     let ws_broadcaster = Arc::new(websocket::WebSocketBroadcaster::new());
 
+    // Create import state before app_state (pool is moved into app_state)
+    let import_state = import_routes::ImportState {
+        pool: pool.clone(),
+        jobs: Arc::new(tokio::sync::RwLock::new(Vec::new())),
+    };
+
     let app_state = state::AppState::new(
         store,
         ai_client,
@@ -77,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
     let auth_rate_limiter = rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::auth_routes());
     let attachment_rate_limiter = rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::attachment_routes());
     let search_rate_limiter = rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::search_routes());
+    let import_rate_limiter = rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::attachment_routes()); // Similar to attachments (file uploads)
 
     // Auth routes with strict rate limiting (10 req/min)
     let auth_routes = Router::new()
@@ -113,6 +121,14 @@ async fn main() -> anyhow::Result<()> {
         }))
         .with_state(app_state.clone());
 
+    // Import routes with rate limiting (similar to attachments - file uploads)
+    let import_router = import_routes::import_routes()
+        .layer(middleware::from_fn(move |req, next| {
+            let limiter = import_rate_limiter.clone();
+            async move { limiter.middleware(req, next).await }
+        }))
+        .with_state(import_state);
+
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/metrics", get(metrics_handler))
@@ -121,6 +137,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(auth_routes)
         .merge(attachment_routes)
         .merge(search_routes)
+        .merge(import_router)
         // Share routes
         .route("/api/shares", post(share_routes::create_share))
         .route("/api/shares/:id/accept", post(share_routes::accept_share))
