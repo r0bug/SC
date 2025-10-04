@@ -24,6 +24,7 @@ use axum::{
     response::{IntoResponse, Response},
     http::StatusCode,
     middleware,
+    extract::DefaultBodyLimit,
 };
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
@@ -187,6 +188,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/share", post(api::create_share))
         .route("/api/ai/suggestions/:contact_id", get(api::get_suggestions))
         .route("/ws", get(ws::ws_handler))
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50MB limit for file uploads
         .layer(middleware::from_fn(security_headers::security_headers_middleware))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
