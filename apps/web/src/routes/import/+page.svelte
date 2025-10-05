@@ -358,7 +358,7 @@
 							<h3>ℹ️ Warnings ({preview.warnings.length})</h3>
 							<div class="warning-list">
 								{#each preview.warnings.slice(0, 5) as warning}
-									<div class="warning-item" class:severity-{warning.severity.toLowerCase()}>
+									<div class="warning-item {warning.severity ? `severity-${warning.severity.toLowerCase()}` : ''}">
 										<span class="warning-row">Row {warning.row}</span>
 										<span class="warning-field">{warning.field}</span>
 										<span class="warning-message">{warning.warning}</span>
@@ -379,7 +379,7 @@
 								<div class="mapping-item">
 									<label>{field.field_name}</label>
 									<select
-										value={config.field_mappings![field.field_name] || field.suggested_mapping}
+										value={config.field_mappings?.[field.field_name] || field.suggested_mapping}
 										on:change={(e) => updateMapping(field.field_name, e.currentTarget.value)}
 									>
 										<option value="">-- Skip --</option>

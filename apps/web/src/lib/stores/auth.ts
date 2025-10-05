@@ -69,14 +69,8 @@ function createAuthStore() {
 		async checkAuth() {
 			const token = localStorage.getItem('auth_token');
 			if (token) {
-				try {
-					// Validate token by fetching user data
-					const response = await api.getDashboard();
-					update(s => ({ ...s, token }));
-				} catch (error) {
-					// Token invalid, clear it
-					localStorage.removeItem('auth_token');
-				}
+				// Just set the token, skip validation for Alpha
+				update(s => ({ ...s, token }));
 			}
 		}
 	};

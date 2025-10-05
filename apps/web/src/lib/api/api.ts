@@ -490,7 +490,21 @@ export class ApiClient {
 			await this.handleErrorResponse(res, '/import/preview');
 		}
 
-		return res.json();
+		const data = await res.json();
+
+		// Transform response to add detected_fields for UI compatibility
+		const detected_fields = data.suggested_mappings?.map(([field_name, suggested_mapping]: [string, string]) => ({
+			field_name,
+			suggested_mapping,
+			sample_values: [],
+			confidence: 1.0
+		})) || [];
+
+		return {
+			...data,
+			detected_fields,
+			validation_errors: []
+		};
 	}
 
 	async executeImport(

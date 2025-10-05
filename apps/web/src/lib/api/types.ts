@@ -246,13 +246,14 @@ export interface Connector {
 }
 
 export interface ImportPreviewResponse {
-	connector_id: string;
-	file_name: string;
+	connector: Connector;
 	total_rows: number;
-	preview_rows: PreviewRow[];
-	detected_fields: DetectedField[];
-	validation_errors: ValidationError[];
-	warnings: ValidationWarning[];
+	preview_rows: Record<string, any>[];
+	suggested_mappings: [string, string][];
+	warnings: string[];
+	// Computed fields for UI compatibility
+	detected_fields?: DetectedField[];
+	validation_errors?: ValidationError[];
 }
 
 export interface PreviewRow {
