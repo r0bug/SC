@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::fs;
 
 const GITHUB_API_BASE: &str = "https://api.github.com";
-const GITHUB_REPO: &str = "sagenscontact/alpha"; // Update with your actual repo
+const GITHUB_REPO: &str = "r0bug/SC";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
