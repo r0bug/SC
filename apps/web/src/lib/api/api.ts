@@ -541,13 +541,21 @@ export class ApiClient {
 	}
 
 	async getImportHistory(filters?: ImportHistoryFilters): Promise<ImportLog[]> {
-		const params = new URLSearchParams();
-		if (filters?.status) params.append('status', filters.status);
-		if (filters?.connector_id) params.append('connector_id', filters.connector_id);
-		if (filters?.start_date) params.append('start_date', filters.start_date);
-		if (filters?.end_date) params.append('end_date', filters.end_date);
-		const query = params.toString() ? `?${params}` : '';
-		return this.request(`/import/history${query}`);
+		try {
+			const params = new URLSearchParams();
+			if (filters?.status) params.append('status', filters.status);
+			if (filters?.connector_id) params.append('connector_id', filters.connector_id);
+			if (filters?.start_date) params.append('start_date', filters.start_date);
+			if (filters?.end_date) params.append('end_date', filters.end_date);
+			const query = params.toString() ? `?${params}` : '';
+			return await this.request(`/import/history${query}`);
+		} catch (error: any) {
+			// Alpha: History endpoint not implemented yet, return empty array
+			if (error.status === 404) {
+				return [];
+			}
+			throw error;
+		}
 	}
 
 	async rollbackImport(logId: string): Promise<RollbackResult> {

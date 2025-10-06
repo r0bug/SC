@@ -9,7 +9,7 @@ use import_service::{
     DuplicateStrategy, MatchCriteria, ParseResult,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Sqlite};
+use sqlx::{Pool, Sqlite, Row};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -407,6 +407,55 @@ async fn process_import(
     let _ = std::fs::remove_file(&temp_path);
 }
 
+/// GET /api/import/history - Get import history from database
+pub async fn get_import_history(
+    State(state): State<ImportState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let mut query = String::from("SELECT * FROM import_logs WHERE 1=1");
+
+    // Apply filters
+    if let Some(status) = params.get("status") {
+        query.push_str(&format!(" AND status = '{}'", status));
+    }
+    if let Some(connector_id) = params.get("connector_id") {
+        query.push_str(&format!(" AND connector_id = '{}'", connector_id));
+    }
+    if let Some(start_date) = params.get("start_date") {
+        query.push_str(&format!(" AND started_at >= '{}'", start_date));
+    }
+    if let Some(end_date) = params.get("end_date") {
+        query.push_str(&format!(" AND started_at <= '{}'", end_date));
+    }
+
+    query.push_str(" ORDER BY started_at DESC LIMIT 100");
+
+    match sqlx::query(&query).fetch_all(state.pool.as_ref()).await {
+        Ok(rows) => {
+            let history: Vec<serde_json::Value> = rows.iter().map(|row| {
+                serde_json::json!({
+                    "id": row.try_get::<String, _>("id").unwrap_or_default(),
+                    "job_id": row.try_get::<String, _>("job_id").unwrap_or_default(),
+                    "file_name": row.try_get::<String, _>("file_name").unwrap_or_default(),
+                    "connector_id": row.try_get::<String, _>("connector_id").unwrap_or_default(),
+                    "total_rows": row.try_get::<i64, _>("total_rows").unwrap_or(0),
+                    "imported": row.try_get::<i64, _>("imported").unwrap_or(0),
+                    "skipped": row.try_get::<i64, _>("skipped").unwrap_or(0),
+                    "failed": row.try_get::<i64, _>("failed").unwrap_or(0),
+                    "status": row.try_get::<String, _>("status").unwrap_or_default(),
+                    "started_at": row.try_get::<String, _>("started_at").unwrap_or_default(),
+                    "completed_at": row.try_get::<Option<String>, _>("completed_at").unwrap_or(None),
+                })
+            }).collect();
+            (StatusCode::OK, Json(history)).into_response()
+        }
+        Err(e) => {
+            tracing::error!("Failed to fetch import history: {}", e);
+            (StatusCode::OK, Json(Vec::<serde_json::Value>::new())).into_response()
+        }
+    }
+}
+
 /// Router configuration
 pub fn import_routes() -> axum::Router<ImportState> {
     axum::Router::new()
@@ -416,4 +465,5 @@ pub fn import_routes() -> axum::Router<ImportState> {
         .route("/api/import/jobs", axum::routing::get(list_jobs))
         .route("/api/import/jobs/:job_id", axum::routing::get(get_job_status))
         .route("/api/import/jobs/:job_id/cancel", axum::routing::post(cancel_job))
+        .route("/api/import/history", axum::routing::get(get_import_history))
 }

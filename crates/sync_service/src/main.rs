@@ -13,6 +13,9 @@ mod attachment_routes;
 mod websocket;
 mod worker_routes;
 mod import_routes;
+mod dashboard_routes;
+mod update_system;
+mod update_routes;
 mod observability;
 mod validation;
 mod security_headers;
@@ -62,6 +65,14 @@ async fn main() -> anyhow::Result<()> {
         pool: pool.clone(),
         jobs: Arc::new(tokio::sync::RwLock::new(Vec::new())),
     };
+
+    // Create dashboard state
+    let dashboard_state = dashboard_routes::DashboardState {
+        pool: pool.clone(),
+    };
+
+    // Create update system state
+    let update_state = update_routes::UpdateState::new();
 
     let app_state = state::AppState::new(
         store,
@@ -130,6 +141,14 @@ async fn main() -> anyhow::Result<()> {
         }))
         .with_state(import_state);
 
+    // Dashboard routes (no rate limiting needed for simple dashboard)
+    let dashboard_router = dashboard_routes::dashboard_routes()
+        .with_state(dashboard_state);
+
+    // Update system routes
+    let update_router = update_routes::update_routes()
+        .with_state(update_state);
+
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/metrics", get(metrics_handler))
@@ -139,6 +158,8 @@ async fn main() -> anyhow::Result<()> {
         .merge(attachment_routes)
         .merge(search_routes)
         .merge(import_router)
+        .merge(dashboard_router)
+        .merge(update_router)
         // Share routes
         .route("/api/shares", post(share_routes::create_share))
         .route("/api/shares/:id/accept", post(share_routes::accept_share))
