@@ -600,6 +600,23 @@ export class ApiClient {
 		});
 	}
 
+	// System Updates
+	async getVersion(): Promise<{ version: string; build_date: string; commit_hash?: string }> {
+		return this.request('/system/version');
+	}
+
+	async checkUpdates(): Promise<{
+		current_version: string;
+		latest_version: string;
+		update_available: boolean;
+		release_url?: string;
+		release_notes?: string;
+		download_url?: string;
+		published_at?: string;
+	}> {
+		return this.request('/system/updates/check');
+	}
+
 	// WebSocket
 	connectWebSocket() {
 		if (!this.token || this.ws) return;

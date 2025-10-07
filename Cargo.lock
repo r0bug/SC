@@ -3668,6 +3668,7 @@ dependencies = [
  "metrics-exporter-prometheus",
  "mime",
  "rand",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2",

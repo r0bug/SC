@@ -4,11 +4,22 @@
 	import { auth, isAuthenticated } from '$lib/stores/auth';
 	import { onMount } from 'svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
+	import UpdateNotification from '$lib/components/ui/UpdateNotification.svelte';
 
 	const publicRoutes = ['/auth/login', '/auth/signup'];
 
 	$: isPublicRoute = publicRoutes.includes($page.url.pathname);
 	$: showNav = $isAuthenticated && !isPublicRoute;
+
+	let mobileMenuOpen = false;
+
+	function toggleMobileMenu() {
+		mobileMenuOpen = !mobileMenuOpen;
+	}
+
+	function closeMobileMenu() {
+		mobileMenuOpen = false;
+	}
 
 	onMount(() => {
 		auth.checkAuth();
@@ -16,6 +27,7 @@
 </script>
 
 <Toast />
+<UpdateNotification />
 
 {#if showNav}
 	<div class="app-layout">
