@@ -20,6 +20,8 @@ mod observability;
 mod validation;
 mod security_headers;
 mod rate_limit;
+mod android_import;
+mod android_import_routes;
 
 use axum::{
     Router,
@@ -198,6 +200,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/worker/register", post(worker_routes::register_worker))
         // WebSocket route
         .route("/ws/events", get(websocket::websocket_handler))
+        // Android backup import routes
+        .route("/api/import/android-calls", post(android_import_routes::import_android_calls))
+        .route("/api/import/android-sms", post(android_import_routes::import_android_sms))
+        .route("/api/communications/history/:contact_id", get(android_import_routes::get_contact_communications))
+        .route("/api/communications/search", get(android_import_routes::search_communications))
         // Existing routes
         .route("/api/contacts", get(api::list_contacts).post(api::create_contact))
         .route("/api/contacts/:id", get(api::get_contact))
@@ -209,7 +216,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/share", post(api::create_share))
         .route("/api/ai/suggestions/:contact_id", get(api::get_suggestions))
         .route("/ws", get(ws::ws_handler))
-        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50MB limit for file uploads
+        .layer(DefaultBodyLimit::max(500 * 1024 * 1024)) // 500MB limit for file uploads
         .layer(middleware::from_fn(security_headers::security_headers_middleware))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())

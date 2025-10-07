@@ -3667,6 +3667,7 @@ dependencies = [
  "metrics 0.22.4",
  "metrics-exporter-prometheus",
  "mime",
+ "quick-xml 0.31.0",
  "rand",
  "reqwest",
  "serde",

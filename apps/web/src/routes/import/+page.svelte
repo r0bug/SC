@@ -69,11 +69,11 @@
 	}
 
 	async function handleFile(selectedFile: File) {
-		// Validate file size (50MB max for imports)
-		const MAX_SIZE = 50 * 1024 * 1024;
+		// Validate file size (500MB max for imports)
+		const MAX_SIZE = 500 * 1024 * 1024;
 		if (selectedFile.size > MAX_SIZE) {
 			toasts.error(
-				`File is too large. Maximum size is 50MB. Your file is ${(selectedFile.size / 1024 / 1024).toFixed(1)}MB.`,
+				`File is too large. Maximum size is 500MB. Your file is ${(selectedFile.size / 1024 / 1024).toFixed(1)}MB.`,
 				'File Too Large'
 			);
 			file = null;
@@ -448,7 +448,7 @@
 									{#each preview.preview_rows as row}
 										<tr class:has-errors={row.has_errors}>
 											<td>{row.row_number}</td>
-											{#each Object.values(row.data) as value}
+											{#each Object.values(row.data || {}) as value}
 												<td>{value || '-'}</td>
 											{/each}
 										</tr>
@@ -505,7 +505,7 @@
 						</div>
 						<div class="result-item">
 							<span class="result-label">Updated:</span>
-							<span class="result-value">{currentJob.result.updated}</span>
+							<span class="result-value">{currentJob.result.updated || 0}</span>
 						</div>
 						<div class="result-item">
 							<span class="result-label">Skipped:</span>
