@@ -6,16 +6,38 @@
 	let dashboard: DashboardSummary | null = null;
 	let loading = true;
 	let error = '';
+	let updateInfo: any = null;
+	let checkingForUpdates = false;
+	let updateDismissed = false;
 
 	onMount(async () => {
 		try {
 			dashboard = await api.getDashboard();
+			await checkForUpdates();
 		} catch (e: any) {
 			error = e.message;
 		} finally {
 			loading = false;
 		}
 	});
+
+	async function checkForUpdates() {
+		try {
+			checkingForUpdates = true;
+			const response = await fetch('http://localhost:3002/api/system/updates/check');
+			if (response.ok) {
+				updateInfo = await response.json();
+			}
+		} catch (e) {
+			console.error('Failed to check for updates:', e);
+		} finally {
+			checkingForUpdates = false;
+		}
+	}
+
+	function dismissUpdate() {
+		updateDismissed = true;
+	}
 
 	function formatDate(dateStr: string): string {
 		return new Date(dateStr).toLocaleDateString('en-US', {
@@ -50,6 +72,32 @@
 			<a href="/import" class="btn btn-secondary">📥 Import</a>
 		</div>
 	</div>
+
+	<!-- Update Notification Banner -->
+	{#if updateInfo && updateInfo.update_available && !updateDismissed}
+		<div class="update-banner">
+			<div class="update-content">
+				<div class="update-icon">🎉</div>
+				<div class="update-details">
+					<h3>Update Available: v{updateInfo.latest_version}</h3>
+					<p>A new version of SagensContact is available. Current: v{updateInfo.current_version}</p>
+					{#if updateInfo.published_at}
+						<p class="text-sm">Released: {formatDate(updateInfo.published_at)}</p>
+					{/if}
+				</div>
+			</div>
+			<div class="update-actions">
+				{#if updateInfo.release_url}
+					<a href={updateInfo.release_url} target="_blank" class="btn btn-primary btn-sm">
+						View Release
+					</a>
+				{/if}
+				<button class="btn btn-sm btn-secondary" on:click={dismissUpdate}>
+					Dismiss
+				</button>
+			</div>
+		</div>
+	{/if}
 
 	{#if loading}
 		<div class="loading-container">
@@ -481,6 +529,72 @@
 		grid-column: span 2;
 	}
 
+	.update-banner {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 1.5rem;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		border-radius: 12px;
+		margin-bottom: 2rem;
+		box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+	}
+
+	.update-content {
+		display: flex;
+		align-items: center;
+		gap: 1.5rem;
+		flex: 1;
+	}
+
+	.update-icon {
+		font-size: 2.5rem;
+		background: rgba(255, 255, 255, 0.2);
+		width: 60px;
+		height: 60px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 12px;
+	}
+
+	.update-details h3 {
+		margin: 0 0 0.5rem 0;
+		font-size: 1.25rem;
+		font-weight: 600;
+	}
+
+	.update-details p {
+		margin: 0.25rem 0;
+		opacity: 0.95;
+	}
+
+	.update-actions {
+		display: flex;
+		gap: 0.75rem;
+		align-items: center;
+	}
+
+	.update-banner .btn-primary {
+		background: white;
+		color: #667eea;
+	}
+
+	.update-banner .btn-primary:hover {
+		background: rgba(255, 255, 255, 0.9);
+	}
+
+	.update-banner .btn-secondary {
+		background: rgba(255, 255, 255, 0.2);
+		color: white;
+		border: 1px solid rgba(255, 255, 255, 0.3);
+	}
+
+	.update-banner .btn-secondary:hover {
+		background: rgba(255, 255, 255, 0.3);
+	}
+
 	.mock-banner {
 		margin-top: 2rem;
 		padding: 1rem;
@@ -542,6 +656,21 @@
 
 		.span-2 {
 			grid-column: span 1;
+		}
+
+		.update-banner {
+			flex-direction: column;
+			gap: 1rem;
+		}
+
+		.update-content {
+			flex-direction: column;
+			text-align: center;
+		}
+
+		.update-actions {
+			width: 100%;
+			justify-content: center;
 		}
 	}
 </style>
