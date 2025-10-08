@@ -34,13 +34,22 @@
 
 	async function loadContact() {
 		try {
-			const contacts = await api.getContacts();
-			contact = contacts.find(c => c.id === contactId) || null;
-			if (!contact) {
-				alert('Contact not found');
+			// Try to fetch the specific contact directly via API
+			const response = await fetch(`/api/contacts/${contactId}`, {
+				headers: {
+					'Authorization': `Bearer ${localStorage.getItem('token')}`
+				}
+			});
+
+			if (!response.ok) {
+				console.error(`Failed to fetch contact ${contactId}: ${response.status}`);
+				alert(`Contact not found (ID: ${contactId})`);
 				goto('/contacts');
 				return;
 			}
+
+			contact = await response.json();
+			console.log('Loaded contact:', contact);
 
 			notes = await api.getNotes('Contact', contactId);
 			const allProjects = await api.getProjects();
@@ -54,6 +63,8 @@
 			resetForm();
 		} catch (error) {
 			console.error('Failed to load contact:', error);
+			alert(`Error loading contact: ${error.message}`);
+			goto('/contacts');
 		} finally {
 			loading = false;
 		}

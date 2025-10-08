@@ -79,7 +79,17 @@
 			{#each contacts as contact}
 				<div class="contact-card card">
 					<div class="contact-header">
-						<h3>{contact.first_name} {contact.last_name || ''}</h3>
+						<h3>
+							{#if contact.first_name || contact.last_name}
+								{contact.first_name} {contact.last_name || ''}
+							{:else if contact.phone}
+								{contact.phone}
+							{:else if contact.email}
+								{contact.email}
+							{:else}
+								Unnamed Contact
+							{/if}
+						</h3>
 						<div class="contact-actions">
 							<a href="/contacts/{contact.id}" class="btn btn-sm">Edit</a>
 							<button on:click={() => deleteContact(contact.id)} class="btn btn-sm btn-secondary">

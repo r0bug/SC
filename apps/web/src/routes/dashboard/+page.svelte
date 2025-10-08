@@ -81,14 +81,14 @@
 			<div class="summary-card card">
 				<div class="summary-icon">📅</div>
 				<div class="summary-content">
-					<h3>{dashboard.upcoming_events.length}</h3>
+					<h3>{dashboard.upcoming_events?.length || 0}</h3>
 					<p>Upcoming Events</p>
 				</div>
 			</div>
 			<div class="summary-card card">
 				<div class="summary-icon">📧</div>
 				<div class="summary-content">
-					<h3>{dashboard.recent_communications.length}</h3>
+					<h3>{dashboard.recent_communications?.length || 0}</h3>
 					<p>Communications</p>
 				</div>
 			</div>
@@ -101,7 +101,7 @@
 					<h2>📅 Upcoming Events</h2>
 					<a href="/calendar" class="link">View all</a>
 				</div>
-				{#if dashboard.upcoming_events.length > 0}
+				{#if dashboard.upcoming_events && dashboard.upcoming_events.length > 0}
 					<div class="event-list">
 						{#each dashboard.upcoming_events.slice(0, 5) as event}
 							<div class="event-item">
@@ -131,7 +131,7 @@
 					<h2>📧 Recent Communications</h2>
 					<a href="/communications" class="link">View all</a>
 				</div>
-				{#if dashboard.recent_communications.length > 0}
+				{#if dashboard.recent_communications && dashboard.recent_communications.length > 0}
 					<div class="comm-list">
 						{#each dashboard.recent_communications.slice(0, 5) as comm}
 							<div class="comm-item">
@@ -169,7 +169,7 @@
 					<h2>🤖 AI Suggestions</h2>
 					<a href="/insights" class="link">View all</a>
 				</div>
-				{#if dashboard.ai_suggestions.length > 0}
+				{#if dashboard.ai_suggestions && dashboard.ai_suggestions.length > 0}
 					<div class="suggestion-list">
 						{#each dashboard.ai_suggestions.slice(0, 5) as suggestion}
 							<div class="suggestion-item">
