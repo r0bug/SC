@@ -219,6 +219,7 @@ export interface SearchHistory {
 	filters: Record<string, any>;
 	result_count: number;
 	clicked_result_id?: string;
+	privacy_mode?: boolean;
 	created_at: string;
 }
 

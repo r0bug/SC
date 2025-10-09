@@ -84,17 +84,23 @@
 </div>
 
 {#if showModal}
-	<div class="modal-overlay" on:click={() => showModal = false}>
+	<div
+		class="modal-overlay"
+		on:click={() => showModal = false}
+		on:keydown={(e) => e.key === 'Escape' && (showModal = false)}
+		role="button"
+		tabindex="-1"
+	>
 		<div class="modal" on:click|stopPropagation>
 			<h2>{editing ? 'Edit' : 'New'} Concept</h2>
 			<form on:submit|preventDefault={handleSubmit}>
 				<div>
-					<label>Name</label>
-					<input type="text" bind:value={formName} required />
+					<label for="concept-name">Name</label>
+					<input id="concept-name" type="text" bind:value={formName} required />
 				</div>
 				<div>
-					<label>Description</label>
-					<textarea bind:value={formDescription} rows="4"></textarea>
+					<label for="concept-description">Description</label>
+					<textarea id="concept-description" bind:value={formDescription} rows="4"></textarea>
 				</div>
 				<div class="actions">
 					<button type="button" on:click={() => showModal = false} class="btn">Cancel</button>
