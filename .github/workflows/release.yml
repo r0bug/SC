@@ -1,0 +1,153 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Extract version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          # Extract the latest release notes from CHANGELOG.md
+          VERSION="${{ steps.get_version.outputs.VERSION }}"
+          sed -n "/## \[${VERSION}\]/,/## \[/p" CHANGELOG.md | sed '$d' > release_notes.md
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref_name }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
+
+  build-artifacts:
+    name: Build ${{ matrix.os }} artifacts
+    needs: create-release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: sagenscontact-linux-x64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: sagenscontact-macos-x64
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.75.0
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache target directory
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binaries
+        run: |
+          cargo build --release --bin sagenscontact
+          cargo build --release --bin sync_service
+          cargo build --release --bin worker
+
+      - name: Create release package
+        run: |
+          mkdir -p release/${{ matrix.artifact_name }}
+          cp target/release/sagenscontact release/${{ matrix.artifact_name }}/
+          cp target/release/sync_service release/${{ matrix.artifact_name }}/
+          cp target/release/worker release/${{ matrix.artifact_name }}/
+          cp -r sample_data release/${{ matrix.artifact_name }}/
+          cp -r config release/${{ matrix.artifact_name }}/
+          cp README.md CHANGELOG.md DEPLOYMENT.md release/${{ matrix.artifact_name }}/
+          cd release && tar -czf ${{ matrix.artifact_name }}.tar.gz ${{ matrix.artifact_name }}
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./release/${{ matrix.artifact_name }}.tar.gz
+          asset_name: ${{ matrix.artifact_name }}.tar.gz
+          asset_content_type: application/gzip
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: release/${{ matrix.artifact_name }}.tar.gz
+
+  build-web:
+    name: Build Web UI
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install dependencies
+        run: cd apps/web && pnpm install
+
+      - name: Build web UI
+        run: cd apps/web && pnpm build
+
+      - name: Create web package
+        run: |
+          mkdir -p release/sagenscontact-web
+          cp -r apps/web/build release/sagenscontact-web/
+          cp apps/web/package.json release/sagenscontact-web/
+          cd release && tar -czf sagenscontact-web.tar.gz sagenscontact-web
+
+      - name: Upload Web Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./release/sagenscontact-web.tar.gz
+          asset_name: sagenscontact-web.tar.gz
+          asset_content_type: application/gzip
