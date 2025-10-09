@@ -15,6 +15,42 @@ All notable changes to SagensContact will be documented in this file.
 - Conflict resolution for sync
 - Playwright E2E tests
 
+## [0.1.0-alpha.2] - 2025-10-08
+
+### Fixed
+- **Contact Edit Button**: Fixed redirect issue by changing from client-side filtering to direct API fetch
+  - Contact detail page now fetches single contact via `/api/contacts/:id` endpoint
+  - Improved performance by eliminating unnecessary bulk contact loading
+  - Added proper error handling and user feedback for failed lookups
+- **Dashboard Null Safety**: Added optional chaining to prevent TypeError crashes
+  - Fixed crashes when accessing `.length` on undefined arrays
+  - Added default values for upcoming_events, recent_communications, and ai_suggestions
+- **Contact Display**: Enhanced contact list for auto-imported data
+  - Added fallback display logic: shows phone number when name is empty
+  - Shows email when both name and phone are missing
+  - Improved UX for contacts imported from SMS backups
+
+### Added
+- **Update Notification System**: Automatic version checking and notification banner
+  - Checks GitHub API for new releases on dashboard load
+  - Beautiful gradient notification banner with version info
+  - Direct link to GitHub release notes
+  - Dismissible UI with mobile-responsive design
+  - Leverages existing update system infrastructure (`/api/system/updates/check`)
+- **Android SMS Import**: Comprehensive SMS backup import functionality
+  - Import Android SMS backup XML files via `/api/import/android-sms` endpoint
+  - Multipart form upload support
+  - Automatic contact creation from phone numbers
+  - SMS message history storage with full metadata
+  - Searchable communication history
+  - Successfully tested with 15-message sample file
+
+### Tested
+- Android import endpoint verified with real XML test data
+- Update notification API integration confirmed working
+- Contact edit functionality validated with database queries
+- Dashboard null safety improvements verified
+
 ## [0.1.0-alpha.1] - 2024-01-XX
 
 ### Alpha Status
