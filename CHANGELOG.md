@@ -15,6 +15,31 @@ All notable changes to SagensContact will be documented in this file.
 - Conflict resolution for sync
 - Playwright E2E tests
 
+## [0.1.0-alpha.3] - 2025-10-08
+
+### Added
+- **Error Boundaries**: Comprehensive error boundary component with full-page and inline modes
+- **Toast Notifications**: Full-featured toast notification system with success/error/warning/info types
+- **API Retry Logic**: Exponential backoff retry mechanism for failed API calls
+- **Form Validation**: Reusable validation utilities with common rules (email, phone, required, etc.)
+- **Search Debouncing**: Debounce and throttle utilities for optimizing search operations
+- **Pagination System**: Complete pagination utilities and component with accessibility support
+- **Loading States**: LoadingSpinner component with multiple size variants
+- **User Settings**: Persistent settings store with theme, notifications, and UI preferences
+- **Accessibility Utilities**: Focus trap, screen reader announcements, ARIA live regions
+- **Skip Navigation**: Skip to main content for keyboard users
+- **Mobile Optimizations**: Verified and enhanced mobile responsiveness across all pages
+
+### Fixed
+- TypeScript error for SearchHistory interface (added privacy_mode field)
+- Accessibility warnings in concepts form (proper label associations)
+- Modal overlay keyboard navigation (Escape key support)
+
+### Improved
+- All components now have proper ARIA labels and keyboard navigation
+- Consistent mobile breakpoints across the application
+- Error handling and user feedback throughout UI
+
 ## [0.1.0-alpha.2] - 2025-10-08
 
 ### Fixed
