@@ -112,7 +112,9 @@ impl UpdateChecker {
     }
 
     fn parse_version(&self, version: &str) -> Result<(u32, u32, u32)> {
-        let parts: Vec<&str> = version.split('.').collect();
+        // Strip pre-release identifiers (e.g., -alpha.3, -beta.1)
+        let version_clean = version.split('-').next().unwrap_or(version);
+        let parts: Vec<&str> = version_clean.split('.').collect();
         if parts.len() != 3 {
             return Err(anyhow!("Invalid version format: {}", version));
         }
