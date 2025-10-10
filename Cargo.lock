@@ -41,7 +41,7 @@ dependencies = [
 
 [[package]]
 name = "ai_middleware"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -677,7 +677,7 @@ checksum = "b94f61472cee1439c0b966b47e3aca9ae07e45d070759512cd390ea2bebc6675"
 
 [[package]]
 name = "cli_client"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 dependencies = [
  "ai_middleware",
  "anyhow",
@@ -719,7 +719,7 @@ checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
 name = "communication_queue"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -784,7 +784,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "core_domain"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1803,7 +1803,7 @@ dependencies = [
 
 [[package]]
 name = "import_service"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2032,7 +2032,7 @@ checksum = "241eaef5fd12c88705a01fc1066c48c4b36e0dd4377dcdc7ec3942cea7a69956"
 
 [[package]]
 name = "local_store"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3646,7 +3646,7 @@ dependencies = [
 
 [[package]]
 name = "sync_service"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 dependencies = [
  "ai_middleware",
  "anyhow",

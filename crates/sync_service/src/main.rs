@@ -225,7 +225,7 @@ async fn main() -> anyhow::Result<()> {
     let port = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
-        .unwrap_or(3000);
+        .unwrap_or(3002);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!("SagensContact Sync Service listening on {}", addr);

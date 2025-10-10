@@ -44,15 +44,19 @@ fi
 # Fix permissions on web directory
 echo -e "${BLUE}Fixing permissions...${NC}"
 cd apps/web
-sudo chown -R $USER:$USER . || true
+
+# Try to fix ownership (may need sudo)
+if [ -d "node_modules" ] && [ ! -w "node_modules" ]; then
+    echo -e "${YELLOW}Need to fix permissions (will ask for sudo password)...${NC}"
+    sudo chown -R $USER:$USER . 2>/dev/null || true
+fi
+
 chmod -R u+w . 2>/dev/null || true
 
-# Clean and reinstall if node_modules is corrupted
-if [ ! -d "node_modules" ] || [ ! -f "node_modules/.pnpm/lock.yaml" ]; then
-    echo -e "${YELLOW}Installing web dependencies...${NC}"
-    rm -rf node_modules .svelte-kit 2>/dev/null || true
-    pnpm install
-fi
+# Always clean and reinstall to ensure fresh state
+echo -e "${YELLOW}Installing web dependencies...${NC}"
+rm -rf node_modules .svelte-kit 2>/dev/null || true
+pnpm install --force
 
 cd "$SCRIPT_DIR"
 
