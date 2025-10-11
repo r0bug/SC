@@ -1,9 +1,9 @@
-use sqlx::{Pool, Sqlite};
 use anyhow::Result;
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
+use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkerMetrics {
@@ -45,7 +45,7 @@ impl MetricsStore {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
-            "#
+            "#,
         )
         .execute(&*self.pool)
         .await?;
@@ -54,7 +54,7 @@ impl MetricsStore {
             r#"
             CREATE INDEX IF NOT EXISTS idx_worker_metrics_task_name
             ON worker_metrics(task_name);
-            "#
+            "#,
         )
         .execute(&*self.pool)
         .await?;
@@ -62,20 +62,15 @@ impl MetricsStore {
         Ok(())
     }
 
-    pub async fn record_success(
-        &self,
-        task_name: &str,
-        duration_ms: i64,
-    ) -> Result<()> {
+    pub async fn record_success(&self, task_name: &str, duration_ms: i64) -> Result<()> {
         let now = Utc::now();
 
         // Check if metrics exist for this task
-        let existing: Option<(String,)> = sqlx::query_as(
-            "SELECT id FROM worker_metrics WHERE task_name = ?"
-        )
-        .bind(task_name)
-        .fetch_optional(&*self.pool)
-        .await?;
+        let existing: Option<(String,)> =
+            sqlx::query_as("SELECT id FROM worker_metrics WHERE task_name = ?")
+                .bind(task_name)
+                .fetch_optional(&*self.pool)
+                .await?;
 
         if let Some((id,)) = existing {
             // Update existing metrics
@@ -93,7 +88,7 @@ impl MetricsStore {
                     ),
                     updated_at = ?
                 WHERE id = ?
-                "#
+                "#,
             )
             .bind(now.to_rfc3339())
             .bind(now.to_rfc3339())
@@ -113,7 +108,7 @@ impl MetricsStore {
                     last_run_at, last_success_at, average_duration_ms,
                     created_at, updated_at
                 ) VALUES (?, ?, 1, 0, ?, ?, ?, ?, ?)
-                "#
+                "#,
             )
             .bind(id.to_string())
             .bind(task_name)
@@ -129,20 +124,15 @@ impl MetricsStore {
         Ok(())
     }
 
-    pub async fn record_failure(
-        &self,
-        task_name: &str,
-        error: &str,
-    ) -> Result<()> {
+    pub async fn record_failure(&self, task_name: &str, error: &str) -> Result<()> {
         let now = Utc::now();
 
         // Check if metrics exist for this task
-        let existing: Option<(String,)> = sqlx::query_as(
-            "SELECT id FROM worker_metrics WHERE task_name = ?"
-        )
-        .bind(task_name)
-        .fetch_optional(&*self.pool)
-        .await?;
+        let existing: Option<(String,)> =
+            sqlx::query_as("SELECT id FROM worker_metrics WHERE task_name = ?")
+                .bind(task_name)
+                .fetch_optional(&*self.pool)
+                .await?;
 
         if let Some((id,)) = existing {
             // Update existing metrics
@@ -155,7 +145,7 @@ impl MetricsStore {
                     last_error = ?,
                     updated_at = ?
                 WHERE id = ?
-                "#
+                "#,
             )
             .bind(now.to_rfc3339())
             .bind(now.to_rfc3339())
@@ -174,7 +164,7 @@ impl MetricsStore {
                     last_run_at, last_failure_at, last_error,
                     created_at, updated_at
                 ) VALUES (?, ?, 0, 1, ?, ?, ?, ?, ?)
-                "#
+                "#,
             )
             .bind(id.to_string())
             .bind(task_name)
@@ -211,7 +201,7 @@ impl MetricsStore {
                    created_at, updated_at
             FROM worker_metrics
             WHERE task_name = ?
-            "#
+            "#,
         )
         .bind(task_name)
         .fetch_optional(&*self.pool)
@@ -229,17 +219,21 @@ impl MetricsStore {
             average_duration_ms,
             created_at,
             updated_at,
-        )) = row {
+        )) = row
+        {
             Ok(Some(WorkerMetrics {
                 id: Uuid::parse_str(&id)?,
                 task_name,
                 success_count,
                 failure_count,
-                last_run_at: last_run_at.and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                last_run_at: last_run_at
+                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                     .map(|dt| dt.with_timezone(&Utc)),
-                last_success_at: last_success_at.and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                last_success_at: last_success_at
+                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                     .map(|dt| dt.with_timezone(&Utc)),
-                last_failure_at: last_failure_at.and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                last_failure_at: last_failure_at
+                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                     .map(|dt| dt.with_timezone(&Utc)),
                 last_error,
                 average_duration_ms,
@@ -272,7 +266,7 @@ impl MetricsStore {
                    created_at, updated_at
             FROM worker_metrics
             ORDER BY task_name
-            "#
+            "#,
         )
         .fetch_all(&*self.pool)
         .await?;
@@ -290,17 +284,21 @@ impl MetricsStore {
             average_duration_ms,
             created_at,
             updated_at,
-        ) in rows {
+        ) in rows
+        {
             metrics.push(WorkerMetrics {
                 id: Uuid::parse_str(&id)?,
                 task_name,
                 success_count,
                 failure_count,
-                last_run_at: last_run_at.and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                last_run_at: last_run_at
+                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                     .map(|dt| dt.with_timezone(&Utc)),
-                last_success_at: last_success_at.and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                last_success_at: last_success_at
+                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                     .map(|dt| dt.with_timezone(&Utc)),
-                last_failure_at: last_failure_at.and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                last_failure_at: last_failure_at
+                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
                     .map(|dt| dt.with_timezone(&Utc)),
                 last_error,
                 average_duration_ms,

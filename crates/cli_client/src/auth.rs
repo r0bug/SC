@@ -1,8 +1,8 @@
-use anyhow::{Result, Context};
+use anyhow::{Context, Result};
+use dirs::config_dir;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use dirs::config_dir;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthConfig {
@@ -34,10 +34,8 @@ impl AuthConfig {
     pub fn load() -> Result<Self> {
         let path = Self::config_path();
         if path.exists() {
-            let contents = fs::read_to_string(&path)
-                .context("Failed to read auth config")?;
-            serde_json::from_str(&contents)
-                .context("Failed to parse auth config")
+            let contents = fs::read_to_string(&path).context("Failed to read auth config")?;
+            serde_json::from_str(&contents).context("Failed to parse auth config")
         } else {
             Ok(Self::default())
         }
@@ -46,13 +44,11 @@ impl AuthConfig {
     pub fn save(&self) -> Result<()> {
         let path = Self::config_path();
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .context("Failed to create config directory")?;
+            fs::create_dir_all(parent).context("Failed to create config directory")?;
         }
-        let contents = serde_json::to_string_pretty(self)
-            .context("Failed to serialize auth config")?;
-        fs::write(&path, contents)
-            .context("Failed to write auth config")?;
+        let contents =
+            serde_json::to_string_pretty(self).context("Failed to serialize auth config")?;
+        fs::write(&path, contents).context("Failed to write auth config")?;
         Ok(())
     }
 
@@ -106,16 +102,26 @@ pub async fn login(email: String, password: String, api_url: &str) -> Result<Aut
         anyhow::bail!("Login failed: {}", response.status());
     }
 
-    response.json::<AuthResponse>()
+    response
+        .json::<AuthResponse>()
         .await
         .context("Failed to parse login response")
 }
 
-pub async fn signup(email: String, password: String, name: String, api_url: &str) -> Result<AuthResponse> {
+pub async fn signup(
+    email: String,
+    password: String,
+    name: String,
+    api_url: &str,
+) -> Result<AuthResponse> {
     let client = reqwest::Client::new();
     let response = client
         .post(format!("{}/api/auth/signup", api_url))
-        .json(&SignupRequest { email, password, name })
+        .json(&SignupRequest {
+            email,
+            password,
+            name,
+        })
         .send()
         .await
         .context("Failed to send signup request")?;
@@ -124,7 +130,8 @@ pub async fn signup(email: String, password: String, name: String, api_url: &str
         anyhow::bail!("Signup failed: {}", response.status());
     }
 
-    response.json::<AuthResponse>()
+    response
+        .json::<AuthResponse>()
         .await
         .context("Failed to parse signup response")
 }

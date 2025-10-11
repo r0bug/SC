@@ -1,15 +1,15 @@
-use core_domain::{CommunicationAttempt, CommunicationStatus, CommunicationMethod};
-use local_store::CommunicationRepository;
 use crate::adapters::{
-    EmailAdapterTrait, SmsAdapterTrait, SocialAdapterTrait,
-    MockEmailAdapter, MockSmsAdapter, MockSocialAdapter
+    EmailAdapterTrait, MockEmailAdapter, MockSmsAdapter, MockSocialAdapter, SmsAdapterTrait,
+    SocialAdapterTrait,
 };
 use anyhow::Result;
-use tracing::{info, warn, error};
-use chrono::{Utc, Duration};
+use chrono::{Duration, Utc};
+use core_domain::{CommunicationAttempt, CommunicationMethod, CommunicationStatus};
+use local_store::CommunicationRepository;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tracing::{error, info, warn};
 
 #[derive(Debug, Clone)]
 pub struct RateLimitConfig {
@@ -41,8 +41,8 @@ pub struct BackoffConfig {
 impl Default for BackoffConfig {
     fn default() -> Self {
         Self {
-            initial_delay_ms: 1000,  // 1 second
-            max_delay_ms: 60000,     // 1 minute
+            initial_delay_ms: 1000, // 1 second
+            max_delay_ms: 60000,    // 1 minute
             multiplier: 2.0,
             max_retries: 5,
         }
@@ -74,16 +74,16 @@ impl RateLimiter {
         let mut counts = self.counts.lock().await;
         let now = Utc::now();
 
-        let state = counts.entry(channel.to_string()).or_insert_with(|| {
-            RateLimitState {
+        let state = counts
+            .entry(channel.to_string())
+            .or_insert_with(|| RateLimitState {
                 minute_count: 0,
                 minute_reset: now + Duration::minutes(1),
                 hour_count: 0,
                 hour_reset: now + Duration::hours(1),
                 day_count: 0,
                 day_reset: now + Duration::days(1),
-            }
-        });
+            });
 
         // Reset counters if time windows have passed
         if now >= state.minute_reset {
@@ -141,24 +141,33 @@ impl Default for EnhancedCommunicationQueue {
 impl EnhancedCommunicationQueue {
     pub fn new() -> Self {
         let mut rate_configs = HashMap::new();
-        rate_configs.insert("email".to_string(), RateLimitConfig {
-            channel: "email".to_string(),
-            max_per_minute: 20,
-            max_per_hour: 200,
-            max_per_day: 2000,
-        });
-        rate_configs.insert("sms".to_string(), RateLimitConfig {
-            channel: "sms".to_string(),
-            max_per_minute: 10,
-            max_per_hour: 100,
-            max_per_day: 500,
-        });
-        rate_configs.insert("social".to_string(), RateLimitConfig {
-            channel: "social".to_string(),
-            max_per_minute: 30,
-            max_per_hour: 300,
-            max_per_day: 3000,
-        });
+        rate_configs.insert(
+            "email".to_string(),
+            RateLimitConfig {
+                channel: "email".to_string(),
+                max_per_minute: 20,
+                max_per_hour: 200,
+                max_per_day: 2000,
+            },
+        );
+        rate_configs.insert(
+            "sms".to_string(),
+            RateLimitConfig {
+                channel: "sms".to_string(),
+                max_per_minute: 10,
+                max_per_hour: 100,
+                max_per_day: 500,
+            },
+        );
+        rate_configs.insert(
+            "social".to_string(),
+            RateLimitConfig {
+                channel: "social".to_string(),
+                max_per_minute: 30,
+                max_per_hour: 300,
+                max_per_day: 3000,
+            },
+        );
 
         Self {
             email_adapter: Box::new(MockEmailAdapter::new()),
@@ -203,8 +212,7 @@ impl EnhancedCommunicationQueue {
 
             // Check rate limits
             let default_config = RateLimitConfig::default();
-            let rate_config = self.rate_configs.get(channel)
-                .unwrap_or(&default_config);
+            let rate_config = self.rate_configs.get(channel).unwrap_or(&default_config);
 
             if !self.rate_limiter.can_send(channel, rate_config).await {
                 warn!("Skipping {} due to rate limit", attempt.id);
@@ -230,12 +238,16 @@ impl EnhancedCommunicationQueue {
                     attempt.retry_count += 1;
 
                     if attempt.retry_count >= self.backoff_config.max_retries as i32 {
-                        attempt.status = CommunicationStatus::Failed { reason: "Max retries exceeded".to_string() };
+                        attempt.status = CommunicationStatus::Failed {
+                            reason: "Max retries exceeded".to_string(),
+                        };
                         warn!("Communication {} exceeded max retries", attempt.id);
                     }
 
-                    repo.update_status(attempt.id, attempt.status.clone(), attempt.attempted_at).await?;
-                    repo.update_retry_count(attempt.id, attempt.retry_count).await?;
+                    repo.update_status(attempt.id, attempt.status.clone(), attempt.attempted_at)
+                        .await?;
+                    repo.update_retry_count(attempt.id, attempt.retry_count)
+                        .await?;
                 }
             }
         }
@@ -249,40 +261,55 @@ impl EnhancedCommunicationQueue {
         repo: &CommunicationRepository<'_>,
     ) -> Result<()> {
         attempt.attempted_at = Some(Utc::now());
-        repo.update_status(attempt.id, CommunicationStatus::Retrying, attempt.attempted_at).await?;
+        repo.update_status(
+            attempt.id,
+            CommunicationStatus::Retrying,
+            attempt.attempted_at,
+        )
+        .await?;
 
         let result = match &attempt.method {
             CommunicationMethod::Email => {
-                self.email_adapter.send_email(
-                    "", // Recipient would come from contact
-                    attempt.subject.as_deref().unwrap_or("No Subject"),
-                    &attempt.message,
-                ).await
+                self.email_adapter
+                    .send_email(
+                        "", // Recipient would come from contact
+                        attempt.subject.as_deref().unwrap_or("No Subject"),
+                        &attempt.message,
+                    )
+                    .await
             }
             CommunicationMethod::SMS => {
-                self.sms_adapter.send_sms(
-                    "", // Phone would come from contact
-                    &attempt.message,
-                ).await
+                self.sms_adapter
+                    .send_sms(
+                        "", // Phone would come from contact
+                        &attempt.message,
+                    )
+                    .await
             }
             CommunicationMethod::Social { platform } => {
-                self.social_adapter.send_message(
-                    platform,
-                    "", // Handle would come from contact
-                    &attempt.message,
-                ).await
+                self.social_adapter
+                    .send_message(
+                        platform,
+                        "", // Handle would come from contact
+                        &attempt.message,
+                    )
+                    .await
             }
         };
 
         match result {
             Ok(_) => {
                 attempt.status = CommunicationStatus::Sent;
-                repo.update_status(attempt.id, CommunicationStatus::Sent, attempt.attempted_at).await?;
+                repo.update_status(attempt.id, CommunicationStatus::Sent, attempt.attempted_at)
+                    .await?;
                 Ok(())
             }
             Err(e) => {
-                attempt.status = CommunicationStatus::Failed { reason: e.to_string() };
-                repo.update_status(attempt.id, attempt.status.clone(), attempt.attempted_at).await?;
+                attempt.status = CommunicationStatus::Failed {
+                    reason: e.to_string(),
+                };
+                repo.update_status(attempt.id, attempt.status.clone(), attempt.attempted_at)
+                    .await?;
                 Err(e)
             }
         }
@@ -304,10 +331,10 @@ mod tests {
     fn test_backoff_calculation() {
         let queue = EnhancedCommunicationQueue::new();
 
-        assert_eq!(queue.calculate_backoff_delay(1), 1000);  // 1 second
-        assert_eq!(queue.calculate_backoff_delay(2), 2000);  // 2 seconds
-        assert_eq!(queue.calculate_backoff_delay(3), 4000);  // 4 seconds
-        assert_eq!(queue.calculate_backoff_delay(4), 8000);  // 8 seconds
+        assert_eq!(queue.calculate_backoff_delay(1), 1000); // 1 second
+        assert_eq!(queue.calculate_backoff_delay(2), 2000); // 2 seconds
+        assert_eq!(queue.calculate_backoff_delay(3), 4000); // 4 seconds
+        assert_eq!(queue.calculate_backoff_delay(4), 8000); // 8 seconds
         assert_eq!(queue.calculate_backoff_delay(5), 16000); // 16 seconds
         assert_eq!(queue.calculate_backoff_delay(10), 60000); // Capped at max
     }

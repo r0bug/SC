@@ -1,4 +1,4 @@
-use core_domain::{Concept, DomainResult, DomainError};
+use core_domain::{Concept, DomainError, DomainResult};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -12,12 +12,15 @@ impl<'a> ConceptRepository<'a> {
     }
 
     pub async fn create(&self, concept: &Concept) -> DomainResult<()> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         sqlx::query(
             "INSERT INTO concepts (id, name, description, tags, created_at, updated_at, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(concept.id.to_string())
         .bind(&concept.name)
@@ -31,28 +34,25 @@ impl<'a> ConceptRepository<'a> {
         .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         for contact_id in &concept.related_contacts {
-            sqlx::query(
-                "INSERT INTO concept_contacts (concept_id, contact_id) VALUES (?, ?)"
-            )
-            .bind(concept.id.to_string())
-            .bind(contact_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?;
+            sqlx::query("INSERT INTO concept_contacts (concept_id, contact_id) VALUES (?, ?)")
+                .bind(concept.id.to_string())
+                .bind(contact_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
         for project_id in &concept.related_projects {
-            sqlx::query(
-                "INSERT INTO concept_projects (concept_id, project_id) VALUES (?, ?)"
-            )
-            .bind(concept.id.to_string())
-            .bind(project_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?;
+            sqlx::query("INSERT INTO concept_projects (concept_id, project_id) VALUES (?, ?)")
+                .bind(concept.id.to_string())
+                .bind(project_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
@@ -61,7 +61,7 @@ impl<'a> ConceptRepository<'a> {
     pub async fn get_by_id(&self, id: Uuid) -> DomainResult<Concept> {
         let row = sqlx::query_as::<_, ConceptRow>(
             "SELECT id, name, description, tags, created_at, updated_at, created_by
-             FROM concepts WHERE id = ?"
+             FROM concepts WHERE id = ?",
         )
         .bind(id.to_string())
         .fetch_optional(self.pool)
@@ -70,7 +70,7 @@ impl<'a> ConceptRepository<'a> {
         .ok_or_else(|| DomainError::NotFound(format!("Concept {}", id)))?;
 
         let related_contacts = sqlx::query_scalar::<_, String>(
-            "SELECT contact_id FROM concept_contacts WHERE concept_id = ?"
+            "SELECT contact_id FROM concept_contacts WHERE concept_id = ?",
         )
         .bind(id.to_string())
         .fetch_all(self.pool)
@@ -81,7 +81,7 @@ impl<'a> ConceptRepository<'a> {
         .collect();
 
         let related_projects = sqlx::query_scalar::<_, String>(
-            "SELECT project_id FROM concept_projects WHERE concept_id = ?"
+            "SELECT project_id FROM concept_projects WHERE concept_id = ?",
         )
         .bind(id.to_string())
         .fetch_all(self.pool)
@@ -97,7 +97,7 @@ impl<'a> ConceptRepository<'a> {
     pub async fn list(&self, limit: i64, offset: i64) -> DomainResult<Vec<Concept>> {
         let rows = sqlx::query_as::<_, ConceptRow>(
             "SELECT id, name, description, tags, created_at, updated_at, created_by
-             FROM concepts ORDER BY name LIMIT ? OFFSET ?"
+             FROM concepts ORDER BY name LIMIT ? OFFSET ?",
         )
         .bind(limit)
         .bind(offset)
@@ -110,7 +110,7 @@ impl<'a> ConceptRepository<'a> {
             let _concept_id = Uuid::parse_str(&row.id).unwrap();
 
             let related_contacts = sqlx::query_scalar::<_, String>(
-                "SELECT contact_id FROM concept_contacts WHERE concept_id = ?"
+                "SELECT contact_id FROM concept_contacts WHERE concept_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -121,7 +121,7 @@ impl<'a> ConceptRepository<'a> {
             .collect();
 
             let related_projects = sqlx::query_scalar::<_, String>(
-                "SELECT project_id FROM concept_projects WHERE concept_id = ?"
+                "SELECT project_id FROM concept_projects WHERE concept_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -138,12 +138,15 @@ impl<'a> ConceptRepository<'a> {
     }
 
     pub async fn update(&self, concept: &Concept) -> DomainResult<()> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         sqlx::query(
             "UPDATE concepts SET name = ?, description = ?, tags = ?, updated_at = ?
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(&concept.name)
         .bind(&concept.description)
@@ -161,14 +164,12 @@ impl<'a> ConceptRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         for contact_id in &concept.related_contacts {
-            sqlx::query(
-                "INSERT INTO concept_contacts (concept_id, contact_id) VALUES (?, ?)"
-            )
-            .bind(concept.id.to_string())
-            .bind(contact_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?;
+            sqlx::query("INSERT INTO concept_contacts (concept_id, contact_id) VALUES (?, ?)")
+                .bind(concept.id.to_string())
+                .bind(contact_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
         sqlx::query("DELETE FROM concept_projects WHERE concept_id = ?")
@@ -178,17 +179,16 @@ impl<'a> ConceptRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         for project_id in &concept.related_projects {
-            sqlx::query(
-                "INSERT INTO concept_projects (concept_id, project_id) VALUES (?, ?)"
-            )
-            .bind(concept.id.to_string())
-            .bind(project_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?;
+            sqlx::query("INSERT INTO concept_projects (concept_id, project_id) VALUES (?, ?)")
+                .bind(concept.id.to_string())
+                .bind(project_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
@@ -206,7 +206,7 @@ impl<'a> ConceptRepository<'a> {
 
     pub async fn add_contact(&self, concept_id: Uuid, contact_id: Uuid) -> DomainResult<()> {
         sqlx::query(
-            "INSERT OR IGNORE INTO concept_contacts (concept_id, contact_id) VALUES (?, ?)"
+            "INSERT OR IGNORE INTO concept_contacts (concept_id, contact_id) VALUES (?, ?)",
         )
         .bind(concept_id.to_string())
         .bind(contact_id.to_string())
@@ -218,21 +218,19 @@ impl<'a> ConceptRepository<'a> {
     }
 
     pub async fn remove_contact(&self, concept_id: Uuid, contact_id: Uuid) -> DomainResult<()> {
-        sqlx::query(
-            "DELETE FROM concept_contacts WHERE concept_id = ? AND contact_id = ?"
-        )
-        .bind(concept_id.to_string())
-        .bind(contact_id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        sqlx::query("DELETE FROM concept_contacts WHERE concept_id = ? AND contact_id = ?")
+            .bind(concept_id.to_string())
+            .bind(contact_id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
 
     pub async fn add_project(&self, concept_id: Uuid, project_id: Uuid) -> DomainResult<()> {
         sqlx::query(
-            "INSERT OR IGNORE INTO concept_projects (concept_id, project_id) VALUES (?, ?)"
+            "INSERT OR IGNORE INTO concept_projects (concept_id, project_id) VALUES (?, ?)",
         )
         .bind(concept_id.to_string())
         .bind(project_id.to_string())
@@ -244,14 +242,12 @@ impl<'a> ConceptRepository<'a> {
     }
 
     pub async fn remove_project(&self, concept_id: Uuid, project_id: Uuid) -> DomainResult<()> {
-        sqlx::query(
-            "DELETE FROM concept_projects WHERE concept_id = ? AND project_id = ?"
-        )
-        .bind(concept_id.to_string())
-        .bind(project_id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        sqlx::query("DELETE FROM concept_projects WHERE concept_id = ? AND project_id = ?")
+            .bind(concept_id.to_string())
+            .bind(project_id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
@@ -259,7 +255,7 @@ impl<'a> ConceptRepository<'a> {
     pub async fn list_by_creator(&self, creator_id: Uuid) -> DomainResult<Vec<Concept>> {
         let rows = sqlx::query_as::<_, ConceptRow>(
             "SELECT id, name, description, tags, created_at, updated_at, created_by
-             FROM concepts WHERE created_by = ? ORDER BY name"
+             FROM concepts WHERE created_by = ? ORDER BY name",
         )
         .bind(creator_id.to_string())
         .fetch_all(self.pool)
@@ -282,7 +278,7 @@ impl<'a> ConceptRepository<'a> {
              FROM concepts
              WHERE name LIKE ? OR description LIKE ? OR tags LIKE ?
              ORDER BY name
-             LIMIT 50"
+             LIMIT 50",
         )
         .bind(&search_pattern)
         .bind(&search_pattern)
@@ -302,7 +298,7 @@ impl<'a> ConceptRepository<'a> {
 
     async fn build_concept_from_row(&self, row: ConceptRow) -> DomainResult<Concept> {
         let related_contacts = sqlx::query_scalar::<_, String>(
-            "SELECT contact_id FROM concept_contacts WHERE concept_id = ?"
+            "SELECT contact_id FROM concept_contacts WHERE concept_id = ?",
         )
         .bind(&row.id)
         .fetch_all(self.pool)
@@ -313,7 +309,7 @@ impl<'a> ConceptRepository<'a> {
         .collect();
 
         let related_projects = sqlx::query_scalar::<_, String>(
-            "SELECT project_id FROM concept_projects WHERE concept_id = ?"
+            "SELECT project_id FROM concept_projects WHERE concept_id = ?",
         )
         .bind(&row.id)
         .fetch_all(self.pool)
@@ -347,8 +343,12 @@ impl ConceptRow {
             related_contacts,
             related_projects,
             tags: serde_json::from_str(&self.tags).unwrap_or_default(),
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at).unwrap().with_timezone(&chrono::Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
             created_by: Uuid::parse_str(&self.created_by).unwrap(),
         }
     }

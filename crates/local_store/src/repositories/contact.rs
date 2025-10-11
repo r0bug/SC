@@ -1,4 +1,4 @@
-use core_domain::{Contact, SocialHandle, DomainResult, DomainError};
+use core_domain::{Contact, DomainError, DomainResult, SocialHandle};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -12,7 +12,10 @@ impl<'a> ContactRepository<'a> {
     }
 
     pub async fn create(&self, contact: &Contact) -> DomainResult<()> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         sqlx::query(
@@ -50,7 +53,8 @@ impl<'a> ContactRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
@@ -68,26 +72,25 @@ impl<'a> ContactRepository<'a> {
         .ok_or_else(|| DomainError::NotFound(format!("Contact {}", id)))?;
 
         let social_handles = sqlx::query_as::<_, SocialHandleRow>(
-            "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?"
+            "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?",
         )
         .bind(id.to_string())
         .fetch_all(self.pool)
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;
 
-        let tags = sqlx::query_scalar::<_, String>(
-            "SELECT tag_id FROM contact_tags WHERE contact_id = ?"
-        )
-        .bind(id.to_string())
-        .fetch_all(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?
-        .into_iter()
-        .filter_map(|s| Uuid::parse_str(&s).ok())
-        .collect();
+        let tags =
+            sqlx::query_scalar::<_, String>("SELECT tag_id FROM contact_tags WHERE contact_id = ?")
+                .bind(id.to_string())
+                .fetch_all(self.pool)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?
+                .into_iter()
+                .filter_map(|s| Uuid::parse_str(&s).ok())
+                .collect();
 
         let projects = sqlx::query_scalar::<_, String>(
-            "SELECT project_id FROM project_contacts WHERE contact_id = ?"
+            "SELECT project_id FROM project_contacts WHERE contact_id = ?",
         )
         .bind(id.to_string())
         .fetch_all(self.pool)
@@ -98,7 +101,7 @@ impl<'a> ContactRepository<'a> {
         .collect();
 
         let groups = sqlx::query_scalar::<_, String>(
-            "SELECT group_id FROM contact_groups WHERE contact_id = ?"
+            "SELECT group_id FROM contact_groups WHERE contact_id = ?",
         )
         .bind(id.to_string())
         .fetch_all(self.pool)
@@ -125,7 +128,7 @@ impl<'a> ContactRepository<'a> {
         let mut contacts = Vec::new();
         for row in rows {
             let social_handles = sqlx::query_as::<_, SocialHandleRow>(
-                "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?"
+                "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -133,7 +136,7 @@ impl<'a> ContactRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
             let tags = sqlx::query_scalar::<_, String>(
-                "SELECT tag_id FROM contact_tags WHERE contact_id = ?"
+                "SELECT tag_id FROM contact_tags WHERE contact_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -144,7 +147,7 @@ impl<'a> ContactRepository<'a> {
             .collect();
 
             let projects = sqlx::query_scalar::<_, String>(
-                "SELECT project_id FROM project_contacts WHERE contact_id = ?"
+                "SELECT project_id FROM project_contacts WHERE contact_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -155,7 +158,7 @@ impl<'a> ContactRepository<'a> {
             .collect();
 
             let groups = sqlx::query_scalar::<_, String>(
-                "SELECT group_id FROM contact_groups WHERE contact_id = ?"
+                "SELECT group_id FROM contact_groups WHERE contact_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -172,13 +175,16 @@ impl<'a> ContactRepository<'a> {
     }
 
     pub async fn update(&self, contact: &Contact) -> DomainResult<()> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         sqlx::query(
             "UPDATE contacts SET first_name = ?, last_name = ?, email = ?, phone = ?,
              organization = ?, title = ?, notes = ?, metadata = ?, updated_at = ?
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(&contact.first_name)
         .bind(&contact.last_name)
@@ -213,7 +219,8 @@ impl<'a> ContactRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
@@ -249,7 +256,7 @@ impl<'a> ContactRepository<'a> {
         let mut contacts = Vec::new();
         for row in rows {
             let social_handles = sqlx::query_as::<_, SocialHandleRow>(
-                "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?"
+                "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -257,7 +264,7 @@ impl<'a> ContactRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
             let tags = sqlx::query_scalar::<_, String>(
-                "SELECT tag_id FROM contact_tags WHERE contact_id = ?"
+                "SELECT tag_id FROM contact_tags WHERE contact_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -268,7 +275,7 @@ impl<'a> ContactRepository<'a> {
             .collect();
 
             let projects = sqlx::query_scalar::<_, String>(
-                "SELECT project_id FROM project_contacts WHERE contact_id = ?"
+                "SELECT project_id FROM project_contacts WHERE contact_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -279,7 +286,7 @@ impl<'a> ContactRepository<'a> {
             .collect();
 
             let groups = sqlx::query_scalar::<_, String>(
-                "SELECT group_id FROM contact_groups WHERE contact_id = ?"
+                "SELECT group_id FROM contact_groups WHERE contact_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -315,7 +322,13 @@ struct ContactRow {
 }
 
 impl ContactRow {
-    fn into_contact(self, social_handles: Vec<SocialHandleRow>, tags: Vec<Uuid>, projects: Vec<Uuid>, groups: Vec<Uuid>) -> Contact {
+    fn into_contact(
+        self,
+        social_handles: Vec<SocialHandleRow>,
+        tags: Vec<Uuid>,
+        projects: Vec<Uuid>,
+        groups: Vec<Uuid>,
+    ) -> Contact {
         Contact {
             id: Uuid::parse_str(&self.id).unwrap(),
             first_name: self.first_name,
@@ -329,11 +342,19 @@ impl ContactRow {
             tags,
             projects,
             groups,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at).unwrap().with_timezone(&chrono::Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
             created_by: Uuid::parse_str(&self.created_by).unwrap(),
             version: self.version,
-            last_synced_at: self.last_synced_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
+            last_synced_at: self.last_synced_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
             metadata: serde_json::from_str(&self.metadata).unwrap_or(serde_json::json!({})),
         }
     }

@@ -1,4 +1,4 @@
-use core_domain::{Note, DomainResult, DomainError};
+use core_domain::{DomainError, DomainResult, Note};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -12,7 +12,10 @@ impl<'a> NoteRepository<'a> {
     }
 
     pub async fn create(&self, note: &Note) -> DomainResult<()> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         sqlx::query(
@@ -32,7 +35,8 @@ impl<'a> NoteRepository<'a> {
         // Note: attachment_ids are now stored, not created inline with notes
         // Attachments are managed separately via AttachmentRepository
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
@@ -86,11 +90,19 @@ impl NoteRow {
             title: self.title,
             content: self.content,
             attachment_ids,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at).unwrap().with_timezone(&chrono::Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
             created_by: Uuid::parse_str(&self.created_by).unwrap(),
             version: self.version,
-            last_synced_at: self.last_synced_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
+            last_synced_at: self.last_synced_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
         }
     }
 }

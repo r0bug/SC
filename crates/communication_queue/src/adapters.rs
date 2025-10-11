@@ -101,7 +101,10 @@ impl SocialAdapterTrait for MockSocialAdapter {
 
         match platform {
             "twitter" | "linkedin" | "facebook" => {
-                info!("[MOCK] {} message sent successfully (deterministic mock)", platform);
+                info!(
+                    "[MOCK] {} message sent successfully (deterministic mock)",
+                    platform
+                );
                 Ok(())
             }
             _ => {
@@ -164,7 +167,11 @@ impl SocialAdapter {
         Self
     }
 
-    pub async fn send(&self, _attempt: &core_domain::CommunicationAttempt, platform: &str) -> Result<()> {
+    pub async fn send(
+        &self,
+        _attempt: &core_domain::CommunicationAttempt,
+        platform: &str,
+    ) -> Result<()> {
         info!("[MOCK] Legacy social adapter called for {}", platform);
         Ok(())
     }

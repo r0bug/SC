@@ -30,7 +30,11 @@ pub async fn group_delete_command(_group_id: &str) -> Result<()> {
 }
 
 // Concept commands
-pub async fn concept_create_command(_name: String, _content: String, _category: Option<String>) -> Result<()> {
+pub async fn concept_create_command(
+    _name: String,
+    _content: String,
+    _category: Option<String>,
+) -> Result<()> {
     println!("Concept management will be available in the next release");
     Ok(())
 }
@@ -63,7 +67,10 @@ pub async fn event_create_command(
     Ok(())
 }
 
-pub async fn event_list_command(_from_date: Option<String>, _to_date: Option<String>) -> Result<()> {
+pub async fn event_list_command(
+    _from_date: Option<String>,
+    _to_date: Option<String>,
+) -> Result<()> {
     println!("Calendar event listing will be available in the next release");
     Ok(())
 }

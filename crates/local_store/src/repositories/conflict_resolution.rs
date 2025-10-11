@@ -1,4 +1,6 @@
-use core_domain::{ConflictResolution, ResolutionStrategy, ShareEntityType, DomainResult, DomainError};
+use core_domain::{
+    ConflictResolution, DomainError, DomainResult, ResolutionStrategy, ShareEntityType,
+};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -66,7 +68,11 @@ impl<'a> ConflictResolutionRepository<'a> {
         Ok(row.into())
     }
 
-    pub async fn list_unresolved(&self, limit: i64, offset: i64) -> DomainResult<Vec<ConflictResolution>> {
+    pub async fn list_unresolved(
+        &self,
+        limit: i64,
+        offset: i64,
+    ) -> DomainResult<Vec<ConflictResolution>> {
         let rows = sqlx::query_as::<_, ConflictResolutionRow>(
             "SELECT id, entity_type, entity_id, local_version, remote_version, local_updated_at, remote_updated_at, local_changes, remote_changes, resolution_strategy, resolved, resolved_at, resolved_by, created_at
              FROM conflict_resolutions WHERE resolved = 0 ORDER BY created_at DESC LIMIT ? OFFSET ?"
@@ -80,7 +86,11 @@ impl<'a> ConflictResolutionRepository<'a> {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
-    pub async fn list_by_entity(&self, entity_type: ShareEntityType, entity_id: Uuid) -> DomainResult<Vec<ConflictResolution>> {
+    pub async fn list_by_entity(
+        &self,
+        entity_type: ShareEntityType,
+        entity_id: Uuid,
+    ) -> DomainResult<Vec<ConflictResolution>> {
         let entity_type_str = match entity_type {
             ShareEntityType::Contact => "Contact",
             ShareEntityType::Project => "Project",
@@ -116,7 +126,11 @@ impl<'a> ConflictResolutionRepository<'a> {
         Ok(())
     }
 
-    pub async fn update_strategy(&self, id: Uuid, strategy: ResolutionStrategy) -> DomainResult<()> {
+    pub async fn update_strategy(
+        &self,
+        id: Uuid,
+        strategy: ResolutionStrategy,
+    ) -> DomainResult<()> {
         let strategy_str = match strategy {
             ResolutionStrategy::LocalWins => "LocalWins",
             ResolutionStrategy::RemoteWins => "RemoteWins",
@@ -124,14 +138,12 @@ impl<'a> ConflictResolutionRepository<'a> {
             ResolutionStrategy::Merge => "Merge",
         };
 
-        sqlx::query(
-            "UPDATE conflict_resolutions SET resolution_strategy = ? WHERE id = ?"
-        )
-        .bind(strategy_str)
-        .bind(id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        sqlx::query("UPDATE conflict_resolutions SET resolution_strategy = ? WHERE id = ?")
+            .bind(strategy_str)
+            .bind(id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
@@ -190,15 +202,27 @@ impl From<ConflictResolutionRow> for ConflictResolution {
             entity_id: Uuid::parse_str(&row.entity_id).unwrap(),
             local_version: row.local_version,
             remote_version: row.remote_version,
-            local_updated_at: chrono::DateTime::parse_from_rfc3339(&row.local_updated_at).unwrap().with_timezone(&chrono::Utc),
-            remote_updated_at: chrono::DateTime::parse_from_rfc3339(&row.remote_updated_at).unwrap().with_timezone(&chrono::Utc),
-            local_changes: serde_json::from_str(&row.local_changes).unwrap_or(serde_json::json!({})),
-            remote_changes: serde_json::from_str(&row.remote_changes).unwrap_or(serde_json::json!({})),
+            local_updated_at: chrono::DateTime::parse_from_rfc3339(&row.local_updated_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            remote_updated_at: chrono::DateTime::parse_from_rfc3339(&row.remote_updated_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            local_changes: serde_json::from_str(&row.local_changes)
+                .unwrap_or(serde_json::json!({})),
+            remote_changes: serde_json::from_str(&row.remote_changes)
+                .unwrap_or(serde_json::json!({})),
             resolution_strategy,
             resolved: row.resolved != 0,
-            resolved_at: row.resolved_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
+            resolved_at: row.resolved_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
             resolved_by: row.resolved_by.and_then(|s| Uuid::parse_str(&s).ok()),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
         }
     }
 }

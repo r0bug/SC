@@ -150,9 +150,9 @@ pub struct Attachment {
     pub entity_type: AttachmentEntityType,
     pub entity_id: Uuid,
     pub uploaded_by: Uuid,
-    pub checksum: String, // SHA256 hash for integrity verification
-    pub encrypted: bool,  // Whether file is encrypted at rest
-    pub scan_status: ScanStatus, // Virus scan result
+    pub checksum: String,             // SHA256 hash for integrity verification
+    pub encrypted: bool,              // Whether file is encrypted at rest
+    pub scan_status: ScanStatus,      // Virus scan result
     pub scan_details: Option<String>, // Details if scan failed
     pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
@@ -160,10 +160,10 @@ pub struct Attachment {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ScanStatus {
-    Pending,   // Not yet scanned
-    Clean,     // Passed virus scan
-    Infected,  // Failed virus scan
-    Error,     // Scan error occurred
+    Pending,  // Not yet scanned
+    Clean,    // Passed virus scan
+    Infected, // Failed virus scan
+    Error,    // Scan error occurred
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

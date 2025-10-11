@@ -1,12 +1,12 @@
-pub mod sms;
-pub mod email;
 pub mod contacts;
+pub mod email;
+pub mod sms;
 pub mod social;
 
-pub use sms::SmsConnector;
+pub use contacts::{AppleContactsConnector, GenericCsvConnector, GoogleContactsConnector};
 pub use email::EmailConnector;
-pub use contacts::{GoogleContactsConnector, AppleContactsConnector, GenericCsvConnector};
-pub use social::{LinkedInConnector, TwitterConnector, FacebookConnector, InstagramConnector};
+pub use sms::SmsConnector;
+pub use social::{FacebookConnector, InstagramConnector, LinkedInConnector, TwitterConnector};
 
 use crate::connector::ConnectorRegistry;
 

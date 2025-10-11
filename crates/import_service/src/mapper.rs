@@ -57,16 +57,17 @@ impl DataMapper {
                 let cleaned = if value.starts_with('+') {
                     format!(
                         "+{}",
-                        value[1..].chars().filter(|c| c.is_ascii_digit()).collect::<String>()
+                        value[1..]
+                            .chars()
+                            .filter(|c| c.is_ascii_digit())
+                            .collect::<String>()
                     )
                 } else {
                     value.chars().filter(|c| c.is_ascii_digit()).collect()
                 };
                 Ok(cleaned)
             }
-            Transform::EmailNormalize => {
-                Ok(value.trim().to_lowercase())
-            }
+            Transform::EmailNormalize => Ok(value.trim().to_lowercase()),
             Transform::Custom(_name) => {
                 // Custom transformation logic would go here
                 // For now, just return the value

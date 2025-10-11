@@ -1,4 +1,4 @@
-use core_domain::{CommunicationAttempt, CommunicationStatus, DomainResult, DomainError};
+use core_domain::{CommunicationAttempt, CommunicationStatus, DomainError, DomainResult};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -36,31 +36,32 @@ impl<'a> CommunicationRepository<'a> {
         Ok(())
     }
 
-    pub async fn update_status(&self, id: Uuid, status: CommunicationStatus, attempted_at: Option<chrono::DateTime<chrono::Utc>>) -> DomainResult<()> {
+    pub async fn update_status(
+        &self,
+        id: Uuid,
+        status: CommunicationStatus,
+        attempted_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> DomainResult<()> {
         let status_str = serde_json::to_string(&status).unwrap();
 
-        sqlx::query(
-            "UPDATE communication_attempts SET status = ?, attempted_at = ? WHERE id = ?"
-        )
-        .bind(status_str)
-        .bind(attempted_at.map(|t| t.to_rfc3339()))
-        .bind(id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        sqlx::query("UPDATE communication_attempts SET status = ?, attempted_at = ? WHERE id = ?")
+            .bind(status_str)
+            .bind(attempted_at.map(|t| t.to_rfc3339()))
+            .bind(id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
 
     pub async fn update_retry_count(&self, id: Uuid, retry_count: i32) -> DomainResult<()> {
-        sqlx::query(
-            "UPDATE communication_attempts SET retry_count = ? WHERE id = ?"
-        )
-        .bind(retry_count)
-        .bind(id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        sqlx::query("UPDATE communication_attempts SET retry_count = ? WHERE id = ?")
+            .bind(retry_count)
+            .bind(id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
@@ -103,10 +104,20 @@ impl From<CommAttemptRow> for CommunicationAttempt {
             subject: row.subject,
             message: row.message,
             status: serde_json::from_str(&row.status).unwrap(),
-            scheduled_at: row.scheduled_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
-            attempted_at: row.attempted_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
+            scheduled_at: row.scheduled_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
+            attempted_at: row.attempted_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
             retry_count: row.retry_count,
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
         }
     }
 }

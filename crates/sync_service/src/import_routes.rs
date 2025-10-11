@@ -9,7 +9,7 @@ use import_service::{
     DuplicateStrategy, MatchCriteria,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Sqlite, Row};
+use sqlx::{Pool, Row, Sqlite};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -131,9 +131,12 @@ pub async fn preview_import(
 
     // Find connector
     let registry = create_default_registry();
-    let connector = registry
-        .find_connector(&temp_path)
-        .ok_or_else(|| (StatusCode::BAD_REQUEST, "No suitable connector found".to_string()))?;
+    let connector = registry.find_connector(&temp_path).ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            "No suitable connector found".to_string(),
+        )
+    })?;
 
     // Parse and preview
     let preview = connector
@@ -198,18 +201,28 @@ pub async fn execute_import(
             file_data.extend_from_slice(&data);
         } else {
             // Handle config fields
-            let value = field.text().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+            let value = field
+                .text()
+                .await
+                .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
             if field_name.as_str() == "config" {
                 // Parse JSON config
-                request = serde_json::from_str(&value)
-                    .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid config JSON: {}", e)))?;
+                request = serde_json::from_str(&value).map_err(|e| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        format!("Invalid config JSON: {}", e),
+                    )
+                })?;
             }
         }
     }
 
     // Create job
     let job_id = Uuid::new_v4();
-    let connector_id = request.connector_id.clone().unwrap_or_else(|| "auto".to_string());
+    let connector_id = request
+        .connector_id
+        .clone()
+        .unwrap_or_else(|| "auto".to_string());
 
     let job = ImportJob {
         id: job_id,
@@ -456,11 +469,23 @@ pub async fn get_import_history(
 /// Router configuration
 pub fn import_routes() -> axum::Router<ImportState> {
     axum::Router::new()
-        .route("/api/import/connectors", axum::routing::get(list_connectors))
+        .route(
+            "/api/import/connectors",
+            axum::routing::get(list_connectors),
+        )
         .route("/api/import/preview", axum::routing::post(preview_import))
         .route("/api/import/execute", axum::routing::post(execute_import))
         .route("/api/import/jobs", axum::routing::get(list_jobs))
-        .route("/api/import/jobs/:job_id", axum::routing::get(get_job_status))
-        .route("/api/import/jobs/:job_id/cancel", axum::routing::post(cancel_job))
-        .route("/api/import/history", axum::routing::get(get_import_history))
+        .route(
+            "/api/import/jobs/:job_id",
+            axum::routing::get(get_job_status),
+        )
+        .route(
+            "/api/import/jobs/:job_id/cancel",
+            axum::routing::post(cancel_job),
+        )
+        .route(
+            "/api/import/history",
+            axum::routing::get(get_import_history),
+        )
 }

@@ -1,9 +1,9 @@
 use crate::segmind::{SegmindClient, SegmindResponse};
 use anyhow::Result;
-use sqlx::{Pool, Sqlite};
-use uuid::Uuid;
 use chrono::Utc;
-use tracing::{info, error};
+use sqlx::{Pool, Sqlite};
+use tracing::{error, info};
+use uuid::Uuid;
 
 /// Wrapper around SegmindClient that logs all interactions
 pub struct LoggingSegmindClient {
@@ -29,16 +29,19 @@ impl LoggingSegmindClient {
         let response = self.client.generate_suggestion(prompt).await?;
 
         // Log the interaction
-        if let Err(e) = self.log_interaction(
-            user_id,
-            interaction_type,
-            prompt,
-            &response.text,
-            response.confidence,
-            &response.model,
-            entity_type,
-            entity_id,
-        ).await {
+        if let Err(e) = self
+            .log_interaction(
+                user_id,
+                interaction_type,
+                prompt,
+                &response.text,
+                response.confidence,
+                &response.model,
+                entity_type,
+                entity_id,
+            )
+            .await
+        {
             error!("Failed to log AI interaction: {}", e);
             // Don't fail the whole operation if logging fails
         }
@@ -57,21 +60,25 @@ impl LoggingSegmindClient {
         let response = self.client.analyze_contact_data(contact_data).await?;
 
         // Log the interaction
-        if let Err(e) = self.log_interaction(
-            user_id,
-            "ContactAnalysis",
-            &format!("Analyze contact: {}", contact_data),
-            &format!("Tags: {:?}, Strength: {}, Frequency: {}, Next: {}",
-                response.suggested_tags,
+        if let Err(e) = self
+            .log_interaction(
+                user_id,
+                "ContactAnalysis",
+                &format!("Analyze contact: {}", contact_data),
+                &format!(
+                    "Tags: {:?}, Strength: {}, Frequency: {}, Next: {}",
+                    response.suggested_tags,
+                    response.relationship_strength,
+                    response.communication_frequency,
+                    response.next_action
+                ),
                 response.relationship_strength,
-                response.communication_frequency,
-                response.next_action
-            ),
-            response.relationship_strength,
-            "segmind-contact-analyzer",
-            Some("Contact".to_string()),
-            Some(contact_id),
-        ).await {
+                "segmind-contact-analyzer",
+                Some("Contact".to_string()),
+                Some(contact_id),
+            )
+            .await
+        {
             error!("Failed to log AI interaction: {}", e);
         }
 
@@ -97,7 +104,10 @@ impl LoggingSegmindClient {
         .execute(&self.pool)
         .await?;
 
-        info!("Recorded feedback for interaction {}: helpful={}, applied={}", interaction_id, helpful, applied);
+        info!(
+            "Recorded feedback for interaction {}: helpful={}, applied={}",
+            interaction_id, helpful, applied
+        );
 
         Ok(())
     }
@@ -174,7 +184,10 @@ impl LoggingSegmindClient {
         .execute(&self.pool)
         .await?;
 
-        info!("Logged AI interaction {}: type={}, model={}", id, interaction_type, model);
+        info!(
+            "Logged AI interaction {}: type={}, model={}",
+            id, interaction_type, model
+        );
 
         Ok(id)
     }
@@ -231,8 +244,14 @@ impl From<AiInteractionRow> for AiInteractionRecord {
             feedback_helpful: row.feedback_helpful.map(|v| v != 0),
             feedback_applied: row.feedback_applied != 0,
             metadata: serde_json::from_str(&row.metadata).unwrap_or(serde_json::json!({})),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&Utc),
-            feedback_at: row.feedback_at.and_then(|dt| chrono::DateTime::parse_from_rfc3339(&dt).ok().map(|dt| dt.with_timezone(&Utc))),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&Utc),
+            feedback_at: row.feedback_at.and_then(|dt| {
+                chrono::DateTime::parse_from_rfc3339(&dt)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&Utc))
+            }),
         }
     }
 }

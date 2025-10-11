@@ -1,4 +1,4 @@
-use core_domain::{AuditLog, AuditAction, ShareEntityType, DomainResult, DomainError};
+use core_domain::{AuditAction, AuditLog, DomainError, DomainResult, ShareEntityType};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -64,7 +64,13 @@ impl<'a> AuditLogRepository<'a> {
         Ok(row.into())
     }
 
-    pub async fn list_by_entity(&self, entity_type: ShareEntityType, entity_id: Uuid, limit: i64, offset: i64) -> DomainResult<Vec<AuditLog>> {
+    pub async fn list_by_entity(
+        &self,
+        entity_type: ShareEntityType,
+        entity_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> DomainResult<Vec<AuditLog>> {
         let entity_type_str = match entity_type {
             ShareEntityType::Contact => "Contact",
             ShareEntityType::Project => "Project",
@@ -88,7 +94,12 @@ impl<'a> AuditLogRepository<'a> {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
-    pub async fn list_by_user(&self, user_id: Uuid, limit: i64, offset: i64) -> DomainResult<Vec<AuditLog>> {
+    pub async fn list_by_user(
+        &self,
+        user_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> DomainResult<Vec<AuditLog>> {
         let rows = sqlx::query_as::<_, AuditLogRow>(
             "SELECT id, entity_type, entity_id, action, user_id, changes, ip_address, user_agent, created_at
              FROM audit_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"
@@ -158,7 +169,9 @@ impl From<AuditLogRow> for AuditLog {
             changes: serde_json::from_str(&row.changes).unwrap_or(serde_json::json!({})),
             ip_address: row.ip_address,
             user_agent: row.user_agent,
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
         }
     }
 }
@@ -287,7 +300,10 @@ mod tests {
         repo.create(&log1).await.unwrap();
         repo.create(&log2).await.unwrap();
 
-        let logs = repo.list_by_entity(ShareEntityType::Contact, contact_id, 10, 0).await.unwrap();
+        let logs = repo
+            .list_by_entity(ShareEntityType::Contact, contact_id, 10, 0)
+            .await
+            .unwrap();
         assert_eq!(logs.len(), 2);
     }
 }

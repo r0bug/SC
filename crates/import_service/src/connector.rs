@@ -1,4 +1,7 @@
-use crate::{ImportError, config::{ImportConfig, ImportFormat}};
+use crate::{
+    config::{ImportConfig, ImportFormat},
+    ImportError,
+};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -63,9 +66,10 @@ pub trait ImportConnector: Send + Sync {
     async fn validate_file(&self, file_path: &Path) -> Result<(), ImportError> {
         // Default implementation - just check file exists and is readable
         if !file_path.exists() {
-            return Err(ImportError::IoError(
-                std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")
-            ));
+            return Err(ImportError::IoError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found",
+            )));
         }
         Ok(())
     }
@@ -95,7 +99,11 @@ pub trait ImportConnector: Send + Sync {
     }
 
     /// Get sample data for preview (first N rows)
-    async fn get_preview(&self, file_path: &Path, limit: usize) -> Result<ParseResult, ImportError> {
+    async fn get_preview(
+        &self,
+        file_path: &Path,
+        limit: usize,
+    ) -> Result<ParseResult, ImportError> {
         let mut result = self.parse(file_path).await?;
         result.rows.truncate(limit);
         Ok(result)
@@ -127,17 +135,12 @@ impl ConnectorRegistry {
 
     /// Find the best connector for a given file
     pub fn find_connector(&self, file_path: &Path) -> Option<&Box<dyn ImportConnector>> {
-        self.connectors
-            .values()
-            .find(|c| c.can_handle(file_path))
+        self.connectors.values().find(|c| c.can_handle(file_path))
     }
 
     /// List all registered connectors
     pub fn list_connectors(&self) -> Vec<ConnectorMetadata> {
-        self.connectors
-            .values()
-            .map(|c| c.metadata())
-            .collect()
+        self.connectors.values().map(|c| c.metadata()).collect()
     }
 
     /// Get connectors by format

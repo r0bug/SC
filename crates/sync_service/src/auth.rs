@@ -1,3 +1,4 @@
+use crate::validation;
 use axum::{
     async_trait,
     extract::{FromRef, FromRequestParts},
@@ -13,7 +14,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::validation;
 
 const JWT_SECRET: &[u8] = b"your-secret-key-change-in-production";
 
@@ -75,12 +75,9 @@ impl AuthService {
 
     pub async fn signup(&self, req: SignupRequest) -> Result<AuthResponse, AuthError> {
         // Validate inputs
-        validation::validate_email(&req.email)
-            .map_err(|_| AuthError::InvalidCredentials)?;
-        validation::validate_name(&req.name)
-            .map_err(|_| AuthError::InvalidCredentials)?;
-        validation::validate_password(&req.password)
-            .map_err(|_| AuthError::InvalidCredentials)?;
+        validation::validate_email(&req.email).map_err(|_| AuthError::InvalidCredentials)?;
+        validation::validate_name(&req.name).map_err(|_| AuthError::InvalidCredentials)?;
+        validation::validate_password(&req.password).map_err(|_| AuthError::InvalidCredentials)?;
 
         let repo = UserRepository::new(&self.pool);
 
@@ -90,8 +87,8 @@ impl AuthService {
         }
 
         // Hash password
-        let password_hash = hash(req.password.as_bytes(), DEFAULT_COST)
-            .map_err(|_| AuthError::InternalError)?;
+        let password_hash =
+            hash(req.password.as_bytes(), DEFAULT_COST).map_err(|_| AuthError::InternalError)?;
 
         // Generate API token
         let api_token = generate_api_token();
@@ -111,7 +108,8 @@ impl AuthService {
             last_login_at: None,
         };
 
-        repo.create(&user).await
+        repo.create(&user)
+            .await
             .map_err(|_| AuthError::InternalError)?;
 
         // Generate JWT
@@ -125,13 +123,14 @@ impl AuthService {
 
     pub async fn login(&self, req: LoginRequest) -> Result<AuthResponse, AuthError> {
         // Validate inputs
-        validation::validate_email(&req.email)
-            .map_err(|_| AuthError::InvalidCredentials)?;
+        validation::validate_email(&req.email).map_err(|_| AuthError::InvalidCredentials)?;
 
         let repo = UserRepository::new(&self.pool);
 
         // Get user by email
-        let mut user = repo.get_by_email(&req.email).await
+        let mut user = repo
+            .get_by_email(&req.email)
+            .await
             .map_err(|_| AuthError::InvalidCredentials)?;
 
         // Verify password
@@ -145,7 +144,8 @@ impl AuthService {
 
         // Update last login
         user.last_login_at = Some(chrono::Utc::now());
-        repo.update(&user).await
+        repo.update(&user)
+            .await
             .map_err(|_| AuthError::InternalError)?;
 
         // Generate JWT
@@ -161,7 +161,8 @@ impl AuthService {
         // Try JWT first
         if let Ok(user_id) = validate_jwt(token) {
             let repo = UserRepository::new(&self.pool);
-            return repo.get_by_id(user_id)
+            return repo
+                .get_by_id(user_id)
                 .await
                 .map_err(|_| AuthError::InvalidToken);
         }
@@ -206,8 +207,7 @@ fn validate_jwt(token: &str) -> Result<Uuid, AuthError> {
     )
     .map_err(|_| AuthError::InvalidToken)?;
 
-    Uuid::parse_str(&token_data.claims.sub)
-        .map_err(|_| AuthError::InvalidToken)
+    Uuid::parse_str(&token_data.claims.sub).map_err(|_| AuthError::InvalidToken)
 }
 
 fn generate_api_token() -> String {

@@ -1,4 +1,4 @@
-use core_domain::{Group, DomainResult, DomainError};
+use core_domain::{DomainError, DomainResult, Group};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -12,12 +12,15 @@ impl<'a> GroupRepository<'a> {
     }
 
     pub async fn create(&self, group: &Group) -> DomainResult<()> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         sqlx::query(
             "INSERT INTO groups (id, name, description, created_at, updated_at, created_by)
-             VALUES (?, ?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(group.id.to_string())
         .bind(&group.name)
@@ -30,17 +33,16 @@ impl<'a> GroupRepository<'a> {
         .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         for contact_id in &group.contact_ids {
-            sqlx::query(
-                "INSERT INTO group_members (group_id, contact_id) VALUES (?, ?)"
-            )
-            .bind(group.id.to_string())
-            .bind(contact_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?;
+            sqlx::query("INSERT INTO group_members (group_id, contact_id) VALUES (?, ?)")
+                .bind(group.id.to_string())
+                .bind(contact_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
@@ -49,7 +51,7 @@ impl<'a> GroupRepository<'a> {
     pub async fn get_by_id(&self, id: Uuid) -> DomainResult<Group> {
         let row = sqlx::query_as::<_, GroupRow>(
             "SELECT id, name, description, created_at, updated_at, created_by
-             FROM groups WHERE id = ?"
+             FROM groups WHERE id = ?",
         )
         .bind(id.to_string())
         .fetch_optional(self.pool)
@@ -58,7 +60,7 @@ impl<'a> GroupRepository<'a> {
         .ok_or_else(|| DomainError::NotFound(format!("Group {}", id)))?;
 
         let contact_ids = sqlx::query_scalar::<_, String>(
-            "SELECT contact_id FROM group_members WHERE group_id = ?"
+            "SELECT contact_id FROM group_members WHERE group_id = ?",
         )
         .bind(id.to_string())
         .fetch_all(self.pool)
@@ -74,7 +76,7 @@ impl<'a> GroupRepository<'a> {
     pub async fn list(&self, limit: i64, offset: i64) -> DomainResult<Vec<Group>> {
         let rows = sqlx::query_as::<_, GroupRow>(
             "SELECT id, name, description, created_at, updated_at, created_by
-             FROM groups ORDER BY name LIMIT ? OFFSET ?"
+             FROM groups ORDER BY name LIMIT ? OFFSET ?",
         )
         .bind(limit)
         .bind(offset)
@@ -85,7 +87,7 @@ impl<'a> GroupRepository<'a> {
         let mut groups = Vec::new();
         for row in rows {
             let contact_ids = sqlx::query_scalar::<_, String>(
-                "SELECT contact_id FROM group_members WHERE group_id = ?"
+                "SELECT contact_id FROM group_members WHERE group_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -102,12 +104,15 @@ impl<'a> GroupRepository<'a> {
     }
 
     pub async fn update(&self, group: &Group) -> DomainResult<()> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         sqlx::query(
             "UPDATE groups SET name = ?, description = ?, updated_at = ?
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(&group.name)
         .bind(&group.description)
@@ -124,17 +129,16 @@ impl<'a> GroupRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         for contact_id in &group.contact_ids {
-            sqlx::query(
-                "INSERT INTO group_members (group_id, contact_id) VALUES (?, ?)"
-            )
-            .bind(group.id.to_string())
-            .bind(contact_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?;
+            sqlx::query("INSERT INTO group_members (group_id, contact_id) VALUES (?, ?)")
+                .bind(group.id.to_string())
+                .bind(contact_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
@@ -151,27 +155,23 @@ impl<'a> GroupRepository<'a> {
     }
 
     pub async fn add_member(&self, group_id: Uuid, contact_id: Uuid) -> DomainResult<()> {
-        sqlx::query(
-            "INSERT OR IGNORE INTO group_members (group_id, contact_id) VALUES (?, ?)"
-        )
-        .bind(group_id.to_string())
-        .bind(contact_id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        sqlx::query("INSERT OR IGNORE INTO group_members (group_id, contact_id) VALUES (?, ?)")
+            .bind(group_id.to_string())
+            .bind(contact_id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
 
     pub async fn remove_member(&self, group_id: Uuid, contact_id: Uuid) -> DomainResult<()> {
-        sqlx::query(
-            "DELETE FROM group_members WHERE group_id = ? AND contact_id = ?"
-        )
-        .bind(group_id.to_string())
-        .bind(contact_id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        sqlx::query("DELETE FROM group_members WHERE group_id = ? AND contact_id = ?")
+            .bind(group_id.to_string())
+            .bind(contact_id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
@@ -179,7 +179,7 @@ impl<'a> GroupRepository<'a> {
     pub async fn list_by_creator(&self, creator_id: Uuid) -> DomainResult<Vec<Group>> {
         let rows = sqlx::query_as::<_, GroupRow>(
             "SELECT id, name, description, created_at, updated_at, created_by
-             FROM groups WHERE created_by = ? ORDER BY name"
+             FROM groups WHERE created_by = ? ORDER BY name",
         )
         .bind(creator_id.to_string())
         .fetch_all(self.pool)
@@ -189,7 +189,7 @@ impl<'a> GroupRepository<'a> {
         let mut groups = Vec::new();
         for row in rows {
             let contact_ids = sqlx::query_scalar::<_, String>(
-                "SELECT contact_id FROM group_members WHERE group_id = ?"
+                "SELECT contact_id FROM group_members WHERE group_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -223,8 +223,12 @@ impl GroupRow {
             name: self.name,
             description: self.description,
             contact_ids,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at).unwrap().with_timezone(&chrono::Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
             created_by: Uuid::parse_str(&self.created_by).unwrap(),
         }
     }

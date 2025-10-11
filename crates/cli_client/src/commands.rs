@@ -1,17 +1,23 @@
-use anyhow::Result;
-use core_domain::*;
-use local_store::{LocalStore, ContactRepository, NoteRepository, CommunicationRepository, ShareRepository};
-use ai_middleware::{SegmindClient, SuggestionEngine};
-use uuid::Uuid;
-use chrono::Utc;
-use tracing::info;
-use crate::auth::{AuthConfig, login, signup};
+use crate::auth::{login, signup, AuthConfig};
 use crate::import;
+use ai_middleware::{SegmindClient, SuggestionEngine};
+use anyhow::Result;
+use chrono::Utc;
+use core_domain::*;
 use import_service::ImportService;
+use local_store::{
+    CommunicationRepository, ContactRepository, LocalStore, NoteRepository, ShareRepository,
+};
 use std::fs;
 use std::path::PathBuf;
+use tracing::info;
+use uuid::Uuid;
 
-pub async fn import_command(csv: Option<String>, vcard: Option<String>, sms: Option<String>) -> Result<()> {
+pub async fn import_command(
+    csv: Option<String>,
+    vcard: Option<String>,
+    sms: Option<String>,
+) -> Result<()> {
     let config = AuthConfig::load()?;
 
     // Check if authenticated for sync service import
@@ -95,7 +101,8 @@ pub async fn list_command(limit: i64) -> Result<()> {
             let contacts: Vec<Contact> = response.json().await?;
             println!("Contacts (from sync service):");
             for contact in contacts {
-                println!("  {} {} - {} - {}",
+                println!(
+                    "  {} {} - {} - {}",
                     contact.first_name,
                     contact.last_name.as_deref().unwrap_or(""),
                     contact.email.as_deref().unwrap_or("N/A"),
@@ -110,12 +117,12 @@ pub async fn list_command(limit: i64) -> Result<()> {
         let store = LocalStore::new("sqlite:./data/contacts.db").await?;
         let repo = ContactRepository::new(store.pool());
 
-        let contacts = repo.list(limit, 0).await
-            .map_err(|e| anyhow::anyhow!(e))?;
+        let contacts = repo.list(limit, 0).await.map_err(|e| anyhow::anyhow!(e))?;
 
         println!("Contacts (local):");
         for contact in contacts {
-            println!("  {} {} - {} - {}",
+            println!(
+                "  {} {} - {} - {}",
                 contact.first_name,
                 contact.last_name.as_deref().unwrap_or(""),
                 contact.email.as_deref().unwrap_or("N/A"),
@@ -131,12 +138,12 @@ pub async fn search_command(query: &str) -> Result<()> {
     let store = LocalStore::new("sqlite:./data/contacts.db").await?;
     let repo = ContactRepository::new(store.pool());
 
-    let contacts = repo.search(query).await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    let contacts = repo.search(query).await.map_err(|e| anyhow::anyhow!(e))?;
 
     println!("Found {} contacts:", contacts.len());
     for contact in contacts {
-        println!("  {} {} - {}",
+        println!(
+            "  {} {} - {}",
             contact.first_name,
             contact.last_name.as_deref().unwrap_or(""),
             contact.email.as_deref().unwrap_or("N/A")
@@ -146,7 +153,12 @@ pub async fn search_command(query: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn add_command(first_name: String, last_name: Option<String>, email: Option<String>, phone: Option<String>) -> Result<()> {
+pub async fn add_command(
+    first_name: String,
+    last_name: Option<String>,
+    email: Option<String>,
+    phone: Option<String>,
+) -> Result<()> {
     let config = AuthConfig::load()?;
 
     if config.is_authenticated() {
@@ -198,7 +210,8 @@ pub async fn add_command(first_name: String, last_name: Option<String>, email: O
             metadata: serde_json::json!({}),
         };
 
-        repo.create(&contact).await
+        repo.create(&contact)
+            .await
             .map_err(|e| anyhow::anyhow!(e))?;
 
         println!("Contact created locally: {}", contact.id);
@@ -230,8 +243,7 @@ pub async fn note_command(contact_id: &str, title: String, content: String) -> R
         last_synced_at: None,
     };
 
-    repo.create(&note).await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    repo.create(&note).await.map_err(|e| anyhow::anyhow!(e))?;
 
     println!("Note created: {}", note.id);
     Ok(())
@@ -243,13 +255,17 @@ pub async fn communicate_command(contact_id: &str, method: &str, message: String
     let comm_repo = CommunicationRepository::new(store.pool());
 
     let contact_uuid = Uuid::parse_str(contact_id)?;
-    let contact = contact_repo.get_by_id(contact_uuid).await
+    let contact = contact_repo
+        .get_by_id(contact_uuid)
+        .await
         .map_err(|e| anyhow::anyhow!(e))?;
 
     let comm_method = match method {
         "email" => CommunicationMethod::Email,
         "sms" => CommunicationMethod::SMS,
-        platform => CommunicationMethod::Social { platform: platform.to_string() },
+        platform => CommunicationMethod::Social {
+            platform: platform.to_string(),
+        },
     };
 
     let attempt = CommunicationAttempt {
@@ -265,7 +281,9 @@ pub async fn communicate_command(contact_id: &str, method: &str, message: String
         created_at: Utc::now(),
     };
 
-    comm_repo.create(&attempt).await
+    comm_repo
+        .create(&attempt)
+        .await
         .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n✅ Communication queued: {}", attempt.id);
@@ -273,12 +291,19 @@ pub async fn communicate_command(contact_id: &str, method: &str, message: String
     let method_display = match method {
         "email" => "EMAIL".to_string(),
         "sms" => "SMS".to_string(),
-        platform => format!("{} message", platform.to_uppercase())
+        platform => format!("{} message", platform.to_uppercase()),
     };
 
-    println!("\n⚠️  [MOCK] This is a SIMULATED communication - NO actual {} will be sent!", method_display);
+    println!(
+        "\n⚠️  [MOCK] This is a SIMULATED communication - NO actual {} will be sent!",
+        method_display
+    );
     println!("\n📋 Details:");
-    println!("   Recipient: {} {}", contact.first_name, contact.last_name.as_deref().unwrap_or(""));
+    println!(
+        "   Recipient: {} {}",
+        contact.first_name,
+        contact.last_name.as_deref().unwrap_or("")
+    );
 
     match &comm_method {
         CommunicationMethod::Email => {
@@ -287,24 +312,27 @@ pub async fn communicate_command(contact_id: &str, method: &str, message: String
             } else {
                 println!("   ⚠️  Warning: Contact has no email address");
             }
-        },
+        }
         CommunicationMethod::SMS => {
             if let Some(phone) = &contact.phone {
                 println!("   Phone: {}", phone);
             } else {
                 println!("   ⚠️  Warning: Contact has no phone number");
             }
-        },
+        }
         CommunicationMethod::Social { platform } => {
             println!("   Platform: {}", platform);
         }
     }
 
-    println!("   Message: {}", if message.len() > 50 {
-        format!("{}...", &message[..50])
-    } else {
-        message
-    });
+    println!(
+        "   Message: {}",
+        if message.len() > 50 {
+            format!("{}...", &message[..50])
+        } else {
+            message
+        }
+    );
 
     println!("\n💡 Alpha Limitation:");
     println!("   All Email/SMS/Social sends are MOCKED in this release.");
@@ -353,8 +381,7 @@ pub async fn share_command(entity_type: &str, entity_id: &str, email: &str) -> R
         expires_at: None,
     };
 
-    repo.create(&invite).await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    repo.create(&invite).await.map_err(|e| anyhow::anyhow!(e))?;
 
     println!("Share invite created: {}", invite.id);
     Ok(())
@@ -365,7 +392,9 @@ pub async fn suggest_command(contact_id: &str) -> Result<()> {
     let contact_repo = ContactRepository::new(store.pool());
 
     let contact_uuid = Uuid::parse_str(contact_id)?;
-    let contact = contact_repo.get_by_id(contact_uuid).await
+    let contact = contact_repo
+        .get_by_id(contact_uuid)
+        .await
         .map_err(|e| anyhow::anyhow!(e))?;
 
     let client = SegmindClient::new(Some("mock-api-key".to_string()));
@@ -373,7 +402,11 @@ pub async fn suggest_command(contact_id: &str) -> Result<()> {
 
     let suggestions = engine.generate_contact_suggestions(&contact).await?;
 
-    println!("AI Suggestions for {} {}:", contact.first_name, contact.last_name.as_deref().unwrap_or(""));
+    println!(
+        "AI Suggestions for {} {}:",
+        contact.first_name,
+        contact.last_name.as_deref().unwrap_or("")
+    );
     for suggestion in suggestions {
         println!("  [{}] {}", suggestion.confidence, suggestion.content);
     }
@@ -406,7 +439,10 @@ pub async fn signup_command(email: String, password: String, name: String) -> Re
     config.email = Some(response.user.email);
     config.save()?;
 
-    println!("Successfully signed up and logged in as {}", response.user.name);
+    println!(
+        "Successfully signed up and logged in as {}",
+        response.user.name
+    );
     Ok(())
 }
 
@@ -423,7 +459,10 @@ pub async fn status_command() -> Result<()> {
     let config = AuthConfig::load()?;
 
     if config.is_authenticated() {
-        println!("Logged in as: {}", config.email.as_deref().unwrap_or("unknown"));
+        println!(
+            "Logged in as: {}",
+            config.email.as_deref().unwrap_or("unknown")
+        );
         println!("API URL: {}", config.api_url);
     } else {
         println!("Not logged in");

@@ -1,4 +1,4 @@
-use core_domain::{SearchHistory, DomainResult, DomainError};
+use core_domain::{DomainError, DomainResult, SearchHistory};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -13,8 +13,13 @@ impl<'a> SearchHistoryRepository<'a> {
 
     pub async fn create(&self, history: &SearchHistory) -> DomainResult<()> {
         let result_ids_json = serde_json::to_string(
-            &history.result_ids.iter().map(|id| id.to_string()).collect::<Vec<_>>()
-        ).unwrap();
+            &history
+                .result_ids
+                .iter()
+                .map(|id| id.to_string())
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
 
         sqlx::query(
             "INSERT INTO search_history (id, user_id, query, filters, result_count, result_ids, clicked_result_id, privacy_mode, metadata, created_at)
@@ -51,7 +56,12 @@ impl<'a> SearchHistoryRepository<'a> {
         Ok(row.into())
     }
 
-    pub async fn list_by_user(&self, user_id: Uuid, limit: i64, offset: i64) -> DomainResult<Vec<SearchHistory>> {
+    pub async fn list_by_user(
+        &self,
+        user_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> DomainResult<Vec<SearchHistory>> {
         let rows = sqlx::query_as::<_, SearchHistoryRow>(
             "SELECT id, user_id, query, filters, result_count, result_ids, clicked_result_id, privacy_mode, metadata, created_at
              FROM search_history WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"
@@ -66,15 +76,17 @@ impl<'a> SearchHistoryRepository<'a> {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
-    pub async fn update_clicked_result(&self, id: Uuid, clicked_result_id: Uuid) -> DomainResult<()> {
-        sqlx::query(
-            "UPDATE search_history SET clicked_result_id = ? WHERE id = ?"
-        )
-        .bind(clicked_result_id.to_string())
-        .bind(id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+    pub async fn update_clicked_result(
+        &self,
+        id: Uuid,
+        clicked_result_id: Uuid,
+    ) -> DomainResult<()> {
+        sqlx::query("UPDATE search_history SET clicked_result_id = ? WHERE id = ?")
+            .bind(clicked_result_id.to_string())
+            .bind(id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
@@ -136,7 +148,9 @@ impl From<SearchHistoryRow> for SearchHistory {
             clicked_result_id: row.clicked_result_id.and_then(|s| Uuid::parse_str(&s).ok()),
             privacy_mode: row.privacy_mode != 0,
             metadata: serde_json::from_str(&row.metadata).unwrap_or(serde_json::json!({})),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
         }
     }
 }
@@ -281,7 +295,9 @@ mod tests {
         repo.create(&history).await.unwrap();
 
         let clicked_id = Uuid::new_v4();
-        repo.update_clicked_result(history.id, clicked_id).await.unwrap();
+        repo.update_clicked_result(history.id, clicked_id)
+            .await
+            .unwrap();
 
         let retrieved = repo.get_by_id(history.id).await.unwrap();
         assert_eq!(retrieved.clicked_result_id, Some(clicked_id));

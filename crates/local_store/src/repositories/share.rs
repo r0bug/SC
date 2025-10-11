@@ -1,4 +1,4 @@
-use core_domain::{ShareInvite, DomainResult, DomainError};
+use core_domain::{DomainError, DomainResult, ShareInvite};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -74,7 +74,7 @@ impl<'a> ShareRepository<'a> {
              entity_type = ?, entity_id = ?, shared_by = ?, shared_with_email = ?,
              shared_with_user = ?, permissions = ?, accepted = ?, accepted_at = ?,
              revoked = ?, revoked_at = ?, expires_at = ?
-             WHERE id = ?"
+             WHERE id = ?",
         )
         .bind(entity_type_str)
         .bind(invite.entity_id.to_string())
@@ -141,11 +141,25 @@ impl From<ShareInviteRow> for ShareInvite {
             shared_with_user: row.shared_with_user.and_then(|s| Uuid::parse_str(&s).ok()),
             permissions: serde_json::from_str(&row.permissions).unwrap(),
             accepted: row.accepted != 0,
-            accepted_at: row.accepted_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
+            accepted_at: row.accepted_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
             revoked: row.revoked != 0,
-            revoked_at: row.revoked_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&chrono::Utc),
-            expires_at: row.expires_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
+            revoked_at: row.revoked_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            expires_at: row.expires_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
         }
     }
 }

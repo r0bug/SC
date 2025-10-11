@@ -1,13 +1,13 @@
+use crate::state::AppState;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::state::AppState;
-use chrono::Utc;
 
 #[derive(Debug, Deserialize)]
 pub struct CommunicationStatusUpdate {

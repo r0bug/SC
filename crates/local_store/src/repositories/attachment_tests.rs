@@ -2,8 +2,8 @@
 mod attachment_integration_tests {
     use super::super::*;
     use crate::repositories::attachment::AttachmentRepository;
-    use core_domain::{Attachment, AttachmentEntityType, ScanStatus};
     use chrono::Utc;
+    use core_domain::{Attachment, AttachmentEntityType, ScanStatus};
     use sqlx::sqlite::SqlitePoolOptions;
     use sqlx::{Pool, Sqlite};
     use uuid::Uuid;
@@ -227,7 +227,10 @@ mod attachment_integration_tests {
         let retrieved = repo.get_by_id(attachment.id).await.unwrap();
         assert!(retrieved.encrypted);
         assert_eq!(
-            retrieved.metadata.get("encryption").and_then(|v| v.as_str()),
+            retrieved
+                .metadata
+                .get("encryption")
+                .and_then(|v| v.as_str()),
             Some("AES-256")
         );
     }

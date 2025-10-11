@@ -1,7 +1,7 @@
 use crate::ImportError;
+use chrono::Utc;
 use sqlx::{Pool, Sqlite, Transaction};
 use uuid::Uuid;
-use chrono::Utc;
 
 #[derive(Debug, Clone)]
 pub enum TransactionState {
@@ -143,8 +143,7 @@ impl<'a> ImportTransaction<'a> {
 
             // Remove changes after checkpoint
             self.changes_log.retain(|c| c.batch_number <= checkpoint);
-            self.imported_ids
-                .truncate(self.changes_log.len());
+            self.imported_ids.truncate(self.changes_log.len());
             self.current_batch = checkpoint;
 
             Ok(())

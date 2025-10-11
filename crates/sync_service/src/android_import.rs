@@ -271,12 +271,11 @@ pub async fn insert_calls(
 
     for call in calls {
         // Try to match phone number to existing contact
-        let contact_id: Option<String> = sqlx::query_scalar(
-            "SELECT id FROM contacts WHERE phone = ? LIMIT 1"
-        )
-        .bind(&call.phone_number)
-        .fetch_optional(pool)
-        .await?;
+        let contact_id: Option<String> =
+            sqlx::query_scalar("SELECT id FROM contacts WHERE phone = ? LIMIT 1")
+                .bind(&call.phone_number)
+                .fetch_optional(pool)
+                .await?;
 
         // Insert call record
         let result = sqlx::query(
@@ -285,7 +284,7 @@ pub async fn insert_calls(
             (id, contact_id, phone_number, contact_name, call_date, duration,
              call_type, readable_date, subscription_id, imported_at, imported_by, source_file)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#
+            "#,
         )
         .bind(&call.id)
         .bind(contact_id)
@@ -324,12 +323,11 @@ pub async fn insert_sms(
 
     for sms in messages {
         // Try to match phone number to existing contact
-        let contact_id: Option<String> = sqlx::query_scalar(
-            "SELECT id FROM contacts WHERE phone = ? LIMIT 1"
-        )
-        .bind(&sms.phone_number)
-        .fetch_optional(pool)
-        .await?;
+        let contact_id: Option<String> =
+            sqlx::query_scalar("SELECT id FROM contacts WHERE phone = ? LIMIT 1")
+                .bind(&sms.phone_number)
+                .fetch_optional(pool)
+                .await?;
 
         // Insert SMS record
         let result = sqlx::query(
@@ -339,7 +337,7 @@ pub async fn insert_sms(
              subject, body, readable_date, thread_id, read_status, subscription_id,
              imported_at, imported_by, source_file)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#
+            "#,
         )
         .bind(&sms.id)
         .bind(contact_id)
@@ -381,17 +379,14 @@ pub async fn insert_mms(
 
     for mms in messages {
         // Try to match phone number to existing contact
-        let contact_id: Option<String> = sqlx::query_scalar(
-            "SELECT id FROM contacts WHERE phone = ? LIMIT 1"
-        )
-        .bind(&mms.phone_number)
-        .fetch_optional(pool)
-        .await?;
+        let contact_id: Option<String> =
+            sqlx::query_scalar("SELECT id FROM contacts WHERE phone = ? LIMIT 1")
+                .bind(&mms.phone_number)
+                .fetch_optional(pool)
+                .await?;
 
         // Combine MMS parts into body text
-        let body_parts: Vec<String> = mms.parts.iter()
-            .filter_map(|p| p.text.clone())
-            .collect();
+        let body_parts: Vec<String> = mms.parts.iter().filter_map(|p| p.text.clone()).collect();
         let body = body_parts.join("\n");
 
         // Insert MMS record as SMS
@@ -402,7 +397,7 @@ pub async fn insert_mms(
              subject, body, readable_date, thread_id, read_status, subscription_id,
              imported_at, imported_by, source_file)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#
+            "#,
         )
         .bind(&mms.id)
         .bind(contact_id)
@@ -431,7 +426,7 @@ pub async fn insert_mms(
                     INSERT INTO mms_parts
                     (id, sms_id, sequence, content_type, name, text)
                     VALUES (?, ?, ?, ?, ?, ?)
-                    "#
+                    "#,
                 )
                 .bind(&part_id)
                 .bind(&mms.id)

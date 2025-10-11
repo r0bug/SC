@@ -1,15 +1,15 @@
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
     use communication_queue::{
-        WorkerSupervisor, MetricsStore, EnhancedCommunicationQueue,
-        BackoffConfig, CommunicationQueue
+        BackoffConfig, CommunicationQueue, EnhancedCommunicationQueue, MetricsStore,
+        WorkerSupervisor,
     };
+    use core_domain::{CommunicationAttempt, CommunicationMethod, CommunicationStatus};
     use local_store::CommunicationRepository;
-    use core_domain::{CommunicationAttempt, CommunicationStatus, CommunicationMethod};
     use sqlx::sqlite::SqlitePool;
     use std::sync::Arc;
     use uuid::Uuid;
-    use chrono::Utc;
 
     async fn setup_test_db() -> Arc<SqlitePool> {
         let pool = SqlitePool::connect("sqlite::memory:")
@@ -31,7 +31,7 @@ mod tests {
                 retry_count INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL
             )
-            "#
+            "#,
         )
         .execute(&pool)
         .await
@@ -52,7 +52,7 @@ mod tests {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
-            "#
+            "#,
         )
         .execute(&pool)
         .await
@@ -172,12 +172,13 @@ mod tests {
                 created_at: Utc::now(),
             };
 
-            repo.create(&attempt).await.expect("Failed to create attempt");
+            repo.create(&attempt)
+                .await
+                .expect("Failed to create attempt");
         }
 
         // Process batch
-        let queue = EnhancedCommunicationQueue::new()
-            .with_batch_size(2); // Process 2 at a time
+        let queue = EnhancedCommunicationQueue::new().with_batch_size(2); // Process 2 at a time
 
         let processed = queue
             .process_batch(&repo)
@@ -187,10 +188,7 @@ mod tests {
         assert_eq!(processed, 2); // Should process batch size
 
         // Check status updates
-        let pending = repo
-            .list_pending()
-            .await
-            .expect("Failed to list pending");
+        let pending = repo.list_pending().await.expect("Failed to list pending");
 
         assert_eq!(pending.len(), 1); // One should remain
     }
@@ -204,8 +202,7 @@ mod tests {
             max_retries: 3,
         };
 
-        let _queue = EnhancedCommunicationQueue::new()
-            .with_backoff_config(config);
+        let _queue = EnhancedCommunicationQueue::new().with_backoff_config(config);
 
         // Test is complete - backoff is tested in unit tests
         assert!(true);
@@ -230,7 +227,9 @@ mod tests {
             created_at: Utc::now(),
         };
 
-        repo.create(&attempt).await.expect("Failed to create attempt");
+        repo.create(&attempt)
+            .await
+            .expect("Failed to create attempt");
 
         // Process with standard queue
         let queue = CommunicationQueue::new();
@@ -240,10 +239,7 @@ mod tests {
             .expect("Failed to process");
 
         // Verify status was updated by checking pending list is now empty
-        let pending_after = repo
-            .list_pending()
-            .await
-            .expect("Failed to list pending");
+        let pending_after = repo.list_pending().await.expect("Failed to list pending");
 
         assert_eq!(pending_after.len(), 0); // Should be processed
     }

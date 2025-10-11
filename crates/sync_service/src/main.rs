@@ -1,42 +1,42 @@
-mod api;
-mod ws;
-mod state;
-mod auth;
-mod auth_routes;
 mod acl;
-mod share_routes;
-mod group_routes;
-mod concept_routes;
-mod calendar_routes;
-mod search_history_routes;
-mod attachment_routes;
-mod websocket;
-mod worker_routes;
-mod import_routes;
-mod dashboard_routes;
-mod update_system;
-mod update_routes;
-mod observability;
-mod validation;
-mod security_headers;
-mod rate_limit;
 mod android_import;
 mod android_import_routes;
+mod api;
+mod attachment_routes;
+mod auth;
+mod auth_routes;
+mod calendar_routes;
+mod concept_routes;
+mod dashboard_routes;
+mod group_routes;
+mod import_routes;
+mod observability;
+mod rate_limit;
+mod search_history_routes;
+mod security_headers;
+mod share_routes;
+mod state;
+mod update_routes;
+mod update_system;
+mod validation;
+mod websocket;
+mod worker_routes;
+mod ws;
 
+use ai_middleware::SegmindClient;
 use axum::{
-    Router,
-    routing::{get, post},
-    response::{IntoResponse, Response},
+    extract::DefaultBodyLimit,
     http::StatusCode,
     middleware,
-    extract::DefaultBodyLimit,
+    response::{IntoResponse, Response},
+    routing::{get, post},
+    Router,
 };
-use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
+use local_store::LocalStore;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use local_store::LocalStore;
-use ai_middleware::SegmindClient;
+use tower_http::cors::CorsLayer;
+use tower_http::trace::TraceLayer;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -46,8 +46,8 @@ async fn main() -> anyhow::Result<()> {
     // Initialize Prometheus metrics
     let prometheus_handle = observability::init_metrics();
 
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:./data/contacts.db".to_string());
+    let database_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/contacts.db".to_string());
 
     let store = LocalStore::new(&database_url).await?;
     let ai_client = SegmindClient::new(Some("mock-api-key".to_string()));
@@ -69,9 +69,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Create dashboard state
-    let dashboard_state = dashboard_routes::DashboardState {
-        pool: pool.clone(),
-    };
+    let dashboard_state = dashboard_routes::DashboardState { pool: pool.clone() };
 
     // Create update system state
     let update_state = update_routes::UpdateState::new();
@@ -89,16 +87,18 @@ async fn main() -> anyhow::Result<()> {
     let metrics_handle = prometheus_handle.clone();
     let metrics_handler = move || {
         let metrics_handle = metrics_handle.clone();
-        async move {
-            metrics_handle.render()
-        }
+        async move { metrics_handle.render() }
     };
 
     // Create rate limiters for different route groups
-    let auth_rate_limiter = rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::auth_routes());
-    let attachment_rate_limiter = rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::attachment_routes());
-    let search_rate_limiter = rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::search_routes());
-    let import_rate_limiter = rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::attachment_routes()); // Similar to attachments (file uploads)
+    let auth_rate_limiter =
+        rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::auth_routes());
+    let attachment_rate_limiter =
+        rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::attachment_routes());
+    let search_rate_limiter =
+        rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::search_routes());
+    let import_rate_limiter =
+        rate_limit::create_rate_limiter(rate_limit::RateLimitConfig::attachment_routes()); // Similar to attachments (file uploads)
 
     // Auth routes with strict rate limiting (10 req/min)
     let auth_routes = Router::new()
@@ -115,10 +115,16 @@ async fn main() -> anyhow::Result<()> {
 
     // Attachment routes with rate limiting (100 req/hr)
     let attachment_routes = Router::new()
-        .route("/api/attachments/upload", post(attachment_routes::upload_attachment))
+        .route(
+            "/api/attachments/upload",
+            post(attachment_routes::upload_attachment),
+        )
         .route("/api/attachments", get(attachment_routes::list_attachments))
-        .route("/api/attachments/:id", get(attachment_routes::download_attachment)
-            .delete(attachment_routes::delete_attachment))
+        .route(
+            "/api/attachments/:id",
+            get(attachment_routes::download_attachment)
+                .delete(attachment_routes::delete_attachment),
+        )
         .layer(middleware::from_fn(move |req, next| {
             let limiter = attachment_rate_limiter.clone();
             async move { limiter.middleware(req, next).await }
@@ -128,7 +134,10 @@ async fn main() -> anyhow::Result<()> {
     // Search routes with rate limiting (30 req/min)
     let search_routes = Router::new()
         .route("/api/contacts/search", post(api::search_contacts))
-        .route("/api/concepts/search", post(concept_routes::search_concepts))
+        .route(
+            "/api/concepts/search",
+            post(concept_routes::search_concepts),
+        )
         .layer(middleware::from_fn(move |req, next| {
             let limiter = search_rate_limiter.clone();
             async move { limiter.middleware(req, next).await }
@@ -144,12 +153,10 @@ async fn main() -> anyhow::Result<()> {
         .with_state(import_state);
 
     // Dashboard routes (no rate limiting needed for simple dashboard)
-    let dashboard_router = dashboard_routes::dashboard_routes()
-        .with_state(dashboard_state);
+    let dashboard_router = dashboard_routes::dashboard_routes().with_state(dashboard_state);
 
     // Update system routes
-    let update_router = update_routes::update_routes()
-        .with_state(update_state);
+    let update_router = update_routes::update_routes().with_state(update_state);
 
     let app = Router::new()
         .route("/health", get(health_check))
@@ -168,48 +175,110 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/shares/:id/reject", post(share_routes::reject_share))
         .route("/api/shares/:id/revoke", post(share_routes::revoke_share))
         .route("/api/shares/sent", get(share_routes::list_sent_shares))
-        .route("/api/shares/received", get(share_routes::list_received_shares))
+        .route(
+            "/api/shares/received",
+            get(share_routes::list_received_shares),
+        )
         // Group routes
-        .route("/api/groups", get(group_routes::list_groups).post(group_routes::create_group))
-        .route("/api/groups/:id", get(group_routes::get_group)
-            .put(group_routes::update_group)
-            .delete(group_routes::delete_group))
-        .route("/api/groups/:id/members/:contact_id", post(group_routes::add_member)
-            .delete(group_routes::remove_member))
+        .route(
+            "/api/groups",
+            get(group_routes::list_groups).post(group_routes::create_group),
+        )
+        .route(
+            "/api/groups/:id",
+            get(group_routes::get_group)
+                .put(group_routes::update_group)
+                .delete(group_routes::delete_group),
+        )
+        .route(
+            "/api/groups/:id/members/:contact_id",
+            post(group_routes::add_member).delete(group_routes::remove_member),
+        )
         // Concept routes
-        .route("/api/concepts", get(concept_routes::list_concepts).post(concept_routes::create_concept))
-        .route("/api/concepts/:id", get(concept_routes::get_concept)
-            .put(concept_routes::update_concept)
-            .delete(concept_routes::delete_concept))
+        .route(
+            "/api/concepts",
+            get(concept_routes::list_concepts).post(concept_routes::create_concept),
+        )
+        .route(
+            "/api/concepts/:id",
+            get(concept_routes::get_concept)
+                .put(concept_routes::update_concept)
+                .delete(concept_routes::delete_concept),
+        )
         // Calendar routes
-        .route("/api/calendar/events", get(calendar_routes::list_events).post(calendar_routes::create_event))
-        .route("/api/calendar/events/:id", get(calendar_routes::get_event)
-            .put(calendar_routes::update_event)
-            .delete(calendar_routes::delete_event))
-        .route("/api/calendar/events/contact/:contact_id", get(calendar_routes::list_events_by_contact))
+        .route(
+            "/api/calendar/events",
+            get(calendar_routes::list_events).post(calendar_routes::create_event),
+        )
+        .route(
+            "/api/calendar/events/:id",
+            get(calendar_routes::get_event)
+                .put(calendar_routes::update_event)
+                .delete(calendar_routes::delete_event),
+        )
+        .route(
+            "/api/calendar/events/contact/:contact_id",
+            get(calendar_routes::list_events_by_contact),
+        )
         // Search history routes
-        .route("/api/search-history", get(search_history_routes::list_search_history)
-            .delete(search_history_routes::clear_search_history))
-        .route("/api/search-history/:id", get(search_history_routes::get_search_history)
-            .delete(search_history_routes::delete_search_history))
-        .route("/api/search-history/:id/clicked", post(search_history_routes::update_clicked_result))
+        .route(
+            "/api/search-history",
+            get(search_history_routes::list_search_history)
+                .delete(search_history_routes::clear_search_history),
+        )
+        .route(
+            "/api/search-history/:id",
+            get(search_history_routes::get_search_history)
+                .delete(search_history_routes::delete_search_history),
+        )
+        .route(
+            "/api/search-history/:id/clicked",
+            post(search_history_routes::update_clicked_result),
+        )
         // Worker callback routes
-        .route("/api/communication/:id/status", post(worker_routes::update_communication_status))
-        .route("/api/communication/batch-status", post(worker_routes::batch_update_communication_status))
-        .route("/api/worker/health", post(worker_routes::worker_health_check))
+        .route(
+            "/api/communication/:id/status",
+            post(worker_routes::update_communication_status),
+        )
+        .route(
+            "/api/communication/batch-status",
+            post(worker_routes::batch_update_communication_status),
+        )
+        .route(
+            "/api/worker/health",
+            post(worker_routes::worker_health_check),
+        )
         .route("/api/worker/register", post(worker_routes::register_worker))
         // WebSocket route
         .route("/ws/events", get(websocket::websocket_handler))
         // Android backup import routes
-        .route("/api/import/android-calls", post(android_import_routes::import_android_calls))
-        .route("/api/import/android-sms", post(android_import_routes::import_android_sms))
-        .route("/api/communications/history/:contact_id", get(android_import_routes::get_contact_communications))
-        .route("/api/communications/search", get(android_import_routes::search_communications))
+        .route(
+            "/api/import/android-calls",
+            post(android_import_routes::import_android_calls),
+        )
+        .route(
+            "/api/import/android-sms",
+            post(android_import_routes::import_android_sms),
+        )
+        .route(
+            "/api/communications/history/:contact_id",
+            get(android_import_routes::get_contact_communications),
+        )
+        .route(
+            "/api/communications/search",
+            get(android_import_routes::search_communications),
+        )
         // Existing routes
-        .route("/api/contacts", get(api::list_contacts).post(api::create_contact))
+        .route(
+            "/api/contacts",
+            get(api::list_contacts).post(api::create_contact),
+        )
         .route("/api/contacts/:id", get(api::get_contact))
         .route("/api/tags", get(api::list_tags).post(api::create_tag))
-        .route("/api/projects", get(api::list_projects).post(api::create_project))
+        .route(
+            "/api/projects",
+            get(api::list_projects).post(api::create_project),
+        )
         .route("/api/notes", post(api::create_note))
         .route("/api/notes/contact/:id", get(api::list_notes_by_contact))
         .route("/api/communication", post(api::queue_communication))
@@ -217,7 +286,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/ai/suggestions/:contact_id", get(api::get_suggestions))
         .route("/ws", get(ws::ws_handler))
         .layer(DefaultBodyLimit::max(500 * 1024 * 1024)) // 500MB limit for file uploads
-        .layer(middleware::from_fn(security_headers::security_headers_middleware))
+        .layer(middleware::from_fn(
+            security_headers::security_headers_middleware,
+        ))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);

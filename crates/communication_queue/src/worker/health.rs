@@ -1,17 +1,11 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::Json,
-    routing::get,
-    Router,
-};
-use serde::{Serialize, Deserialize};
+use anyhow::Result;
+use axum::{extract::State, http::StatusCode, response::Json, routing::get, Router};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::info;
-use anyhow::Result;
 
-use super::{supervisor::WorkerSupervisor, metrics::MetricsStore};
+use super::{metrics::MetricsStore, supervisor::WorkerSupervisor};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HealthStatus {
@@ -55,10 +49,7 @@ pub struct HealthServer {
 }
 
 impl HealthServer {
-    pub fn new(
-        supervisor: Arc<WorkerSupervisor>,
-        metrics_store: Arc<MetricsStore>,
-    ) -> Self {
+    pub fn new(supervisor: Arc<WorkerSupervisor>, metrics_store: Arc<MetricsStore>) -> Self {
         Self {
             supervisor,
             metrics_store,
@@ -136,7 +127,10 @@ async fn worker_health_handler(
         .collect();
 
     // Get metrics for all tasks
-    let all_metrics = state.metrics_store.get_all_metrics().await
+    let all_metrics = state
+        .metrics_store
+        .get_all_metrics()
+        .await
         .unwrap_or_else(|_| Vec::new());
 
     let task_metrics: Vec<TaskMetrics> = all_metrics
@@ -163,7 +157,9 @@ async fn worker_health_handler(
             total: health_report.total_tasks,
             running: health_report.running_tasks,
             failed: health_report.failed_tasks,
-            stopped: health_report.total_tasks - health_report.running_tasks - health_report.failed_tasks,
+            stopped: health_report.total_tasks
+                - health_report.running_tasks
+                - health_report.failed_tasks,
             details: task_details,
         },
         metrics: task_metrics,

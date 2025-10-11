@@ -5,8 +5,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 /// Initialize structured logging with JSON format
 pub fn init_logging() {
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let format_layer = tracing_subscriber::fmt::layer()
         .with_target(true)
@@ -41,7 +40,9 @@ pub fn init_metrics() -> PrometheusHandle {
     let builder = PrometheusBuilder::new()
         .set_buckets_for_metric(
             Matcher::Full("http_request_duration_seconds".to_string()),
-            &[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
+            &[
+                0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+            ],
         )
         .unwrap()
         .set_buckets_for_metric(

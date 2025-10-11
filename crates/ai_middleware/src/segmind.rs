@@ -1,10 +1,10 @@
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use anyhow::{Result, Context};
-use tracing::{info, warn, error};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use std::sync::Arc;
+use tracing::{error, info, warn};
 
 const DEFAULT_BASE_URL: &str = "https://api.segmind.com/v1";
 const DEFAULT_MODEL: &str = "llama-3.1-8b-instruct";
@@ -57,7 +57,8 @@ impl ResponseCache {
     }
 
     fn clear_expired(&mut self) {
-        self.entries.retain(|_, entry| entry.cached_at.elapsed() < CACHE_TTL);
+        self.entries
+            .retain(|_, entry| entry.cached_at.elapsed() < CACHE_TTL);
     }
 }
 
@@ -157,13 +158,20 @@ impl SegmindClient {
             suggested_tags: vec!["Professional".to_string(), "Tech Industry".to_string()],
             relationship_strength: response.confidence,
             communication_frequency: "Monthly".to_string(),
-            next_action: response.text.lines().last().unwrap_or("Follow up soon").to_string(),
+            next_action: response
+                .text
+                .lines()
+                .last()
+                .unwrap_or("Follow up soon")
+                .to_string(),
         })
     }
 
     /// Call actual Segmind API with retry logic
     async fn call_segmind_api(&self, prompt: &str) -> Result<SegmindResponse> {
-        let api_key = self.api_key.as_ref()
+        let api_key = self
+            .api_key
+            .as_ref()
             .context("API key required for Segmind calls")?;
 
         for attempt in 1..=MAX_RETRIES {
@@ -174,7 +182,8 @@ impl SegmindClient {
                 "temperature": 0.7,
             });
 
-            match self.http_client
+            match self
+                .http_client
                 .post(format!("{}/chat/completions", self.base_url))
                 .header("Authorization", format!("Bearer {}", api_key))
                 .json(&payload)
@@ -183,12 +192,16 @@ impl SegmindClient {
             {
                 Ok(response) => {
                     if response.status().is_success() {
-                        let api_response: ApiResponse = response.json().await
+                        let api_response: ApiResponse = response
+                            .json()
+                            .await
                             .context("Failed to parse Segmind response")?;
 
                         info!("Segmind API call successful");
                         return Ok(SegmindResponse {
-                            text: api_response.choices.first()
+                            text: api_response
+                                .choices
+                                .first()
                                 .map(|c| c.message.content.clone())
                                 .unwrap_or_default(),
                             confidence: 0.8, // Could derive from API response
@@ -206,9 +219,7 @@ impl SegmindClient {
                 Err(e) => {
                     warn!(
                         "Segmind API call failed: {} (attempt {}/{})",
-                        e,
-                        attempt,
-                        MAX_RETRIES
+                        e, attempt, MAX_RETRIES
                     );
                 }
             }
@@ -219,13 +230,19 @@ impl SegmindClient {
             }
         }
 
-        error!("Segmind API call failed after {} retries, falling back to mock", MAX_RETRIES);
+        error!(
+            "Segmind API call failed after {} retries, falling back to mock",
+            MAX_RETRIES
+        );
         self.mock_generate_suggestion(prompt).await
     }
 
     /// Mock implementation for development/testing
     async fn mock_generate_suggestion(&self, prompt: &str) -> Result<SegmindResponse> {
-        info!("[MOCK SEGMIND] Generating AI suggestion for prompt: {}", prompt);
+        info!(
+            "[MOCK SEGMIND] Generating AI suggestion for prompt: {}",
+            prompt
+        );
 
         // Simulate API delay
         tokio::time::sleep(Duration::from_millis(200)).await;

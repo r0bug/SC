@@ -1,9 +1,4 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -93,9 +88,7 @@ pub struct UpdateConfigRequest {
 }
 
 /// GET /api/system/updates/config - Get update configuration
-pub async fn get_update_config(
-    State(state): State<UpdateState>,
-) -> impl IntoResponse {
+pub async fn get_update_config(State(state): State<UpdateState>) -> impl IntoResponse {
     let config = state.config.read().await;
     Json(config.clone())
 }
@@ -150,10 +143,7 @@ pub async fn download_update(
     })?;
 
     if !info.update_available {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "No update available".to_string(),
-        ));
+        return Err((StatusCode::BAD_REQUEST, "No update available".to_string()));
     }
 
     let download_url = info.download_url.as_ref().ok_or_else(|| {
@@ -205,11 +195,24 @@ pub async fn apply_update(
 pub fn update_routes() -> axum::Router<UpdateState> {
     axum::Router::new()
         .route("/api/system/version", axum::routing::get(get_version))
-        .route("/api/system/updates/check", axum::routing::get(check_updates))
-        .route("/api/system/updates/info", axum::routing::get(get_update_info))
-        .route("/api/system/updates/config",
-            axum::routing::get(get_update_config)
-                .put(update_config))
-        .route("/api/system/updates/download", axum::routing::post(download_update))
-        .route("/api/system/updates/apply", axum::routing::post(apply_update))
+        .route(
+            "/api/system/updates/check",
+            axum::routing::get(check_updates),
+        )
+        .route(
+            "/api/system/updates/info",
+            axum::routing::get(get_update_info),
+        )
+        .route(
+            "/api/system/updates/config",
+            axum::routing::get(get_update_config).put(update_config),
+        )
+        .route(
+            "/api/system/updates/download",
+            axum::routing::post(download_update),
+        )
+        .route(
+            "/api/system/updates/apply",
+            axum::routing::post(apply_update),
+        )
 }

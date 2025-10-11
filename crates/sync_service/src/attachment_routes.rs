@@ -1,3 +1,5 @@
+use crate::state::AppState;
+use crate::validation;
 use axum::{
     body::Body,
     extract::{Multipart, Path, Query, State},
@@ -9,8 +11,6 @@ use core_domain::{Attachment, AttachmentEntityType};
 use local_store::AttachmentRepository;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::state::AppState;
-use crate::validation;
 
 #[derive(Debug, Deserialize)]
 pub struct ListAttachmentsQuery {
@@ -44,32 +44,36 @@ pub async fn upload_attachment(
     let mut uploaded_by: Option<Uuid> = None;
 
     // Parse multipart form
-    while let Some(field) = multipart.next_field().await
-        .map_err(|e| {
-            tracing::error!("Failed to read multipart field: {}", e);
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorResponse {
-                    error: "Invalid multipart data".to_string(),
-                })
-            )
-        })?
-    {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        tracing::error!("Failed to read multipart field: {}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "Invalid multipart data".to_string(),
+            }),
+        )
+    })? {
         let field_name = field.name().unwrap_or("").to_string();
 
         match field_name.as_str() {
             "file" => {
                 filename = field.file_name().map(|s| s.to_string());
                 content_type = field.content_type().map(|s| s.to_string());
-                file_data = Some(field.bytes().await.map_err(|e| {
-                    tracing::error!("Failed to read file data: {}", e);
-                    (
-                        StatusCode::BAD_REQUEST,
-                        Json(ErrorResponse {
-                            error: "Failed to read file".to_string(),
-                        })
-                    )
-                })?.to_vec());
+                file_data = Some(
+                    field
+                        .bytes()
+                        .await
+                        .map_err(|e| {
+                            tracing::error!("Failed to read file data: {}", e);
+                            (
+                                StatusCode::BAD_REQUEST,
+                                Json(ErrorResponse {
+                                    error: "Failed to read file".to_string(),
+                                }),
+                            )
+                        })?
+                        .to_vec(),
+                );
             }
             "entity_type" => {
                 let text = field.text().await.map_err(|e| {
@@ -78,7 +82,7 @@ pub async fn upload_attachment(
                         StatusCode::BAD_REQUEST,
                         Json(ErrorResponse {
                             error: "Invalid entity_type".to_string(),
-                        })
+                        }),
                     )
                 })?;
                 entity_type = Some(text);
@@ -90,7 +94,7 @@ pub async fn upload_attachment(
                         StatusCode::BAD_REQUEST,
                         Json(ErrorResponse {
                             error: "Invalid entity_id".to_string(),
-                        })
+                        }),
                     )
                 })?;
                 entity_id = Some(Uuid::parse_str(&text).map_err(|e| {
@@ -99,7 +103,7 @@ pub async fn upload_attachment(
                         StatusCode::BAD_REQUEST,
                         Json(ErrorResponse {
                             error: "Invalid entity_id format".to_string(),
-                        })
+                        }),
                     )
                 })?);
             }
@@ -110,7 +114,7 @@ pub async fn upload_attachment(
                         StatusCode::BAD_REQUEST,
                         Json(ErrorResponse {
                             error: "Invalid uploaded_by".to_string(),
-                        })
+                        }),
                     )
                 })?;
                 uploaded_by = Some(Uuid::parse_str(&text).map_err(|e| {
@@ -119,7 +123,7 @@ pub async fn upload_attachment(
                         StatusCode::BAD_REQUEST,
                         Json(ErrorResponse {
                             error: "Invalid uploaded_by format".to_string(),
-                        })
+                        }),
                     )
                 })?);
             }
@@ -135,7 +139,7 @@ pub async fn upload_attachment(
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: "Missing file".to_string(),
-            })
+            }),
         )
     })?;
 
@@ -144,29 +148,17 @@ pub async fn upload_attachment(
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: "Missing filename".to_string(),
-            })
+            }),
         )
     })?;
 
     // Validate filename
-    validation::validate_filename(&filename).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: e.0,
-            })
-        )
-    })?;
+    validation::validate_filename(&filename)
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e.0 })))?;
 
     // Validate file size
-    validation::validate_file_size(file_data.len(), validation::MAX_ATTACHMENT_SIZE).map_err(|e| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: e.0,
-            })
-        )
-    })?;
+    validation::validate_file_size(file_data.len(), validation::MAX_ATTACHMENT_SIZE)
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e.0 })))?;
 
     let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
 
@@ -175,7 +167,7 @@ pub async fn upload_attachment(
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: "Missing entity_type".to_string(),
-            })
+            }),
         )
     })?;
 
@@ -184,7 +176,7 @@ pub async fn upload_attachment(
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: "Missing entity_id".to_string(),
-            })
+            }),
         )
     })?;
 
@@ -193,7 +185,7 @@ pub async fn upload_attachment(
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: "Missing uploaded_by".to_string(),
-            })
+            }),
         )
     })?;
 
@@ -209,7 +201,7 @@ pub async fn upload_attachment(
                 StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: format!("Invalid entity_type: {}", entity_type_str),
-                })
+                }),
             ));
         }
     };
@@ -229,7 +221,7 @@ pub async fn upload_attachment(
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
                 error: "Failed to create storage directory".to_string(),
-            })
+            }),
         )
     })?;
 
@@ -242,15 +234,17 @@ pub async fn upload_attachment(
     let storage_filename = format!("{}.{}", file_id, extension);
     let storage_path = storage_dir.join(&storage_filename);
 
-    tokio::fs::write(&storage_path, &file_data).await.map_err(|e| {
-        tracing::error!("Failed to write file: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "Failed to save file".to_string(),
-            })
-        )
-    })?;
+    tokio::fs::write(&storage_path, &file_data)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to write file: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "Failed to save file".to_string(),
+                }),
+            )
+        })?;
 
     // Create attachment record
     let attachment = Attachment {
@@ -281,11 +275,15 @@ pub async fn upload_attachment(
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
                 error: "Failed to save attachment".to_string(),
-            })
+            }),
         )
     })?;
 
-    tracing::info!("Uploaded attachment: {} ({} bytes)", attachment.id, attachment.size_bytes);
+    tracing::info!(
+        "Uploaded attachment: {} ({} bytes)",
+        attachment.id,
+        attachment.size_bytes
+    );
 
     Ok(Json(UploadResponse { attachment }))
 }
@@ -307,21 +305,24 @@ pub async fn list_attachments(
                 StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: format!("Invalid entity_type: {}", params.entity_type),
-                })
+                }),
             ));
         }
     };
 
     let repo = AttachmentRepository::new(state.store.pool());
-    let attachments = repo.list_by_entity(entity_type, params.entity_id).await.map_err(|e| {
-        tracing::error!("Failed to list attachments: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "Failed to list attachments".to_string(),
-            })
-        )
-    })?;
+    let attachments = repo
+        .list_by_entity(entity_type, params.entity_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to list attachments: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "Failed to list attachments".to_string(),
+                }),
+            )
+        })?;
 
     Ok(Json(attachments))
 }
@@ -339,7 +340,7 @@ pub async fn download_attachment(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 error: "Attachment not found".to_string(),
-            })
+            }),
         )
     })?;
 
@@ -348,21 +349,26 @@ pub async fn download_attachment(
         return Err((
             StatusCode::FORBIDDEN,
             Json(ErrorResponse {
-                error: format!("File is infected: {}", attachment.scan_details.unwrap_or_default()),
-            })
+                error: format!(
+                    "File is infected: {}",
+                    attachment.scan_details.unwrap_or_default()
+                ),
+            }),
         ));
     }
 
     // Read file
-    let file_data = tokio::fs::read(&attachment.storage_path).await.map_err(|e| {
-        tracing::error!("Failed to read file: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "Failed to read file".to_string(),
-            })
-        )
-    })?;
+    let file_data = tokio::fs::read(&attachment.storage_path)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to read file: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "Failed to read file".to_string(),
+                }),
+            )
+        })?;
 
     // Verify checksum
     use sha2::{Digest, Sha256};
@@ -381,7 +387,7 @@ pub async fn download_attachment(
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
                 error: "File integrity check failed".to_string(),
-            })
+            }),
         ));
     }
 
@@ -391,7 +397,7 @@ pub async fn download_attachment(
         .header(header::CONTENT_TYPE, attachment.content_type)
         .header(
             header::CONTENT_DISPOSITION,
-            format!("attachment; filename=\"{}\"", attachment.filename)
+            format!("attachment; filename=\"{}\"", attachment.filename),
         )
         .header(header::CONTENT_LENGTH, attachment.size_bytes)
         .body(Body::from(file_data))
@@ -413,7 +419,7 @@ pub async fn delete_attachment(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 error: "Attachment not found".to_string(),
-            })
+            }),
         )
     })?;
 
@@ -430,7 +436,7 @@ pub async fn delete_attachment(
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
                 error: "Failed to delete attachment".to_string(),
-            })
+            }),
         )
     })?;
 

@@ -1,10 +1,6 @@
 use crate::auth::{AuthUser, LoginRequest, SignupRequest};
 use crate::state::AppState;
-use axum::{
-    extract::State,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, response::IntoResponse, Json};
 
 /// POST /api/auth/signup
 pub async fn signup(
@@ -33,25 +29,25 @@ pub async fn refresh(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
 ) -> impl IntoResponse {
-    match app_state.auth_service.refresh_token(&user.id.to_string()).await {
+    match app_state
+        .auth_service
+        .refresh_token(&user.id.to_string())
+        .await
+    {
         Ok(token) => Ok(Json(serde_json::json!({ "token": token }))),
         Err(err) => Err(err),
     }
 }
 
 /// POST /api/auth/logout
-pub async fn logout(
-    AuthUser(_user): AuthUser,
-) -> impl IntoResponse {
+pub async fn logout(AuthUser(_user): AuthUser) -> impl IntoResponse {
     // For JWT-based auth, logout is typically handled client-side
     // We could implement token blacklisting here if needed
     Json(serde_json::json!({ "message": "Logged out successfully" }))
 }
 
 /// GET /api/auth/me
-pub async fn get_current_user(
-    AuthUser(user): AuthUser,
-) -> impl IntoResponse {
+pub async fn get_current_user(AuthUser(user): AuthUser) -> impl IntoResponse {
     Json(serde_json::json!({
         "id": user.id,
         "email": user.email,

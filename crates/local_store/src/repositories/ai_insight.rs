@@ -1,4 +1,6 @@
-use core_domain::{AiInsight, AiInsightEntityType, AiInsightType, AiInsightFeedback, DomainResult, DomainError};
+use core_domain::{
+    AiInsight, AiInsightEntityType, AiInsightFeedback, AiInsightType, DomainError, DomainResult,
+};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -68,7 +70,11 @@ impl<'a> AiInsightRepository<'a> {
         Ok(row.into())
     }
 
-    pub async fn list_by_entity(&self, entity_type: AiInsightEntityType, entity_id: Uuid) -> DomainResult<Vec<AiInsight>> {
+    pub async fn list_by_entity(
+        &self,
+        entity_type: AiInsightEntityType,
+        entity_id: Uuid,
+    ) -> DomainResult<Vec<AiInsight>> {
         let entity_type_str = match entity_type {
             AiInsightEntityType::Contact => "Contact",
             AiInsightEntityType::Project => "Project",
@@ -90,7 +96,11 @@ impl<'a> AiInsightRepository<'a> {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
-    pub async fn submit_feedback(&self, id: Uuid, feedback: &AiInsightFeedback) -> DomainResult<()> {
+    pub async fn submit_feedback(
+        &self,
+        id: Uuid,
+        feedback: &AiInsightFeedback,
+    ) -> DomainResult<()> {
         sqlx::query(
             "UPDATE ai_insights SET feedback_helpful = ?, feedback_comment = ?, feedback_submitted_at = ?
              WHERE id = ?"
@@ -107,14 +117,12 @@ impl<'a> AiInsightRepository<'a> {
     }
 
     pub async fn mark_applied(&self, id: Uuid) -> DomainResult<()> {
-        sqlx::query(
-            "UPDATE ai_insights SET applied = 1, applied_at = ? WHERE id = ?"
-        )
-        .bind(chrono::Utc::now().to_rfc3339())
-        .bind(id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        sqlx::query("UPDATE ai_insights SET applied = 1, applied_at = ? WHERE id = ?")
+            .bind(chrono::Utc::now().to_rfc3339())
+            .bind(id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
@@ -169,11 +177,15 @@ impl From<AiInsightRow> for AiInsight {
             _ => AiInsightType::TagSuggestion,
         };
 
-        let feedback = if let (Some(helpful), Some(submitted_at)) = (row.feedback_helpful, row.feedback_submitted_at.clone()) {
+        let feedback = if let (Some(helpful), Some(submitted_at)) =
+            (row.feedback_helpful, row.feedback_submitted_at.clone())
+        {
             Some(AiInsightFeedback {
                 helpful: helpful != 0,
                 comment: row.feedback_comment.clone(),
-                submitted_at: chrono::DateTime::parse_from_rfc3339(&submitted_at).unwrap().with_timezone(&chrono::Utc),
+                submitted_at: chrono::DateTime::parse_from_rfc3339(&submitted_at)
+                    .unwrap()
+                    .with_timezone(&chrono::Utc),
             })
         } else {
             None
@@ -190,8 +202,14 @@ impl From<AiInsightRow> for AiInsight {
             response_cached: row.response_cached != 0,
             feedback,
             applied: row.applied != 0,
-            applied_at: row.applied_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&chrono::Utc),
+            applied_at: row.applied_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
             created_by: Uuid::parse_str(&row.created_by).unwrap(),
         }
     }

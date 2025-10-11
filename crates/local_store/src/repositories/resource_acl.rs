@@ -1,4 +1,4 @@
-use core_domain::{ResourceAcl, AclGrant, ShareEntityType, DomainResult, DomainError};
+use core_domain::{AclGrant, DomainError, DomainResult, ResourceAcl, ShareEntityType};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -41,7 +41,7 @@ impl<'a> ResourceAclRepository<'a> {
     pub async fn get_by_id(&self, id: Uuid) -> DomainResult<ResourceAcl> {
         let row = sqlx::query_as::<_, ResourceAclRow>(
             "SELECT id, entity_type, entity_id, owner_id, grants, created_at, updated_at
-             FROM resource_acls WHERE id = ?"
+             FROM resource_acls WHERE id = ?",
         )
         .bind(id.to_string())
         .fetch_optional(self.pool)
@@ -52,7 +52,11 @@ impl<'a> ResourceAclRepository<'a> {
         Ok(row.into())
     }
 
-    pub async fn get_by_entity(&self, entity_type: ShareEntityType, entity_id: Uuid) -> DomainResult<ResourceAcl> {
+    pub async fn get_by_entity(
+        &self,
+        entity_type: ShareEntityType,
+        entity_id: Uuid,
+    ) -> DomainResult<ResourceAcl> {
         let entity_type_str = match entity_type {
             ShareEntityType::Contact => "Contact",
             ShareEntityType::Project => "Project",
@@ -63,14 +67,16 @@ impl<'a> ResourceAclRepository<'a> {
 
         let row = sqlx::query_as::<_, ResourceAclRow>(
             "SELECT id, entity_type, entity_id, owner_id, grants, created_at, updated_at
-             FROM resource_acls WHERE entity_type = ? AND entity_id = ?"
+             FROM resource_acls WHERE entity_type = ? AND entity_id = ?",
         )
         .bind(entity_type_str)
         .bind(entity_id.to_string())
         .fetch_optional(self.pool)
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?
-        .ok_or_else(|| DomainError::NotFound(format!("ResourceAcl for {:?} {}", entity_type, entity_id)))?;
+        .ok_or_else(|| {
+            DomainError::NotFound(format!("ResourceAcl for {:?} {}", entity_type, entity_id))
+        })?;
 
         Ok(row.into())
     }
@@ -154,8 +160,12 @@ impl From<ResourceAclRow> for ResourceAcl {
             entity_id: Uuid::parse_str(&row.entity_id).unwrap(),
             owner_id: Uuid::parse_str(&row.owner_id).unwrap(),
             grants: serde_json::from_str(&row.grants).unwrap_or_default(),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&chrono::Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
         }
     }
 }

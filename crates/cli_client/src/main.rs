@@ -1,10 +1,10 @@
-mod commands;
-mod import;
 mod auth;
+mod commands;
 mod commands_extended;
+mod import;
 
-use clap::{Parser, Subcommand};
 use anyhow::Result;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "sagenscontact")]
@@ -214,7 +214,11 @@ async fn main() -> Result<()> {
         Commands::Login { email, password } => {
             commands::login_command(email, password).await?;
         }
-        Commands::Signup { email, password, name } => {
+        Commands::Signup {
+            email,
+            password,
+            name,
+        } => {
             commands::signup_command(email, password, name).await?;
         }
         Commands::Logout => {
@@ -233,16 +237,33 @@ async fn main() -> Result<()> {
         Commands::Search { query } => {
             commands::search_command(&query).await?;
         }
-        Commands::Add { first_name, last_name, email, phone } => {
+        Commands::Add {
+            first_name,
+            last_name,
+            email,
+            phone,
+        } => {
             commands::add_command(first_name, last_name, email, phone).await?;
         }
-        Commands::Note { contact_id, title, content } => {
+        Commands::Note {
+            contact_id,
+            title,
+            content,
+        } => {
             commands::note_command(&contact_id, title, content).await?;
         }
-        Commands::Communicate { contact_id, method, message } => {
+        Commands::Communicate {
+            contact_id,
+            method,
+            message,
+        } => {
             commands::communicate_command(&contact_id, &method, message).await?;
         }
-        Commands::Share { entity_type, entity_id, email } => {
+        Commands::Share {
+            entity_type,
+            entity_id,
+            email,
+        } => {
             commands::share_command(&entity_type, &entity_id, &email).await?;
         }
         Commands::Suggest { contact_id } => {
@@ -255,17 +276,27 @@ async fn main() -> Result<()> {
         Commands::GroupList { limit } => {
             commands::group_list_command(limit).await?;
         }
-        Commands::GroupAddMember { group_id, contact_id } => {
+        Commands::GroupAddMember {
+            group_id,
+            contact_id,
+        } => {
             commands::group_add_member_command(&group_id, &contact_id).await?;
         }
-        Commands::GroupRemoveMember { group_id, contact_id } => {
+        Commands::GroupRemoveMember {
+            group_id,
+            contact_id,
+        } => {
             commands::group_remove_member_command(&group_id, &contact_id).await?;
         }
         Commands::GroupDelete { group_id } => {
             commands::group_delete_command(&group_id).await?;
         }
         // Concept commands
-        Commands::ConceptCreate { name, content, category } => {
+        Commands::ConceptCreate {
+            name,
+            content,
+            category,
+        } => {
             commands::concept_create_command(name, content, category).await?;
         }
         Commands::ConceptList { limit } => {
@@ -278,26 +309,58 @@ async fn main() -> Result<()> {
             commands::concept_delete_command(&concept_id).await?;
         }
         // Calendar event commands
-        Commands::EventCreate { title, start_time, end_time, description, location, contact_ids } => {
-            commands::event_create_command(title, start_time, end_time, description, location, contact_ids).await?;
+        Commands::EventCreate {
+            title,
+            start_time,
+            end_time,
+            description,
+            location,
+            contact_ids,
+        } => {
+            commands::event_create_command(
+                title,
+                start_time,
+                end_time,
+                description,
+                location,
+                contact_ids,
+            )
+            .await?;
         }
         Commands::EventList { from_date, to_date } => {
             commands::event_list_command(from_date, to_date).await?;
         }
-        Commands::EventUpdate { event_id, title, start_time, end_time } => {
+        Commands::EventUpdate {
+            event_id,
+            title,
+            start_time,
+            end_time,
+        } => {
             commands::event_update_command(&event_id, title, start_time, end_time).await?;
         }
         Commands::EventDelete { event_id } => {
             commands::event_delete_command(&event_id).await?;
         }
         // Attachment commands
-        Commands::AttachmentUpload { file_path, entity_type, entity_id, description } => {
-            commands::attachment_upload_command(&file_path, &entity_type, &entity_id, description).await?;
+        Commands::AttachmentUpload {
+            file_path,
+            entity_type,
+            entity_id,
+            description,
+        } => {
+            commands::attachment_upload_command(&file_path, &entity_type, &entity_id, description)
+                .await?;
         }
-        Commands::AttachmentDownload { attachment_id, output_path } => {
+        Commands::AttachmentDownload {
+            attachment_id,
+            output_path,
+        } => {
             commands::attachment_download_command(&attachment_id, output_path).await?;
         }
-        Commands::AttachmentList { entity_type, entity_id } => {
+        Commands::AttachmentList {
+            entity_type,
+            entity_id,
+        } => {
             commands::attachment_list_command(&entity_type, &entity_id).await?;
         }
         Commands::AttachmentDelete { attachment_id } => {
@@ -313,7 +376,10 @@ async fn main() -> Result<()> {
         Commands::ShareRevoke { invite_id } => {
             commands::share_revoke_command(&invite_id).await?;
         }
-        Commands::ShareUpdate { invite_id, permissions } => {
+        Commands::ShareUpdate {
+            invite_id,
+            permissions,
+        } => {
             commands::share_update_command(&invite_id, permissions).await?;
         }
         // Search history commands
@@ -327,13 +393,20 @@ async fn main() -> Result<()> {
             commands::history_delete_command(&history_id).await?;
         }
         // AI insight commands
-        Commands::InsightReview { entity_type, entity_id } => {
+        Commands::InsightReview {
+            entity_type,
+            entity_id,
+        } => {
             commands::insight_review_command(&entity_type, &entity_id).await?;
         }
         Commands::InsightApply { insight_id } => {
             commands::insight_apply_command(&insight_id).await?;
         }
-        Commands::InsightFeedback { insight_id, rating, comment } => {
+        Commands::InsightFeedback {
+            insight_id,
+            rating,
+            comment,
+        } => {
             commands::insight_feedback_command(&insight_id, rating, comment).await?;
         }
         Commands::InsightList { entity_type, limit } => {

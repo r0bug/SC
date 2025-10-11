@@ -1,4 +1,4 @@
-use core_domain::{Permission, ResourceAcl, ShareEntityType, AclGrant};
+use core_domain::{AclGrant, Permission, ResourceAcl, ShareEntityType};
 use local_store::repositories::ResourceAclRepository;
 use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
@@ -189,13 +189,15 @@ impl AclService {
     ) -> Result<(), AclError> {
         // Check if revoker is owner or can share
         if !self.is_owner(revoker_id, entity_type, entity_id).await?
-            && !self.can_share(revoker_id, entity_type, entity_id).await? {
+            && !self.can_share(revoker_id, entity_type, entity_id).await?
+        {
             return Err(AclError::InsufficientPermission);
         }
 
         let repo = ResourceAclRepository::new(&self.pool);
 
-        let acl = repo.get_by_entity(entity_type, *entity_id)
+        let acl = repo
+            .get_by_entity(entity_type, *entity_id)
             .await
             .map_err(|_| AclError::NotFound)?;
 

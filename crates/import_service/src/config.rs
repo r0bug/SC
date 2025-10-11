@@ -98,9 +98,7 @@ impl ImportConfig {
     }
 
     pub fn get_mapping_for_field(&self, field_name: &str) -> Option<&ColumnMapping> {
-        self.mappings
-            .iter()
-            .find(|m| m.target_field == field_name)
+        self.mappings.iter().find(|m| m.target_field == field_name)
     }
 }
 

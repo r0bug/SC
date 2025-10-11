@@ -30,16 +30,24 @@ pub async fn create_concept(
     Json(req): Json<CreateConceptRequest>,
 ) -> Result<Json<ConceptResponse>, (StatusCode, String)> {
     // Validate inputs
-    validation::validate_name(&req.name)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
-    validation::validate_optional(&req.description, |d: &String| validation::validate_description(d))
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
-    validation::validate_uuid_list(&req.related_contacts, validation::MAX_CONTACTS_COUNT, "related contacts")
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
-    validation::validate_uuid_list(&req.related_projects, validation::MAX_CONTACTS_COUNT, "related projects")
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
-    validation::validate_tags(&req.tags)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_name(&req.name).map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_optional(&req.description, |d: &String| {
+        validation::validate_description(d)
+    })
+    .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_uuid_list(
+        &req.related_contacts,
+        validation::MAX_CONTACTS_COUNT,
+        "related contacts",
+    )
+    .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_uuid_list(
+        &req.related_projects,
+        validation::MAX_CONTACTS_COUNT,
+        "related projects",
+    )
+    .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_tags(&req.tags).map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
 
     let concept = Concept {
         id: Uuid::new_v4(),
@@ -54,9 +62,12 @@ pub async fn create_concept(
     };
 
     let repo = ConceptRepository::new(&app_state.pool);
-    repo.create(&concept)
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create concept".to_string()))?;
+    repo.create(&concept).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to create concept".to_string(),
+        )
+    })?;
 
     Ok(Json(ConceptResponse { concept }))
 }
@@ -101,9 +112,12 @@ pub async fn update_concept(
     concept.tags = req.tags;
     concept.updated_at = chrono::Utc::now();
 
-    repo.update(&concept)
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to update concept"))?;
+    repo.update(&concept).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to update concept",
+        )
+    })?;
 
     Ok(Json(ConceptResponse { concept }))
 }
@@ -125,9 +139,12 @@ pub async fn delete_concept(
         return Err((StatusCode::FORBIDDEN, "Access denied"));
     }
 
-    repo.delete(id)
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to delete concept"))?;
+    repo.delete(id).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to delete concept",
+        )
+    })?;
 
     Ok(Json(serde_json::json!({ "message": "Concept deleted" })))
 }
@@ -156,19 +173,17 @@ pub async fn search_concepts(
 ) -> Result<Json<Vec<Concept>>, (StatusCode, String)> {
     let repo = ConceptRepository::new(&app_state.pool);
 
-    let search_query = query
-        .get("query")
-        .and_then(|q| q.as_str())
-        .unwrap_or("");
+    let search_query = query.get("query").and_then(|q| q.as_str()).unwrap_or("");
 
     // Validate query
-    validation::validate_query(search_query)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_query(search_query).map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
 
-    let concepts = repo
-        .search(search_query)
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to search concepts".to_string()))?;
+    let concepts = repo.search(search_query).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to search concepts".to_string(),
+        )
+    })?;
 
     Ok(Json(concepts))
 }

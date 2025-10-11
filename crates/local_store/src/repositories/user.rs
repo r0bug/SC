@@ -1,4 +1,4 @@
-use core_domain::{User, DomainResult, DomainError};
+use core_domain::{DomainError, DomainResult, User};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -135,9 +135,17 @@ impl From<UserRow> for User {
             email_verified: row.email_verified != 0,
             active: row.active != 0,
             preferences: serde_json::from_str(&row.preferences).unwrap_or(serde_json::json!({})),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&chrono::Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at).unwrap().with_timezone(&chrono::Utc),
-            last_login_at: row.last_login_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&row.updated_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            last_login_at: row.last_login_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
         }
     }
 }

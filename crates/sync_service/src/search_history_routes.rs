@@ -10,7 +10,6 @@ use local_store::repositories::SearchHistoryRepository;
 use serde::Serialize;
 use uuid::Uuid;
 
-
 #[derive(Debug, Serialize)]
 pub struct SearchHistoryResponse {
     pub history: Vec<SearchHistory>,
@@ -24,13 +23,17 @@ pub async fn list_search_history(
     let repo = SearchHistoryRepository::new(&app_state.pool);
 
     // Validate pagination (hardcoded limit of 100)
-    validation::validate_pagination(100, 0)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_pagination(100, 0).map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
 
     let history = repo
         .list_by_user(user.id, 100, 0) // Default to 100 items, no offset
         .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list search history".to_string()))?;
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to list search history".to_string(),
+            )
+        })?;
 
     Ok(Json(SearchHistoryResponse { history }))
 }
@@ -90,7 +93,9 @@ pub async fn update_clicked_result(
             )
         })?;
 
-    Ok(Json(serde_json::json!({ "message": "Updated clicked result" })))
+    Ok(Json(
+        serde_json::json!({ "message": "Updated clicked result" }),
+    ))
 }
 
 /// DELETE /api/search-history/:id
@@ -111,16 +116,16 @@ pub async fn delete_search_history(
         return Err((StatusCode::FORBIDDEN, "Access denied"));
     }
 
-    repo.delete(id)
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to delete search history",
-            )
-        })?;
+    repo.delete(id).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to delete search history",
+        )
+    })?;
 
-    Ok(Json(serde_json::json!({ "message": "Search history deleted" })))
+    Ok(Json(
+        serde_json::json!({ "message": "Search history deleted" }),
+    ))
 }
 
 /// DELETE /api/search-history
@@ -130,14 +135,12 @@ pub async fn clear_search_history(
 ) -> Result<Json<serde_json::Value>, (StatusCode, &'static str)> {
     let repo = SearchHistoryRepository::new(&app_state.pool);
 
-    repo.clear_user_history(user.id)
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to clear search history",
-            )
-        })?;
+    repo.clear_user_history(user.id).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to clear search history",
+        )
+    })?;
 
     Ok(Json(
         serde_json::json!({ "message": "Search history cleared" }),

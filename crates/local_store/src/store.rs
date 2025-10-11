@@ -1,5 +1,5 @@
-use sqlx::{sqlite::SqlitePool, Pool, Sqlite};
 use anyhow::Result;
+use sqlx::{sqlite::SqlitePool, Pool, Sqlite};
 
 pub struct LocalStore {
     pool: Pool<Sqlite>,
@@ -16,9 +16,7 @@ impl LocalStore {
     }
 
     async fn run_migrations(pool: &Pool<Sqlite>) -> Result<()> {
-        sqlx::query(crate::migrations::SCHEMA)
-            .execute(pool)
-            .await?;
+        sqlx::query(crate::migrations::SCHEMA).execute(pool).await?;
         Ok(())
     }
 

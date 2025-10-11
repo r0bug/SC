@@ -1,6 +1,6 @@
 use crate::{
-    connector::{ConnectorMetadata, ImportConnector, ParseResult},
     config::ImportFormat,
+    connector::{ConnectorMetadata, ImportConnector, ParseResult},
     ImportError,
 };
 use async_trait::async_trait;
@@ -39,9 +39,9 @@ impl ImportConnector for GoogleContactsConnector {
                     if let Ok(headers) = reader.headers() {
                         let headers_str = headers.iter().collect::<Vec<_>>().join(",");
                         // Google uses specific header patterns
-                        return headers_str.contains("Given Name") ||
-                               headers_str.contains("E-mail 1 - Value") ||
-                               headers_str.contains("Phone 1 - Value");
+                        return headers_str.contains("Given Name")
+                            || headers_str.contains("E-mail 1 - Value")
+                            || headers_str.contains("Phone 1 - Value");
                     }
                 }
             }
@@ -51,11 +51,7 @@ impl ImportConnector for GoogleContactsConnector {
 
     async fn parse(&self, file_path: &Path) -> Result<ParseResult, ImportError> {
         let mut reader = csv::Reader::from_path(file_path)?;
-        let headers: Vec<String> = reader
-            .headers()?
-            .iter()
-            .map(|h| h.to_string())
-            .collect();
+        let headers: Vec<String> = reader.headers()?.iter().map(|h| h.to_string()).collect();
 
         let mut rows = Vec::new();
         let mut warnings = Vec::new();
@@ -70,9 +66,17 @@ impl ImportConnector for GoogleContactsConnector {
                             // Map Google-specific headers to standard fields
                             let normalized_key = match header.as_str() {
                                 "Given Name" => "first_name",
-                                "Family Name" | "Additional Name" if row.get("last_name").is_none() => "last_name",
-                                "E-mail 1 - Value" | "E-mail 1 - Type * ::: E-mail 1 - Value" => "email",
-                                "Phone 1 - Value" | "Phone 1 - Type * ::: Phone 1 - Value" => "phone",
+                                "Family Name" | "Additional Name"
+                                    if row.get("last_name").is_none() =>
+                                {
+                                    "last_name"
+                                }
+                                "E-mail 1 - Value" | "E-mail 1 - Type * ::: E-mail 1 - Value" => {
+                                    "email"
+                                }
+                                "Phone 1 - Value" | "Phone 1 - Type * ::: Phone 1 - Value" => {
+                                    "phone"
+                                }
                                 "Organization 1 - Name" => "organization",
                                 "Organization 1 - Title" => "title",
                                 "Notes" => "notes",
@@ -80,8 +84,18 @@ impl ImportConnector for GoogleContactsConnector {
                                 "Website 1 - Value" => "website",
                                 "Birthday" => "birthday",
                                 // Support alternate email/phone fields
-                                h if h.starts_with("E-mail") && h.ends_with("Value") && !row.contains_key("email") => "email",
-                                h if h.starts_with("Phone") && h.ends_with("Value") && !row.contains_key("phone") => "phone",
+                                h if h.starts_with("E-mail")
+                                    && h.ends_with("Value")
+                                    && !row.contains_key("email") =>
+                                {
+                                    "email"
+                                }
+                                h if h.starts_with("Phone")
+                                    && h.ends_with("Value")
+                                    && !row.contains_key("phone") =>
+                                {
+                                    "phone"
+                                }
                                 _ => header.as_str(),
                             };
 
@@ -91,7 +105,9 @@ impl ImportConnector for GoogleContactsConnector {
                         }
                     }
 
-                    if !row.is_empty() && (row.contains_key("email") || row.contains_key("first_name")) {
+                    if !row.is_empty()
+                        && (row.contains_key("email") || row.contains_key("first_name"))
+                    {
                         row.insert("source".to_string(), "google_contacts".to_string());
                         rows.push(row);
                     } else {
@@ -339,7 +355,15 @@ impl ImportConnector for GenericCsvConnector {
 
         // Generate suggested mappings based on detected fields
         let mut suggested_mappings = Vec::new();
-        let standard_fields = ["first_name", "last_name", "email", "phone", "organization", "title", "notes"];
+        let standard_fields = [
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "organization",
+            "title",
+            "notes",
+        ];
 
         for field in standard_fields {
             if headers.iter().any(|h| h == field) {
@@ -369,7 +393,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_google_contacts_csv() {
-        let csv_content = "Given Name,Family Name,E-mail 1 - Value,Phone 1 - Value,Organization 1 - Name\n\
+        let csv_content =
+            "Given Name,Family Name,E-mail 1 - Value,Phone 1 - Value,Organization 1 - Name\n\
 John,Doe,john@example.com,555-1234,Acme Corp";
 
         let mut temp_file = NamedTempFile::new().unwrap();

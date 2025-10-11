@@ -1,6 +1,6 @@
 use crate::{
-    connector::{ConnectorMetadata, ImportConnector, ParseResult},
     config::ImportFormat,
+    connector::{ConnectorMetadata, ImportConnector, ParseResult},
     ImportError,
 };
 use async_trait::async_trait;
@@ -39,9 +39,9 @@ impl ImportConnector for LinkedInConnector {
                 if let Ok(mut reader) = csv::Reader::from_path(file_path) {
                     if let Ok(headers) = reader.headers() {
                         let headers_str = headers.iter().collect::<Vec<_>>().join(",");
-                        return headers_str.contains("First Name") &&
-                               headers_str.contains("Last Name") &&
-                               headers_str.contains("Company");
+                        return headers_str.contains("First Name")
+                            && headers_str.contains("Last Name")
+                            && headers_str.contains("Company");
                     }
                 }
             }
@@ -54,11 +54,7 @@ impl ImportConnector for LinkedInConnector {
         // LinkedIn export typically contains: First Name, Last Name, Email Address, Company, Position, Connected On
 
         let mut reader = csv::Reader::from_path(file_path)?;
-        let headers: Vec<String> = reader
-            .headers()?
-            .iter()
-            .map(|h| h.to_string())
-            .collect();
+        let headers: Vec<String> = reader.headers()?.iter().map(|h| h.to_string()).collect();
 
         let mut rows = Vec::new();
         let mut warnings = Vec::new();
@@ -139,7 +135,9 @@ impl ImportConnector for TwitterConnector {
         ConnectorMetadata {
             id: "twitter".to_string(),
             name: "Twitter/X".to_string(),
-            description: "Import contacts from Twitter/X data export archive (following.js, followers.js)".to_string(),
+            description:
+                "Import contacts from Twitter/X data export archive (following.js, followers.js)"
+                    .to_string(),
             supported_extensions: vec!["js".to_string(), "json".to_string()],
             supported_mime_types: vec![
                 "application/javascript".to_string(),
@@ -268,7 +266,9 @@ impl ImportConnector for InstagramConnector {
         ConnectorMetadata {
             id: "instagram".to_string(),
             name: "Instagram".to_string(),
-            description: "Import contacts from Instagram data export (followers.json, following.json)".to_string(),
+            description:
+                "Import contacts from Instagram data export (followers.json, following.json)"
+                    .to_string(),
             supported_extensions: vec!["json".to_string()],
             supported_mime_types: vec!["application/json".to_string()],
             format: ImportFormat::Instagram,

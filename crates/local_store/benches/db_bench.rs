@@ -1,6 +1,6 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use uuid::Uuid;
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 // Simulate database query building
 fn build_contact_query(filters: &HashMap<String, String>) -> String {
@@ -26,9 +26,7 @@ fn bench_query_building(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::new("build_query", filter_count),
             &filters,
-            |b, filters| {
-                b.iter(|| build_contact_query(black_box(filters)))
-            }
+            |b, filters| b.iter(|| build_contact_query(black_box(filters))),
         );
     }
 
@@ -47,15 +45,9 @@ fn bench_pagination(c: &mut Criterion) {
     let mut group = c.benchmark_group("pagination");
 
     for total in [100, 1000, 10000].iter() {
-        group.bench_with_input(
-            BenchmarkId::new("calculate", total),
-            total,
-            |b, &total| {
-                b.iter(|| {
-                    calculate_pagination(black_box(total), black_box(50), black_box(0))
-                })
-            }
-        );
+        group.bench_with_input(BenchmarkId::new("calculate", total), total, |b, &total| {
+            b.iter(|| calculate_pagination(black_box(total), black_box(50), black_box(0)))
+        });
     }
 
     group.finish();
@@ -116,7 +108,7 @@ fn bench_tag_operations(c: &mut Criterion) {
                 b.iter(|| {
                     find_contacts_with_all_tags(black_box(contact_tags), black_box(&required_tags))
                 })
-            }
+            },
         );
     }
 
@@ -124,10 +116,7 @@ fn bench_tag_operations(c: &mut Criterion) {
 }
 
 // Simulate text search (case-insensitive substring match)
-fn search_contacts_by_name(
-    contacts: &HashMap<String, String>,
-    query: &str,
-) -> Vec<String> {
+fn search_contacts_by_name(contacts: &HashMap<String, String>, query: &str) -> Vec<String> {
     let query_lower = query.to_lowercase();
     contacts
         .iter()
@@ -143,20 +132,15 @@ fn bench_search_operations(c: &mut Criterion) {
     for contact_count in [100, 500, 1000].iter() {
         let mut contacts = HashMap::new();
         for i in 0..*contact_count {
-            contacts.insert(
-                Uuid::new_v4().to_string(),
-                format!("Person Name {}", i),
-            );
+            contacts.insert(Uuid::new_v4().to_string(), format!("Person Name {}", i));
         }
 
         group.bench_with_input(
             BenchmarkId::new("search_by_name", contact_count),
             &contacts,
             |b, contacts| {
-                b.iter(|| {
-                    search_contacts_by_name(black_box(contacts), black_box("Person"))
-                })
-            }
+                b.iter(|| search_contacts_by_name(black_box(contacts), black_box("Person")))
+            },
         );
     }
 

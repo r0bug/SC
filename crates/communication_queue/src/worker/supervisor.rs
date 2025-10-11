@@ -1,3 +1,5 @@
+use anyhow::Result;
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
@@ -5,8 +7,6 @@ use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 use tracing::{error, info, warn};
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
-use anyhow::Result;
 
 #[derive(Debug, Clone)]
 pub struct TaskHandle {
@@ -49,11 +49,7 @@ impl WorkerSupervisor {
         }
     }
 
-    pub async fn spawn_task<F, Fut>(
-        &self,
-        name: String,
-        mut task_fn: F,
-    ) -> Result<Uuid>
+    pub async fn spawn_task<F, Fut>(&self, name: String, mut task_fn: F) -> Result<Uuid>
     where
         F: FnMut() -> Fut + Send + 'static,
         Fut: std::future::Future<Output = Result<()>> + Send,
@@ -112,7 +108,10 @@ impl WorkerSupervisor {
                         }
 
                         restart_count += 1;
-                        warn!("Restarting task {} (attempt {}/{})", name, restart_count, max_restarts);
+                        warn!(
+                            "Restarting task {} (attempt {}/{})",
+                            name, restart_count, max_restarts
+                        );
 
                         // Update status to restarting
                         {
@@ -196,10 +195,12 @@ impl WorkerSupervisor {
         let tasks = self.tasks.read().await;
 
         let total_tasks = tasks.len();
-        let running_tasks = tasks.values()
+        let running_tasks = tasks
+            .values()
             .filter(|t| t.status == TaskStatus::Running)
             .count();
-        let failed_tasks = tasks.values()
+        let failed_tasks = tasks
+            .values()
             .filter(|t| t.status == TaskStatus::Failed)
             .count();
 

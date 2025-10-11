@@ -1,6 +1,6 @@
 use crate::ImportError;
-use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DuplicateStrategy {
@@ -168,17 +168,18 @@ impl DeduplicationEngine {
     /// Generate a match key based on configured criteria
     fn generate_match_key(&self, row: &HashMap<String, String>) -> Option<String> {
         match &self.config.match_criteria {
-            MatchCriteria::Email => {
-                row.get("email").map(|e| self.normalize_email_if_needed(e))
-            }
-            MatchCriteria::Phone => {
-                row.get("phone").map(|p| self.normalize_phone_if_needed(p))
-            }
+            MatchCriteria::Email => row.get("email").map(|e| self.normalize_email_if_needed(e)),
+            MatchCriteria::Phone => row.get("phone").map(|p| self.normalize_phone_if_needed(p)),
             MatchCriteria::FullName => {
                 let first = row.get("first_name").map(|s| s.as_str()).unwrap_or("");
                 let last = row.get("last_name").map(|s| s.as_str()).unwrap_or("");
                 if !first.is_empty() || !last.is_empty() {
-                    Some(format!("{} {}", first, last).to_lowercase().trim().to_string())
+                    Some(
+                        format!("{} {}", first, last)
+                            .to_lowercase()
+                            .trim()
+                            .to_string(),
+                    )
                 } else {
                     None
                 }
@@ -264,7 +265,11 @@ impl DeduplicationEngine {
     }
 
     /// Merge two rows intelligently
-    fn merge_rows(&self, original: &mut HashMap<String, String>, duplicate: &HashMap<String, String>) {
+    fn merge_rows(
+        &self,
+        original: &mut HashMap<String, String>,
+        duplicate: &HashMap<String, String>,
+    ) {
         for (key, value) in duplicate {
             match original.get(key) {
                 None => {

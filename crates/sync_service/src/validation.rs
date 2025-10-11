@@ -47,7 +47,9 @@ pub fn validate_name(name: &str) -> Result<(), ValidationError> {
     }
     // Check for null bytes
     if name.contains('\0') {
-        return Err(ValidationError("Name contains invalid characters".to_string()));
+        return Err(ValidationError(
+            "Name contains invalid characters".to_string(),
+        ));
     }
     Ok(())
 }
@@ -65,7 +67,9 @@ pub fn validate_email(email: &str) -> Result<(), ValidationError> {
     }
     // Basic email validation
     if !email.contains('@') {
-        return Err(ValidationError("Invalid email format: missing @".to_string()));
+        return Err(ValidationError(
+            "Invalid email format: missing @".to_string(),
+        ));
     }
     let parts: Vec<&str> = email.split('@').collect();
     if parts.len() != 2 {

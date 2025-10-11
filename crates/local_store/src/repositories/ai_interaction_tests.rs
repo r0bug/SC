@@ -2,8 +2,8 @@
 mod ai_interaction_integration_tests {
     use super::super::*;
     use crate::repositories::ai_interaction::AiInteractionRepository;
-    use core_domain::AiInteraction;
     use chrono::Utc;
+    use core_domain::AiInteraction;
     use sqlx::sqlite::SqlitePoolOptions;
     use sqlx::{Pool, Sqlite};
     use uuid::Uuid;
@@ -172,10 +172,7 @@ mod ai_interaction_integration_tests {
             repo.create(&interaction).await.unwrap();
         }
 
-        let entity_interactions = repo
-            .list_by_entity("Contact", entity_id)
-            .await
-            .unwrap();
+        let entity_interactions = repo.list_by_entity("Contact", entity_id).await.unwrap();
 
         assert_eq!(entity_interactions.len(), 3);
         assert!(entity_interactions
@@ -210,7 +207,10 @@ mod ai_interaction_integration_tests {
 
         let retrieved = repo.get_by_id(cached_interaction.id).await.unwrap();
         assert_eq!(
-            retrieved.metadata.get("cache_hit").and_then(|v| v.as_bool()),
+            retrieved
+                .metadata
+                .get("cache_hit")
+                .and_then(|v| v.as_bool()),
             Some(true)
         );
     }

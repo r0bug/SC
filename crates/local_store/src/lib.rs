@@ -1,6 +1,6 @@
-pub mod store;
 pub mod migrations;
 pub mod repositories;
+pub mod store;
 
-pub use store::LocalStore;
 pub use repositories::*;
+pub use store::LocalStore;

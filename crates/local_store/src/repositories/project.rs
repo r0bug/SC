@@ -1,4 +1,4 @@
-use core_domain::{Project, DomainResult, DomainError};
+use core_domain::{DomainError, DomainResult, Project};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -37,7 +37,7 @@ impl<'a> ProjectRepository<'a> {
         let mut projects = Vec::new();
         for row in rows {
             let contacts = sqlx::query_scalar::<_, String>(
-                "SELECT contact_id FROM project_contacts WHERE project_id = ?"
+                "SELECT contact_id FROM project_contacts WHERE project_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -48,7 +48,7 @@ impl<'a> ProjectRepository<'a> {
             .collect();
 
             let tags = sqlx::query_scalar::<_, String>(
-                "SELECT tag_id FROM project_tags WHERE project_id = ?"
+                "SELECT tag_id FROM project_tags WHERE project_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -79,7 +79,12 @@ struct ProjectRow {
 }
 
 impl ProjectRow {
-    fn into_project(self, contacts: Vec<Uuid>, tags: Vec<Uuid>, attachment_ids: Vec<Uuid>) -> Project {
+    fn into_project(
+        self,
+        contacts: Vec<Uuid>,
+        tags: Vec<Uuid>,
+        attachment_ids: Vec<Uuid>,
+    ) -> Project {
         use core_domain::ProjectStatus;
 
         let status = match self.status.as_str() {
@@ -98,11 +103,19 @@ impl ProjectRow {
             contacts,
             tags,
             attachment_ids,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at).unwrap().with_timezone(&chrono::Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
             created_by: Uuid::parse_str(&self.created_by).unwrap(),
             version: self.version,
-            last_synced_at: self.last_synced_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
+            last_synced_at: self.last_synced_at.and_then(|s| {
+                chrono::DateTime::parse_from_rfc3339(&s)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
         }
     }
 }

@@ -7,10 +7,7 @@ use axum::{
 
 /// Security headers middleware
 /// Adds comprehensive security headers to all responses
-pub async fn security_headers_middleware(
-    req: Request,
-    next: Next,
-) -> Response<Body> {
+pub async fn security_headers_middleware(req: Request, next: Next) -> Response<Body> {
     let mut response = next.run(req).await;
     let headers = response.headers_mut();
 
@@ -39,16 +36,13 @@ pub async fn security_headers_middleware(
              img-src 'self' data: blob:; \
              font-src 'self'; \
              connect-src 'self'; \
-             frame-ancestors 'none'"
+             frame-ancestors 'none'",
         ),
     );
 
     // X-Frame-Options
     // Prevent clickjacking by disallowing the page to be embedded in frames
-    headers.insert(
-        header::X_FRAME_OPTIONS,
-        HeaderValue::from_static("DENY"),
-    );
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
 
     // X-Content-Type-Options
     // Prevent MIME type sniffing which could lead to XSS attacks
@@ -84,7 +78,7 @@ pub async fn security_headers_middleware(
              usb=(), \
              magnetometer=(), \
              gyroscope=(), \
-             accelerometer=()"
+             accelerometer=()",
         ),
     );
 
@@ -112,10 +106,7 @@ mod tests {
             .route("/", get(test_handler))
             .layer(axum::middleware::from_fn(security_headers_middleware));
 
-        let request = Request::builder()
-            .uri("/")
-            .body(Body::empty())
-            .unwrap();
+        let request = Request::builder().uri("/").body(Body::empty()).unwrap();
 
         let response = app.oneshot(request).await.unwrap();
 
@@ -135,24 +126,15 @@ mod tests {
 
         // Check X-Frame-Options header
         assert!(headers.contains_key(header::X_FRAME_OPTIONS));
-        assert_eq!(
-            headers.get(header::X_FRAME_OPTIONS).unwrap(),
-            "DENY"
-        );
+        assert_eq!(headers.get(header::X_FRAME_OPTIONS).unwrap(), "DENY");
 
         // Check X-Content-Type-Options header
         assert!(headers.contains_key("X-Content-Type-Options"));
-        assert_eq!(
-            headers.get("X-Content-Type-Options").unwrap(),
-            "nosniff"
-        );
+        assert_eq!(headers.get("X-Content-Type-Options").unwrap(), "nosniff");
 
         // Check X-XSS-Protection header
         assert!(headers.contains_key("X-XSS-Protection"));
-        assert_eq!(
-            headers.get("X-XSS-Protection").unwrap(),
-            "1; mode=block"
-        );
+        assert_eq!(headers.get("X-XSS-Protection").unwrap(), "1; mode=block");
 
         // Check Referrer-Policy header
         assert!(headers.contains_key(header::REFERRER_POLICY));

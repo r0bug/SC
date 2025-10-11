@@ -1,4 +1,4 @@
-use core_domain::{Attachment, AttachmentEntityType, DomainResult, DomainError};
+use core_domain::{Attachment, AttachmentEntityType, DomainError, DomainResult};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -62,7 +62,11 @@ impl<'a> AttachmentRepository<'a> {
         Ok(row.into())
     }
 
-    pub async fn list_by_entity(&self, entity_type: AttachmentEntityType, entity_id: Uuid) -> DomainResult<Vec<Attachment>> {
+    pub async fn list_by_entity(
+        &self,
+        entity_type: AttachmentEntityType,
+        entity_id: Uuid,
+    ) -> DomainResult<Vec<Attachment>> {
         let entity_type_str = match entity_type {
             AttachmentEntityType::Contact => "Contact",
             AttachmentEntityType::Project => "Project",
@@ -183,7 +187,9 @@ impl From<AttachmentRow> for Attachment {
             scan_status,
             scan_details: row.scan_details,
             metadata: serde_json::from_str(&row.metadata).unwrap_or(serde_json::json!({})),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
         }
     }
 }
@@ -330,7 +336,10 @@ mod tests {
         repo.create(&attachment1).await.unwrap();
         repo.create(&attachment2).await.unwrap();
 
-        let attachments = repo.list_by_entity(AttachmentEntityType::Contact, contact_id).await.unwrap();
+        let attachments = repo
+            .list_by_entity(AttachmentEntityType::Contact, contact_id)
+            .await
+            .unwrap();
         assert_eq!(attachments.len(), 2);
     }
 }

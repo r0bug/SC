@@ -1,8 +1,8 @@
-use core_domain::{CommunicationAttempt, CommunicationStatus, CommunicationMethod};
-use local_store::CommunicationRepository;
 use crate::adapters::{EmailAdapter, SmsAdapter, SocialAdapter};
 use anyhow::Result;
-use tracing::{info, warn, error};
+use core_domain::{CommunicationAttempt, CommunicationMethod, CommunicationStatus};
+use local_store::CommunicationRepository;
+use tracing::{error, info, warn};
 
 pub struct CommunicationQueue {
     email_adapter: EmailAdapter,
@@ -25,20 +25,30 @@ impl CommunicationQueue {
         }
     }
 
-    pub async fn process_attempt(&self, attempt: &mut CommunicationAttempt, repo: &CommunicationRepository<'_>) -> Result<()> {
-        info!("Processing communication attempt {} for contact {}", attempt.id, attempt.contact_id);
+    pub async fn process_attempt(
+        &self,
+        attempt: &mut CommunicationAttempt,
+        repo: &CommunicationRepository<'_>,
+    ) -> Result<()> {
+        info!(
+            "Processing communication attempt {} for contact {}",
+            attempt.id, attempt.contact_id
+        );
 
         let result = match &attempt.method {
             CommunicationMethod::Email => self.email_adapter.send(attempt).await,
             CommunicationMethod::SMS => self.sms_adapter.send(attempt).await,
-            CommunicationMethod::Social { platform } => self.social_adapter.send(attempt, platform).await,
+            CommunicationMethod::Social { platform } => {
+                self.social_adapter.send(attempt, platform).await
+            }
         };
 
         match result {
             Ok(_) => {
                 info!("Successfully sent communication {}", attempt.id);
                 let now = chrono::Utc::now();
-                repo.update_status(attempt.id, CommunicationStatus::Sent, Some(now)).await
+                repo.update_status(attempt.id, CommunicationStatus::Sent, Some(now))
+                    .await
                     .map_err(|e| anyhow::anyhow!(e))?;
             }
             Err(e) => {
@@ -50,13 +60,17 @@ impl CommunicationQueue {
                     CommunicationStatus::Retrying
                 } else {
                     error!("Max retries reached, marking as failed");
-                    CommunicationStatus::Failed { reason: e.to_string() }
+                    CommunicationStatus::Failed {
+                        reason: e.to_string(),
+                    }
                 };
 
                 let now = chrono::Utc::now();
-                repo.update_retry_count(attempt.id, attempt.retry_count).await
+                repo.update_retry_count(attempt.id, attempt.retry_count)
+                    .await
                     .map_err(|e| anyhow::anyhow!(e))?;
-                repo.update_status(attempt.id, status, Some(now)).await
+                repo.update_status(attempt.id, status, Some(now))
+                    .await
                     .map_err(|e| anyhow::anyhow!(e))?;
             }
         }
@@ -65,8 +79,7 @@ impl CommunicationQueue {
     }
 
     pub async fn process_pending(&self, repo: &CommunicationRepository<'_>) -> Result<()> {
-        let pending = repo.list_pending().await
-            .map_err(|e| anyhow::anyhow!(e))?;
+        let pending = repo.list_pending().await.map_err(|e| anyhow::anyhow!(e))?;
 
         info!("Found {} pending communication attempts", pending.len());
 

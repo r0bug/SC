@@ -1,4 +1,4 @@
-use core_domain::{CalendarEvent, Reminder, DomainResult, DomainError};
+use core_domain::{CalendarEvent, DomainError, DomainResult, Reminder};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -12,7 +12,10 @@ impl<'a> CalendarEventRepository<'a> {
     }
 
     pub async fn create(&self, event: &CalendarEvent) -> DomainResult<()> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         sqlx::query(
@@ -36,14 +39,12 @@ impl<'a> CalendarEventRepository<'a> {
         .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         for contact_id in &event.contacts {
-            sqlx::query(
-                "INSERT INTO event_contacts (event_id, contact_id) VALUES (?, ?)"
-            )
-            .bind(event.id.to_string())
-            .bind(contact_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?;
+            sqlx::query("INSERT INTO event_contacts (event_id, contact_id) VALUES (?, ?)")
+                .bind(event.id.to_string())
+                .bind(contact_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
         for reminder in &event.reminders {
@@ -59,7 +60,8 @@ impl<'a> CalendarEventRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
@@ -77,7 +79,7 @@ impl<'a> CalendarEventRepository<'a> {
         .ok_or_else(|| DomainError::NotFound(format!("CalendarEvent {}", id)))?;
 
         let contacts = sqlx::query_scalar::<_, String>(
-            "SELECT contact_id FROM event_contacts WHERE event_id = ?"
+            "SELECT contact_id FROM event_contacts WHERE event_id = ?",
         )
         .bind(id.to_string())
         .fetch_all(self.pool)
@@ -88,7 +90,7 @@ impl<'a> CalendarEventRepository<'a> {
         .collect();
 
         let reminder_rows = sqlx::query_as::<_, ReminderRow>(
-            "SELECT id, minutes_before, method FROM event_reminders WHERE event_id = ?"
+            "SELECT id, minutes_before, method FROM event_reminders WHERE event_id = ?",
         )
         .bind(id.to_string())
         .fetch_all(self.pool)
@@ -116,7 +118,7 @@ impl<'a> CalendarEventRepository<'a> {
             let _event_id = Uuid::parse_str(&row.id).unwrap();
 
             let contacts = sqlx::query_scalar::<_, String>(
-                "SELECT contact_id FROM event_contacts WHERE event_id = ?"
+                "SELECT contact_id FROM event_contacts WHERE event_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -127,7 +129,7 @@ impl<'a> CalendarEventRepository<'a> {
             .collect();
 
             let reminder_rows = sqlx::query_as::<_, ReminderRow>(
-                "SELECT id, minutes_before, method FROM event_reminders WHERE event_id = ?"
+                "SELECT id, minutes_before, method FROM event_reminders WHERE event_id = ?",
             )
             .bind(row.id.clone())
             .fetch_all(self.pool)
@@ -143,7 +145,10 @@ impl<'a> CalendarEventRepository<'a> {
     }
 
     pub async fn update(&self, event: &CalendarEvent) -> DomainResult<()> {
-        let mut tx = self.pool.begin().await
+        let mut tx = self
+            .pool
+            .begin()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         sqlx::query(
@@ -171,14 +176,12 @@ impl<'a> CalendarEventRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         for contact_id in &event.contacts {
-            sqlx::query(
-                "INSERT INTO event_contacts (event_id, contact_id) VALUES (?, ?)"
-            )
-            .bind(event.id.to_string())
-            .bind(contact_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?;
+            sqlx::query("INSERT INTO event_contacts (event_id, contact_id) VALUES (?, ?)")
+                .bind(event.id.to_string())
+                .bind(contact_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
         sqlx::query("DELETE FROM event_reminders WHERE event_id = ?")
@@ -200,7 +203,8 @@ impl<'a> CalendarEventRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
@@ -217,27 +221,23 @@ impl<'a> CalendarEventRepository<'a> {
     }
 
     pub async fn add_contact(&self, event_id: Uuid, contact_id: Uuid) -> DomainResult<()> {
-        sqlx::query(
-            "INSERT OR IGNORE INTO event_contacts (event_id, contact_id) VALUES (?, ?)"
-        )
-        .bind(event_id.to_string())
-        .bind(contact_id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        sqlx::query("INSERT OR IGNORE INTO event_contacts (event_id, contact_id) VALUES (?, ?)")
+            .bind(event_id.to_string())
+            .bind(contact_id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
 
     pub async fn remove_contact(&self, event_id: Uuid, contact_id: Uuid) -> DomainResult<()> {
-        sqlx::query(
-            "DELETE FROM event_contacts WHERE event_id = ? AND contact_id = ?"
-        )
-        .bind(event_id.to_string())
-        .bind(contact_id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        sqlx::query("DELETE FROM event_contacts WHERE event_id = ? AND contact_id = ?")
+            .bind(event_id.to_string())
+            .bind(contact_id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }
@@ -271,7 +271,7 @@ impl<'a> CalendarEventRepository<'a> {
         let rows = sqlx::query_as::<_, CalendarEventRow>(
             "SELECT id, title, description, start_time, end_time, all_day, location,
              recurrence, created_at, updated_at, created_by, version
-             FROM calendar_events WHERE created_by = ? ORDER BY start_time"
+             FROM calendar_events WHERE created_by = ? ORDER BY start_time",
         )
         .bind(creator_id.to_string())
         .fetch_all(self.pool)
@@ -288,13 +288,18 @@ impl<'a> CalendarEventRepository<'a> {
         Ok(events)
     }
 
-    pub async fn list_by_date_range(&self, creator_id: Uuid, start: chrono::DateTime<chrono::Utc>, end: chrono::DateTime<chrono::Utc>) -> DomainResult<Vec<CalendarEvent>> {
+    pub async fn list_by_date_range(
+        &self,
+        creator_id: Uuid,
+        start: chrono::DateTime<chrono::Utc>,
+        end: chrono::DateTime<chrono::Utc>,
+    ) -> DomainResult<Vec<CalendarEvent>> {
         let rows = sqlx::query_as::<_, CalendarEventRow>(
             "SELECT id, title, description, start_time, end_time, all_day, location,
              recurrence, created_at, updated_at, created_by, version
              FROM calendar_events
              WHERE created_by = ? AND start_time >= ? AND end_time <= ?
-             ORDER BY start_time"
+             ORDER BY start_time",
         )
         .bind(creator_id.to_string())
         .bind(start.to_rfc3339())
@@ -315,7 +320,7 @@ impl<'a> CalendarEventRepository<'a> {
 
     pub async fn list_by_contact(&self, contact_id: Uuid) -> DomainResult<Vec<CalendarEvent>> {
         let event_ids = sqlx::query_scalar::<_, String>(
-            "SELECT event_id FROM event_contacts WHERE contact_id = ?"
+            "SELECT event_id FROM event_contacts WHERE contact_id = ?",
         )
         .bind(contact_id.to_string())
         .fetch_all(self.pool)
@@ -335,9 +340,13 @@ impl<'a> CalendarEventRepository<'a> {
         Ok(events)
     }
 
-    async fn build_event_from_row(&self, row: CalendarEventRow, event_id: Uuid) -> DomainResult<CalendarEvent> {
+    async fn build_event_from_row(
+        &self,
+        row: CalendarEventRow,
+        event_id: Uuid,
+    ) -> DomainResult<CalendarEvent> {
         let contacts = sqlx::query_scalar::<_, String>(
-            "SELECT contact_id FROM event_contacts WHERE event_id = ?"
+            "SELECT contact_id FROM event_contacts WHERE event_id = ?",
         )
         .bind(event_id.to_string())
         .fetch_all(self.pool)
@@ -348,7 +357,7 @@ impl<'a> CalendarEventRepository<'a> {
         .collect();
 
         let reminders = sqlx::query_as::<_, ReminderRow>(
-            "SELECT id, minutes_before, method FROM event_reminders WHERE event_id = ?"
+            "SELECT id, minutes_before, method FROM event_reminders WHERE event_id = ?",
         )
         .bind(event_id.to_string())
         .fetch_all(self.pool)
@@ -359,7 +368,7 @@ impl<'a> CalendarEventRepository<'a> {
         .collect();
 
         let attachment_ids = sqlx::query_scalar::<_, String>(
-            "SELECT attachment_id FROM event_attachments WHERE event_id = ?"
+            "SELECT attachment_id FROM event_attachments WHERE event_id = ?",
         )
         .bind(event_id.to_string())
         .fetch_all(self.pool)
@@ -390,21 +399,34 @@ struct CalendarEventRow {
 }
 
 impl CalendarEventRow {
-    fn into_event(self, contacts: Vec<Uuid>, reminders: Vec<Reminder>, attachment_ids: Vec<Uuid>) -> CalendarEvent {
+    fn into_event(
+        self,
+        contacts: Vec<Uuid>,
+        reminders: Vec<Reminder>,
+        attachment_ids: Vec<Uuid>,
+    ) -> CalendarEvent {
         CalendarEvent {
             id: Uuid::parse_str(&self.id).unwrap(),
             title: self.title,
             description: self.description,
-            start_time: chrono::DateTime::parse_from_rfc3339(&self.start_time).unwrap().with_timezone(&chrono::Utc),
-            end_time: chrono::DateTime::parse_from_rfc3339(&self.end_time).unwrap().with_timezone(&chrono::Utc),
+            start_time: chrono::DateTime::parse_from_rfc3339(&self.start_time)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            end_time: chrono::DateTime::parse_from_rfc3339(&self.end_time)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
             all_day: self.all_day != 0,
             contacts,
             location: self.location,
             recurrence: self.recurrence.and_then(|s| serde_json::from_str(&s).ok()),
             reminders,
             attachment_ids,
-            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at).unwrap().with_timezone(&chrono::Utc),
-            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at).unwrap().with_timezone(&chrono::Utc),
+            created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            updated_at: chrono::DateTime::parse_from_rfc3339(&self.updated_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
             created_by: Uuid::parse_str(&self.created_by).unwrap(),
             version: self.version,
         }

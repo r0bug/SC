@@ -1,41 +1,100 @@
+use crate::{auth::AuthUser, state::AppState};
 use axum::{
-    extract::{ws::{Message, WebSocket, WebSocketUpgrade}, State},
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        State,
+    },
     response::IntoResponse,
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use crate::{auth::AuthUser, state::AppState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum BroadcastEvent {
-    ContactCreated { id: Uuid, user_id: Uuid },
-    ContactUpdated { id: Uuid, user_id: Uuid },
-    ContactDeleted { id: Uuid, user_id: Uuid },
+    ContactCreated {
+        id: Uuid,
+        user_id: Uuid,
+    },
+    ContactUpdated {
+        id: Uuid,
+        user_id: Uuid,
+    },
+    ContactDeleted {
+        id: Uuid,
+        user_id: Uuid,
+    },
 
-    NoteCreated { id: Uuid, contact_id: Uuid, user_id: Uuid },
-    NoteUpdated { id: Uuid, user_id: Uuid },
-    NoteDeleted { id: Uuid, user_id: Uuid },
+    NoteCreated {
+        id: Uuid,
+        contact_id: Uuid,
+        user_id: Uuid,
+    },
+    NoteUpdated {
+        id: Uuid,
+        user_id: Uuid,
+    },
+    NoteDeleted {
+        id: Uuid,
+        user_id: Uuid,
+    },
 
-    CalendarEventCreated { id: Uuid, user_id: Uuid },
-    CalendarEventUpdated { id: Uuid, user_id: Uuid },
-    CalendarEventDeleted { id: Uuid, user_id: Uuid },
+    CalendarEventCreated {
+        id: Uuid,
+        user_id: Uuid,
+    },
+    CalendarEventUpdated {
+        id: Uuid,
+        user_id: Uuid,
+    },
+    CalendarEventDeleted {
+        id: Uuid,
+        user_id: Uuid,
+    },
 
-    GroupCreated { id: Uuid, user_id: Uuid },
-    GroupUpdated { id: Uuid, user_id: Uuid },
-    GroupDeleted { id: Uuid, user_id: Uuid },
+    GroupCreated {
+        id: Uuid,
+        user_id: Uuid,
+    },
+    GroupUpdated {
+        id: Uuid,
+        user_id: Uuid,
+    },
+    GroupDeleted {
+        id: Uuid,
+        user_id: Uuid,
+    },
 
-    ConceptCreated { id: Uuid, user_id: Uuid },
-    ConceptUpdated { id: Uuid, user_id: Uuid },
-    ConceptDeleted { id: Uuid, user_id: Uuid },
+    ConceptCreated {
+        id: Uuid,
+        user_id: Uuid,
+    },
+    ConceptUpdated {
+        id: Uuid,
+        user_id: Uuid,
+    },
+    ConceptDeleted {
+        id: Uuid,
+        user_id: Uuid,
+    },
 
-    ShareInviteReceived { invite_id: Uuid, from_user_id: Uuid, to_user_id: Uuid },
-    ShareAccepted { share_id: Uuid, user_id: Uuid },
-    ShareRejected { share_id: Uuid, user_id: Uuid },
+    ShareInviteReceived {
+        invite_id: Uuid,
+        from_user_id: Uuid,
+        to_user_id: Uuid,
+    },
+    ShareAccepted {
+        share_id: Uuid,
+        user_id: Uuid,
+    },
+    ShareRejected {
+        share_id: Uuid,
+        user_id: Uuid,
+    },
 }
 
 type Clients = Arc<RwLock<HashMap<Uuid, mpsc::UnboundedSender<Message>>>>;

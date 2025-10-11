@@ -1,9 +1,9 @@
-use core_domain::{Contact, AiSuggestion};
 use crate::SegmindClient;
 use anyhow::Result;
-use uuid::Uuid;
 use chrono::Utc;
+use core_domain::{AiSuggestion, Contact};
 use tracing::info;
+use uuid::Uuid;
 
 pub struct SuggestionEngine {
     client: SegmindClient,
@@ -14,7 +14,10 @@ impl SuggestionEngine {
         Self { client }
     }
 
-    pub async fn generate_contact_suggestions(&self, contact: &Contact) -> Result<Vec<AiSuggestion>> {
+    pub async fn generate_contact_suggestions(
+        &self,
+        contact: &Contact,
+    ) -> Result<Vec<AiSuggestion>> {
         info!("Generating AI suggestions for contact {}", contact.id);
 
         let prompt = format!(
@@ -42,7 +45,10 @@ impl SuggestionEngine {
     pub async fn suggest_next_action(&self, contact: &Contact) -> Result<AiSuggestion> {
         info!("Suggesting next action for contact {}", contact.id);
 
-        let analysis = self.client.analyze_contact_data(&serde_json::to_string(contact)?).await?;
+        let analysis = self
+            .client
+            .analyze_contact_data(&serde_json::to_string(contact)?)
+            .await?;
 
         Ok(AiSuggestion {
             id: Uuid::new_v4(),
@@ -58,7 +64,10 @@ impl SuggestionEngine {
     pub async fn suggest_tags(&self, contact: &Contact) -> Result<Vec<String>> {
         info!("Suggesting tags for contact {}", contact.id);
 
-        let analysis = self.client.analyze_contact_data(&serde_json::to_string(contact)?).await?;
+        let analysis = self
+            .client
+            .analyze_contact_data(&serde_json::to_string(contact)?)
+            .await?;
 
         Ok(analysis.suggested_tags)
     }

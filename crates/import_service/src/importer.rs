@@ -66,11 +66,7 @@ impl ImportService {
             ImportFormat::Vcard => parse_vcard(file_path)?,
             ImportFormat::Json => parse_json(file_path)?,
             ImportFormat::Sms => parse_sms(file_path)?,
-            _ => {
-                return Err(ImportError::Other(
-                    "Unsupported format".to_string(),
-                ))
-            }
+            _ => return Err(ImportError::Other("Unsupported format".to_string())),
         };
 
         // Validate the data
@@ -104,17 +100,10 @@ impl ImportService {
 
         for (index, row) in rows.iter().enumerate() {
             // Skip invalid rows
-            let is_valid = validation
-                .errors
-                .iter()
-                .all(|e| e.row != index);
+            let is_valid = validation.errors.iter().all(|e| e.row != index);
 
             if !is_valid {
-                transaction.log_change(
-                    "contact".to_string(),
-                    Uuid::nil(),
-                    Operation::Skip,
-                );
+                transaction.log_change("contact".to_string(), Uuid::nil(), Operation::Skip);
                 continue;
             }
 
@@ -141,15 +130,13 @@ impl ImportService {
                 );
             } else {
                 // Insert new contact
-                contact_repo.create(&contact).await
+                contact_repo
+                    .create(&contact)
+                    .await
                     .map_err(|e| ImportError::Other(e.to_string()))?;
 
                 transaction.add_imported_id(contact.id);
-                transaction.log_change(
-                    "contact".to_string(),
-                    contact.id,
-                    Operation::Insert,
-                );
+                transaction.log_change("contact".to_string(), contact.id, Operation::Insert);
             }
 
             // Checkpoint every N records
@@ -175,7 +162,10 @@ impl ImportService {
         // 2. Delete all imported records
         // 3. Restore any updated records to their previous state
 
-        warn!("Rollback not fully implemented for transaction: {}", transaction_id);
+        warn!(
+            "Rollback not fully implemented for transaction: {}",
+            transaction_id
+        );
         Ok(())
     }
 
@@ -184,7 +174,9 @@ impl ImportService {
     }
 
     pub fn save_config(&self, config: &ImportConfig) -> Result<(), ImportError> {
-        self.config_repo.save(config).map_err(|e| ImportError::IoError(e))
+        self.config_repo
+            .save(config)
+            .map_err(|e| ImportError::IoError(e))
     }
 }
 
@@ -205,21 +197,13 @@ fn detect_format(path: &Path) -> Result<ImportFormat, ImportError> {
 
 fn read_csv_headers(path: &Path) -> Result<Vec<String>, ImportError> {
     let mut reader = csv::Reader::from_path(path)?;
-    let headers = reader
-        .headers()?
-        .iter()
-        .map(|h| h.to_string())
-        .collect();
+    let headers = reader.headers()?.iter().map(|h| h.to_string()).collect();
     Ok(headers)
 }
 
 fn parse_csv(path: &Path) -> Result<Vec<HashMap<String, String>>, ImportError> {
     let mut reader = csv::Reader::from_path(path)?;
-    let headers: Vec<String> = reader
-        .headers()?
-        .iter()
-        .map(|h| h.to_string())
-        .collect();
+    let headers: Vec<String> = reader.headers()?.iter().map(|h| h.to_string()).collect();
 
     let mut rows = Vec::new();
     for result in reader.records() {
@@ -286,8 +270,8 @@ fn parse_vcard(path: &Path) -> Result<Vec<HashMap<String, String>>, ImportError>
 
 fn parse_json(path: &Path) -> Result<Vec<HashMap<String, String>>, ImportError> {
     let content = std::fs::read_to_string(path)?;
-    let json: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| ImportError::Other(e.to_string()))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| ImportError::Other(e.to_string()))?;
 
     let mut rows = Vec::new();
 
@@ -324,7 +308,10 @@ fn parse_sms(path: &Path) -> Result<Vec<HashMap<String, String>>, ImportError> {
             // Extract phone number
             if let Some(phone) = line.split(':').nth(1) {
                 row.insert("phone".to_string(), phone.trim().to_string());
-                row.insert("first_name".to_string(), format!("SMS Contact {}", phone.trim()));
+                row.insert(
+                    "first_name".to_string(),
+                    format!("SMS Contact {}", phone.trim()),
+                );
                 rows.push(row);
             }
         }

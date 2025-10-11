@@ -1,12 +1,7 @@
-use axum::{
-    extract::State,
-    response::IntoResponse,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
-use std::sync::Arc;
 use sqlx::{Pool, Sqlite};
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct DashboardState {
@@ -14,9 +9,7 @@ pub struct DashboardState {
 }
 
 /// GET /api/dashboard - Get dashboard summary
-pub async fn get_dashboard(
-    State(state): State<DashboardState>,
-) -> impl IntoResponse {
+pub async fn get_dashboard(State(state): State<DashboardState>) -> impl IntoResponse {
     // Get counts from database
     let contacts_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM contacts")
         .fetch_one(state.pool.as_ref())
@@ -39,7 +32,7 @@ pub async fn get_dashboard(
         .unwrap_or(0);
 
     let recent_imports = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM import_logs WHERE started_at > datetime('now', '-7 days')"
+        "SELECT COUNT(*) FROM import_logs WHERE started_at > datetime('now', '-7 days')",
     )
     .fetch_one(state.pool.as_ref())
     .await
@@ -64,6 +57,5 @@ pub async fn get_dashboard(
 }
 
 pub fn dashboard_routes() -> axum::Router<DashboardState> {
-    axum::Router::new()
-        .route("/api/dashboard", axum::routing::get(get_dashboard))
+    axum::Router::new().route("/api/dashboard", axum::routing::get(get_dashboard))
 }

@@ -37,20 +37,28 @@ pub async fn create_event(
     Json(req): Json<CreateEventRequest>,
 ) -> Result<Json<CalendarEvent>, (StatusCode, String)> {
     // Validate inputs
-    validation::validate_title(&req.title)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
-    validation::validate_optional(&req.description, |d: &String| validation::validate_description(d))
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_title(&req.title).map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_optional(&req.description, |d: &String| {
+        validation::validate_description(d)
+    })
+    .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
     validation::validate_optional(&req.location, |l: &String| validation::validate_location(l))
         .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
     validation::validate_uuid_list(&req.contacts, validation::MAX_CONTACTS_COUNT, "contacts")
         .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
-    validation::validate_uuid_list(&req.attachment_ids, validation::MAX_CONTACTS_COUNT, "attachments")
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_uuid_list(
+        &req.attachment_ids,
+        validation::MAX_CONTACTS_COUNT,
+        "attachments",
+    )
+    .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
 
     // Validate that end_time is after start_time
     if req.end_time <= req.start_time {
-        return Err((StatusCode::BAD_REQUEST, "End time must be after start time".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "End time must be after start time".to_string(),
+        ));
     }
 
     let event = CalendarEvent {
@@ -72,9 +80,12 @@ pub async fn create_event(
     };
 
     let repo = CalendarEventRepository::new(&app_state.pool);
-    repo.create(&event)
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create event".to_string()))?;
+    repo.create(&event).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to create event".to_string(),
+        )
+    })?;
 
     // Create ACL for the event
     app_state
@@ -85,7 +96,12 @@ pub async fn create_event(
             &event.id,
         )
         .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create ACL".to_string()))?;
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to create ACL".to_string(),
+            )
+        })?;
 
     Ok(Json(event))
 }

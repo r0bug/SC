@@ -1,6 +1,6 @@
 use crate::config::ValidationRules;
-use std::collections::{HashMap, HashSet};
 use regex::Regex;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub struct ValidationResult {
@@ -44,17 +44,13 @@ impl BatchValidator {
     pub fn new(rules: ValidationRules) -> Self {
         Self {
             rules,
-            email_regex: Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
-                .unwrap(),
+            email_regex: Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap(),
             phone_regex: Regex::new(r"^[+]?[0-9]{10,15}$").unwrap(),
             seen_records: HashSet::new(),
         }
     }
 
-    pub fn validate_batch(
-        &mut self,
-        rows: &[HashMap<String, String>],
-    ) -> ValidationResult {
+    pub fn validate_batch(&mut self, rows: &[HashMap<String, String>]) -> ValidationResult {
         let mut result = ValidationResult {
             is_valid: true,
             errors: Vec::new(),
@@ -181,10 +177,7 @@ impl BatchValidator {
         }
 
         if let Some(phone) = row.get("phone") {
-            let cleaned: String = phone
-                .chars()
-                .filter(|c| c.is_ascii_digit())
-                .collect();
+            let cleaned: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
             key_parts.push(cleaned);
         }
 

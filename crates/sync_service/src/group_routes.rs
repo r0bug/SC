@@ -29,10 +29,11 @@ pub async fn create_group(
     Json(req): Json<CreateGroupRequest>,
 ) -> Result<Json<GroupResponse>, (StatusCode, String)> {
     // Validate inputs
-    validation::validate_name(&req.name)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
-    validation::validate_optional(&req.description, |d: &String| validation::validate_description(d))
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_name(&req.name).map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+    validation::validate_optional(&req.description, |d: &String| {
+        validation::validate_description(d)
+    })
+    .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
     validation::validate_uuid_list(&req.contact_ids, validation::MAX_CONTACTS_COUNT, "contacts")
         .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
 
@@ -47,16 +48,24 @@ pub async fn create_group(
     };
 
     let repo = GroupRepository::new(&app_state.pool);
-    repo.create(&group)
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create group".to_string()))?;
+    repo.create(&group).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to create group".to_string(),
+        )
+    })?;
 
     // Create ACL for the group
     app_state
         .acl_service
         .create_acl(&user.id, core_domain::ShareEntityType::Group, &group.id)
         .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create ACL".to_string()))?;
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to create ACL".to_string(),
+            )
+        })?;
 
     Ok(Json(GroupResponse { group }))
 }

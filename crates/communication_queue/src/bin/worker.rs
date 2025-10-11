@@ -1,11 +1,11 @@
 use anyhow::Result;
 use communication_queue::{
-    WorkerSupervisor, CommunicationTask, NagReminderTask,
-    SuggestionTask, MetricsStore, HealthServer
+    CommunicationTask, HealthServer, MetricsStore, NagReminderTask, SuggestionTask,
+    WorkerSupervisor,
 };
 use local_store::LocalStore;
-use tracing::{info, error};
 use std::sync::Arc;
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -14,8 +14,8 @@ async fn main() -> Result<()> {
     info!("🚀 SagensContact Worker starting...");
 
     // Database setup
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:./data/contacts.db".to_string());
+    let database_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/contacts.db".to_string());
 
     info!("📂 Connecting to database: {}", database_url);
     let store = Arc::new(LocalStore::new(&database_url).await?);
@@ -40,58 +40,58 @@ async fn main() -> Result<()> {
     let comm_sync_url = sync_service_url.clone();
     let comm_metrics = Arc::clone(&metrics_store);
     let comm_id = supervisor
-        .spawn_task(
-            "communication_processor".to_string(),
-            move || {
-                let store = Arc::clone(&comm_store);
-                let url = comm_sync_url.clone();
-                let metrics = Arc::clone(&comm_metrics);
-                async move {
-                    let start = std::time::Instant::now();
-                    let task = CommunicationTask::new(store, url);
+        .spawn_task("communication_processor".to_string(), move || {
+            let store = Arc::clone(&comm_store);
+            let url = comm_sync_url.clone();
+            let metrics = Arc::clone(&comm_metrics);
+            async move {
+                let start = std::time::Instant::now();
+                let task = CommunicationTask::new(store, url);
 
-                    match task.run().await {
-                        Ok(_) => {
-                            let duration = start.elapsed().as_millis() as i64;
-                            metrics.record_success("communication_processor", duration).await?;
-                            Ok(())
-                        }
-                        Err(e) => {
-                            metrics.record_failure("communication_processor", &e.to_string()).await?;
-                            Err(e)
-                        }
+                match task.run().await {
+                    Ok(_) => {
+                        let duration = start.elapsed().as_millis() as i64;
+                        metrics
+                            .record_success("communication_processor", duration)
+                            .await?;
+                        Ok(())
+                    }
+                    Err(e) => {
+                        metrics
+                            .record_failure("communication_processor", &e.to_string())
+                            .await?;
+                        Err(e)
                     }
                 }
-            },
-        )
+            }
+        })
         .await?;
     info!("✅ Communication processor task started (id: {})", comm_id);
 
     // Spawn nag reminder task
     let nag_metrics = Arc::clone(&metrics_store);
     let nag_id = supervisor
-        .spawn_task(
-            "nag_reminder".to_string(),
-            move || {
-                let metrics = Arc::clone(&nag_metrics);
-                async move {
-                    let start = std::time::Instant::now();
-                    let task = NagReminderTask::new().await?;
+        .spawn_task("nag_reminder".to_string(), move || {
+            let metrics = Arc::clone(&nag_metrics);
+            async move {
+                let start = std::time::Instant::now();
+                let task = NagReminderTask::new().await?;
 
-                    match task.run().await {
-                        Ok(_) => {
-                            let duration = start.elapsed().as_millis() as i64;
-                            metrics.record_success("nag_reminder", duration).await?;
-                            Ok(())
-                        }
-                        Err(e) => {
-                            metrics.record_failure("nag_reminder", &e.to_string()).await?;
-                            Err(e)
-                        }
+                match task.run().await {
+                    Ok(_) => {
+                        let duration = start.elapsed().as_millis() as i64;
+                        metrics.record_success("nag_reminder", duration).await?;
+                        Ok(())
+                    }
+                    Err(e) => {
+                        metrics
+                            .record_failure("nag_reminder", &e.to_string())
+                            .await?;
+                        Err(e)
                     }
                 }
-            },
-        )
+            }
+        })
         .await?;
     info!("✅ Nag reminder task started (id: {})", nag_id);
 
@@ -99,29 +99,30 @@ async fn main() -> Result<()> {
     let suggest_store = Arc::clone(&store);
     let suggest_metrics = Arc::clone(&metrics_store);
     let suggest_id = supervisor
-        .spawn_task(
-            "suggestion_generator".to_string(),
-            move || {
-                let store = Arc::clone(&suggest_store);
-                let metrics = Arc::clone(&suggest_metrics);
-                async move {
-                    let start = std::time::Instant::now();
-                    let task = SuggestionTask::new(store);
+        .spawn_task("suggestion_generator".to_string(), move || {
+            let store = Arc::clone(&suggest_store);
+            let metrics = Arc::clone(&suggest_metrics);
+            async move {
+                let start = std::time::Instant::now();
+                let task = SuggestionTask::new(store);
 
-                    match task.run().await {
-                        Ok(_) => {
-                            let duration = start.elapsed().as_millis() as i64;
-                            metrics.record_success("suggestion_generator", duration).await?;
-                            Ok(())
-                        }
-                        Err(e) => {
-                            metrics.record_failure("suggestion_generator", &e.to_string()).await?;
-                            Err(e)
-                        }
+                match task.run().await {
+                    Ok(_) => {
+                        let duration = start.elapsed().as_millis() as i64;
+                        metrics
+                            .record_success("suggestion_generator", duration)
+                            .await?;
+                        Ok(())
+                    }
+                    Err(e) => {
+                        metrics
+                            .record_failure("suggestion_generator", &e.to_string())
+                            .await?;
+                        Err(e)
                     }
                 }
-            },
-        )
+            }
+        })
         .await?;
     info!("✅ Suggestion generator task started (id: {})", suggest_id);
 
@@ -134,8 +135,8 @@ async fn main() -> Result<()> {
             .parse()
             .unwrap_or(9090);
 
-        let health_server = HealthServer::new(health_supervisor, health_metrics)
-            .with_port(health_port);
+        let health_server =
+            HealthServer::new(health_supervisor, health_metrics).with_port(health_port);
 
         info!("🏥 Starting health server on port {}", health_port);
 
@@ -161,7 +162,10 @@ async fn main() -> Result<()> {
         );
 
         if health.failed_tasks > 0 {
-            error!("⚠️  {} tasks have failed and exceeded max restarts", health.failed_tasks);
+            error!(
+                "⚠️  {} tasks have failed and exceeded max restarts",
+                health.failed_tasks
+            );
         }
     }
 }

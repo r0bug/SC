@@ -1,14 +1,11 @@
-use crate::{
-    auth::AuthUser,
-    state::AppState,
-};
+use crate::{auth::AuthUser, state::AppState};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
-use core_domain::{Permission, ShareInvite, ShareEntityType};
+use core_domain::{Permission, ShareEntityType, ShareInvite};
 use local_store::repositories::{ShareRepository, UserRepository};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -43,13 +40,19 @@ pub async fn create_share(
     };
 
     // Check if user can share this entity
-    if !app_state.acl_service.can_share(&user.id, entity_type, &req.entity_id).await
-        .unwrap_or(false) {
+    if !app_state
+        .acl_service
+        .can_share(&user.id, entity_type, &req.entity_id)
+        .await
+        .unwrap_or(false)
+    {
         return Err((StatusCode::FORBIDDEN, "You cannot share this entity"));
     }
 
     // Parse permissions
-    let permissions: Vec<Permission> = req.permissions.iter()
+    let permissions: Vec<Permission> = req
+        .permissions
+        .iter()
         .filter_map(|p| match p.as_str() {
             "read" => Some(Permission::Read),
             "write" => Some(Permission::Write),
@@ -85,7 +88,9 @@ pub async fn create_share(
     };
 
     let share_repo = ShareRepository::new(&app_state.pool);
-    share_repo.create(&invite).await
+    share_repo
+        .create(&invite)
+        .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create share"))?;
 
     Ok(Json(ShareResponse {
@@ -103,7 +108,9 @@ pub async fn accept_share(
     let share_repo = ShareRepository::new(&app_state.pool);
 
     // Get the share invite
-    let mut invite = share_repo.get_by_id(share_id).await
+    let mut invite = share_repo
+        .get_by_id(share_id)
+        .await
         .map_err(|_| (StatusCode::NOT_FOUND, "Share invite not found"))?;
 
     // Check if the invite is for this user
@@ -131,18 +138,28 @@ pub async fn accept_share(
     invite.accepted_at = Some(chrono::Utc::now());
     invite.shared_with_user = Some(user.id);
 
-    share_repo.update(&invite).await
+    share_repo
+        .update(&invite)
+        .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to accept share"))?;
 
     // Grant permissions via ACL
-    app_state.acl_service.grant_permission(
-        &invite.shared_by,
-        &user.id,
-        invite.entity_type,
-        &invite.entity_id,
-        invite.permissions,
-    ).await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to grant permissions"))?;
+    app_state
+        .acl_service
+        .grant_permission(
+            &invite.shared_by,
+            &user.id,
+            invite.entity_type,
+            &invite.entity_id,
+            invite.permissions,
+        )
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to grant permissions",
+            )
+        })?;
 
     Ok(Json(serde_json::json!({
         "message": "Share accepted successfully",
@@ -159,7 +176,9 @@ pub async fn reject_share(
     let share_repo = ShareRepository::new(&app_state.pool);
 
     // Get the share invite
-    let mut invite = share_repo.get_by_id(share_id).await
+    let mut invite = share_repo
+        .get_by_id(share_id)
+        .await
         .map_err(|_| (StatusCode::NOT_FOUND, "Share invite not found"))?;
 
     // Check if the invite is for this user
@@ -179,7 +198,9 @@ pub async fn reject_share(
     invite.revoked = true;
     invite.revoked_at = Some(chrono::Utc::now());
 
-    share_repo.update(&invite).await
+    share_repo
+        .update(&invite)
+        .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to reject share"))?;
 
     Ok(Json(serde_json::json!({
@@ -196,7 +217,9 @@ pub async fn revoke_share(
     let share_repo = ShareRepository::new(&app_state.pool);
 
     // Get the share invite
-    let mut invite = share_repo.get_by_id(share_id).await
+    let mut invite = share_repo
+        .get_by_id(share_id)
+        .await
         .map_err(|_| (StatusCode::NOT_FOUND, "Share invite not found"))?;
 
     // Check if user is the one who shared
@@ -213,19 +236,29 @@ pub async fn revoke_share(
     invite.revoked = true;
     invite.revoked_at = Some(chrono::Utc::now());
 
-    share_repo.update(&invite).await
+    share_repo
+        .update(&invite)
+        .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to revoke share"))?;
 
     // If share was accepted, revoke permissions
     if invite.accepted {
         if let Some(shared_with_user) = invite.shared_with_user {
-            app_state.acl_service.revoke_permission(
-                &user.id,
-                &shared_with_user,
-                invite.entity_type,
-                &invite.entity_id,
-            ).await
-                .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to revoke permissions"))?;
+            app_state
+                .acl_service
+                .revoke_permission(
+                    &user.id,
+                    &shared_with_user,
+                    invite.entity_type,
+                    &invite.entity_id,
+                )
+                .await
+                .map_err(|_| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Failed to revoke permissions",
+                    )
+                })?;
         }
     }
 
@@ -241,7 +274,9 @@ pub async fn list_sent_shares(
 ) -> Result<Json<Vec<ShareInvite>>, (StatusCode, &'static str)> {
     let share_repo = ShareRepository::new(&app_state.pool);
 
-    let shares = share_repo.list_by_sharer(user.id).await
+    let shares = share_repo
+        .list_by_sharer(user.id)
+        .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list shares"))?;
 
     Ok(Json(shares))
@@ -254,7 +289,9 @@ pub async fn list_received_shares(
 ) -> Result<Json<Vec<ShareInvite>>, (StatusCode, &'static str)> {
     let share_repo = ShareRepository::new(&app_state.pool);
 
-    let shares = share_repo.list_by_recipient(&user.email).await
+    let shares = share_repo
+        .list_by_recipient(&user.email)
+        .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list shares"))?;
 
     Ok(Json(shares))

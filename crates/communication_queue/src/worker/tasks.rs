@@ -1,16 +1,16 @@
 use crate::{CommunicationQueue, NagScheduler};
-use local_store::{
-    LocalStore, CommunicationRepository, SearchHistoryRepository,
-    AiInsightRepository, ContactRepository
-};
-use core_domain::{AiInsight, AiInsightType, AiInsightEntityType};
 use anyhow::Result;
-use tokio::time::{sleep, Duration};
-use tracing::{info, warn, error};
-use uuid::Uuid;
-use chrono::{Utc, DateTime};
-use std::sync::Arc;
+use chrono::{DateTime, Utc};
+use core_domain::{AiInsight, AiInsightEntityType, AiInsightType};
+use local_store::{
+    AiInsightRepository, CommunicationRepository, ContactRepository, LocalStore,
+    SearchHistoryRepository,
+};
 use std::collections::HashSet;
+use std::sync::Arc;
+use tokio::time::{sleep, Duration};
+use tracing::{error, info, warn};
+use uuid::Uuid;
 
 /// Task for processing communication queue
 pub struct CommunicationTask {
@@ -238,9 +238,9 @@ impl SuggestionTask {
                     .await?;
 
                 // Don't create duplicate insights
-                let has_similar = existing.iter().any(|i|
-                    i.content.contains("missing contact information")
-                );
+                let has_similar = existing
+                    .iter()
+                    .any(|i| i.content.contains("missing contact information"));
 
                 if !has_similar {
                     let insight = AiInsight {

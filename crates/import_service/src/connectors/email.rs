@@ -1,6 +1,6 @@
 use crate::{
-    connector::{ConnectorMetadata, ImportConnector, ParseResult},
     config::ImportFormat,
+    connector::{ConnectorMetadata, ImportConnector, ParseResult},
     ImportError,
 };
 use async_trait::async_trait;
@@ -29,7 +29,8 @@ impl EmailConnector {
         let to_pattern = Regex::new(r"(?i)^To:\s*(.+)$").unwrap();
         let subject_pattern = Regex::new(r"(?i)^Subject:\s*(.+)$").unwrap();
         let date_pattern = Regex::new(r"(?i)^Date:\s*(.+)$").unwrap();
-        let email_extract = Regex::new(r#"<?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>?"#).unwrap();
+        let email_extract =
+            Regex::new(r#"<?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})>?"#).unwrap();
         let name_extract = Regex::new(r#"^["']?([^"'<]+?)["']?\s*<?[a-zA-Z0-9._%+-]+@"#).unwrap();
 
         let messages: Vec<&str> = content.split("\nFrom ").collect();
@@ -41,7 +42,8 @@ impl EmailConnector {
             let mut subject = String::new();
             let mut date = String::new();
 
-            for line in message.lines().take(50) { // Only process header lines
+            for line in message.lines().take(50) {
+                // Only process header lines
                 if let Some(caps) = from_pattern.captures(line) {
                     let from_str = caps.get(1).unwrap().as_str();
                     if let Some(email_cap) = email_extract.captures(from_str) {
@@ -78,7 +80,14 @@ impl EmailConnector {
                             }
                         }
                     } else {
-                        map.insert("first_name".to_string(), from_email.split('@').next().unwrap_or("Unknown").to_string());
+                        map.insert(
+                            "first_name".to_string(),
+                            from_email
+                                .split('@')
+                                .next()
+                                .unwrap_or("Unknown")
+                                .to_string(),
+                        );
                     }
                     map.insert("source".to_string(), "email".to_string());
                     map.insert("notes".to_string(), String::new());
@@ -91,7 +100,11 @@ impl EmailConnector {
                     let new_note = format!(
                         "{}\n[{}] Email: {}",
                         notes,
-                        if !date.is_empty() { &date } else { "Unknown date" },
+                        if !date.is_empty() {
+                            &date
+                        } else {
+                            "Unknown date"
+                        },
                         subject
                     );
                     entry.insert("notes".to_string(), new_note);
@@ -103,7 +116,10 @@ impl EmailConnector {
                 if !contacts_map.contains_key(&to_email) {
                     let mut map = HashMap::new();
                     map.insert("email".to_string(), to_email.clone());
-                    map.insert("first_name".to_string(), to_email.split('@').next().unwrap_or("Unknown").to_string());
+                    map.insert(
+                        "first_name".to_string(),
+                        to_email.split('@').next().unwrap_or("Unknown").to_string(),
+                    );
                     map.insert("source".to_string(), "email".to_string());
                     map.insert("notes".to_string(), "Email recipient".to_string());
                     contacts_map.insert(to_email, map);
@@ -140,11 +156,7 @@ impl EmailConnector {
     /// Parse Outlook CSV export
     async fn parse_outlook_csv(&self, file_path: &Path) -> Result<ParseResult, ImportError> {
         let mut reader = csv::Reader::from_path(file_path)?;
-        let headers: Vec<String> = reader
-            .headers()?
-            .iter()
-            .map(|h| h.to_string())
-            .collect();
+        let headers: Vec<String> = reader.headers()?.iter().map(|h| h.to_string()).collect();
 
         let mut rows = Vec::new();
         let mut warnings = Vec::new();
@@ -160,7 +172,9 @@ impl EmailConnector {
                                 "first name" | "given name" => "first_name",
                                 "last name" | "surname" => "last_name",
                                 "e-mail address" | "email address" | "email" => "email",
-                                "business phone" | "home phone" | "mobile phone" | "phone" => "phone",
+                                "business phone" | "home phone" | "mobile phone" | "phone" => {
+                                    "phone"
+                                }
                                 "company" | "company name" => "organization",
                                 "job title" | "title" => "title",
                                 "notes" | "comments" => "notes",
@@ -183,7 +197,8 @@ impl EmailConnector {
                         if row.contains_key("email") || row.contains_key("first_name") {
                             rows.push(row);
                         } else {
-                            warnings.push(format!("Row {} missing email and name, skipped", idx + 1));
+                            warnings
+                                .push(format!("Row {} missing email and name, skipped", idx + 1));
                         }
                     }
                 }
@@ -229,13 +244,17 @@ impl EmailConnector {
                 // Check if it's Outlook CSV by looking at headers
                 if let Ok(mut reader) = csv::Reader::from_path(file_path) {
                     if let Ok(headers) = reader.headers() {
-                        let headers_str = headers.iter().collect::<Vec<_>>().join(",").to_lowercase();
-                        if headers_str.contains("e-mail") || headers_str.contains("business phone") {
+                        let headers_str =
+                            headers.iter().collect::<Vec<_>>().join(",").to_lowercase();
+                        if headers_str.contains("e-mail") || headers_str.contains("business phone")
+                        {
                             return Ok(EmailFormat::OutlookCsv);
                         }
                     }
                 }
-                Err(ImportError::Other("Could not detect Outlook CSV format".to_string()))
+                Err(ImportError::Other(
+                    "Could not detect Outlook CSV format".to_string(),
+                ))
             }
             Some("pst") => Ok(EmailFormat::Pst),
             _ => Err(ImportError::Other("Unsupported email format".to_string())),
@@ -256,7 +275,8 @@ impl ImportConnector for EmailConnector {
         ConnectorMetadata {
             id: "email".to_string(),
             name: "Email Contacts".to_string(),
-            description: "Import contacts from email exports (Gmail Takeout MBOX, Outlook CSV)".to_string(),
+            description: "Import contacts from email exports (Gmail Takeout MBOX, Outlook CSV)"
+                .to_string(),
             supported_extensions: vec!["mbox".to_string(), "csv".to_string()],
             supported_mime_types: vec![
                 "application/mbox".to_string(),
@@ -278,8 +298,10 @@ impl ImportConnector for EmailConnector {
                 // Check for Outlook-specific headers
                 if let Ok(mut reader) = csv::Reader::from_path(file_path) {
                     if let Ok(headers) = reader.headers() {
-                        let headers_str = headers.iter().collect::<Vec<_>>().join(",").to_lowercase();
-                        return headers_str.contains("e-mail") || headers_str.contains("business phone");
+                        let headers_str =
+                            headers.iter().collect::<Vec<_>>().join(",").to_lowercase();
+                        return headers_str.contains("e-mail")
+                            || headers_str.contains("business phone");
                     }
                 }
             }
@@ -293,20 +315,20 @@ impl ImportConnector for EmailConnector {
         match format {
             EmailFormat::Mbox => self.parse_mbox(file_path).await,
             EmailFormat::OutlookCsv => self.parse_outlook_csv(file_path).await,
-            EmailFormat::Pst => {
-                Err(ImportError::Other(
-                    "PST format not yet supported. Please export to CSV or MSG format first. \
-                     See documentation for conversion instructions.".to_string()
-                ))
-            }
+            EmailFormat::Pst => Err(ImportError::Other(
+                "PST format not yet supported. Please export to CSV or MSG format first. \
+                     See documentation for conversion instructions."
+                    .to_string(),
+            )),
         }
     }
 
     async fn validate_file(&self, file_path: &Path) -> Result<(), ImportError> {
         if !file_path.exists() {
-            return Err(ImportError::IoError(
-                std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")
-            ));
+            return Err(ImportError::IoError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found",
+            )));
         }
 
         Self::detect_email_format(file_path)?;
@@ -338,7 +360,10 @@ Test message body
         let result = connector.parse(temp_file.path()).await.unwrap();
 
         assert!(result.rows.len() >= 1);
-        assert!(result.rows.iter().any(|r| r.get("email").unwrap() == "john@example.com"));
+        assert!(result
+            .rows
+            .iter()
+            .any(|r| r.get("email").unwrap() == "john@example.com"));
     }
 
     #[tokio::test]

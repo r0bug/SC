@@ -1,4 +1,4 @@
-use core_domain::{AiInteraction, DomainResult, DomainError};
+use core_domain::{AiInteraction, DomainError, DomainResult};
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
@@ -51,7 +51,12 @@ impl<'a> AiInteractionRepository<'a> {
         Ok(row.into())
     }
 
-    pub async fn list_by_user(&self, user_id: Uuid, limit: i64, offset: i64) -> DomainResult<Vec<AiInteraction>> {
+    pub async fn list_by_user(
+        &self,
+        user_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> DomainResult<Vec<AiInteraction>> {
         let rows = sqlx::query_as::<_, AiInteractionRow>(
             "SELECT id, user_id, interaction_type, prompt, response, confidence, model, entity_type, entity_id, feedback_helpful, feedback_applied, metadata, created_at, feedback_at
              FROM ai_interactions WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"
@@ -66,7 +71,11 @@ impl<'a> AiInteractionRepository<'a> {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
-    pub async fn list_by_entity(&self, entity_type: &str, entity_id: Uuid) -> DomainResult<Vec<AiInteraction>> {
+    pub async fn list_by_entity(
+        &self,
+        entity_type: &str,
+        entity_id: Uuid,
+    ) -> DomainResult<Vec<AiInteraction>> {
         let rows = sqlx::query_as::<_, AiInteractionRow>(
             "SELECT id, user_id, interaction_type, prompt, response, confidence, model, entity_type, entity_id, feedback_helpful, feedback_applied, metadata, created_at, feedback_at
              FROM ai_interactions WHERE entity_type = ? AND entity_id = ? ORDER BY created_at DESC"
@@ -80,7 +89,12 @@ impl<'a> AiInteractionRepository<'a> {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
-    pub async fn update_feedback(&self, id: Uuid, helpful: bool, applied: bool) -> DomainResult<()> {
+    pub async fn update_feedback(
+        &self,
+        id: Uuid,
+        helpful: bool,
+        applied: bool,
+    ) -> DomainResult<()> {
         let feedback_at = chrono::Utc::now();
 
         sqlx::query(
@@ -154,8 +168,14 @@ impl From<AiInteractionRow> for AiInteraction {
             feedback_helpful: row.feedback_helpful.map(|v| v != 0),
             feedback_applied: row.feedback_applied != 0,
             metadata: serde_json::from_str(&row.metadata).unwrap_or(serde_json::json!({})),
-            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at).unwrap().with_timezone(&chrono::Utc),
-            feedback_at: row.feedback_at.and_then(|dt| chrono::DateTime::parse_from_rfc3339(&dt).ok().map(|dt| dt.with_timezone(&chrono::Utc))),
+            created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+            feedback_at: row.feedback_at.and_then(|dt| {
+                chrono::DateTime::parse_from_rfc3339(&dt)
+                    .ok()
+                    .map(|dt| dt.with_timezone(&chrono::Utc))
+            }),
         }
     }
 }
@@ -257,7 +277,9 @@ mod tests {
 
         repo.create(&interaction).await.unwrap();
 
-        repo.update_feedback(interaction.id, true, true).await.unwrap();
+        repo.update_feedback(interaction.id, true, true)
+            .await
+            .unwrap();
 
         let updated = repo.get_by_id(interaction.id).await.unwrap();
         assert_eq!(updated.feedback_helpful, Some(true));

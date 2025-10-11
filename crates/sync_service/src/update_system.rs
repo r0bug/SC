@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 const GITHUB_API_BASE: &str = "https://api.github.com";
 const GITHUB_REPO: &str = "r0bug/SC";
@@ -62,10 +62,7 @@ impl UpdateChecker {
             .user_agent("sagenscontact-updater")
             .build()?;
 
-        let response = client
-            .get(&url)
-            .send()
-            .await?;
+        let response = client.get(&url).send().await?;
 
         if !response.status().is_success() {
             return Ok(UpdateInfo {
@@ -87,7 +84,8 @@ impl UpdateChecker {
 
         // Find appropriate binary for current platform
         let platform = self.get_platform_name();
-        let download_url = release.assets
+        let download_url = release
+            .assets
             .iter()
             .find(|asset| asset.name.contains(&platform))
             .map(|asset| asset.browser_download_url.clone());
@@ -149,7 +147,10 @@ impl UpdateChecker {
         let response = client.get(download_url).send().await?;
 
         if !response.status().is_success() {
-            return Err(anyhow!("Failed to download update: HTTP {}", response.status()));
+            return Err(anyhow!(
+                "Failed to download update: HTTP {}",
+                response.status()
+            ));
         }
 
         let bytes = response.bytes().await?;
@@ -202,7 +203,7 @@ impl UpdateChecker {
 
     /// Verify checksum of downloaded file
     pub fn verify_checksum(&self, file_path: &Path, expected_checksum: &str) -> Result<bool> {
-        use sha2::{Sha256, Digest};
+        use sha2::{Digest, Sha256};
 
         let data = fs::read(file_path)?;
         let mut hasher = Sha256::new();

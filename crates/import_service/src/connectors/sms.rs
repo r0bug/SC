@@ -1,6 +1,6 @@
 use crate::{
-    connector::{ConnectorMetadata, ImportConnector, ParseResult},
     config::ImportFormat,
+    connector::{ConnectorMetadata, ImportConnector, ParseResult},
     ImportError,
 };
 use async_trait::async_trait;
@@ -62,7 +62,10 @@ impl SmsConnector {
                             if !contact_name.is_empty() && contact_name != "(Unknown)" {
                                 map.insert("first_name".to_string(), contact_name.clone());
                             } else {
-                                map.insert("first_name".to_string(), format!("SMS Contact {}", phone));
+                                map.insert(
+                                    "first_name".to_string(),
+                                    format!("SMS Contact {}", phone),
+                                );
                             }
                             map.insert("source".to_string(), "sms".to_string());
                             map.insert("notes".to_string(), String::new());
@@ -72,7 +75,11 @@ impl SmsConnector {
                         // Append message to notes
                         if !message_body.is_empty() {
                             let notes = entry.get("notes").cloned().unwrap_or_default();
-                            let msg_type_label = if message_type == "1" { "Received" } else { "Sent" };
+                            let msg_type_label = if message_type == "1" {
+                                "Received"
+                            } else {
+                                "Sent"
+                            };
                             let timestamp = if !date.is_empty() {
                                 // Convert milliseconds timestamp to readable date
                                 if let Ok(ms) = date.parse::<i64>() {
@@ -88,10 +95,7 @@ impl SmsConnector {
 
                             let new_note = format!(
                                 "{}\n[{}] {}: {}",
-                                notes,
-                                timestamp,
-                                msg_type_label,
-                                message_body
+                                notes, timestamp, msg_type_label, message_body
                             );
                             entry.insert("notes".to_string(), new_note);
                         }
@@ -99,7 +103,11 @@ impl SmsConnector {
                 }
                 Ok(Event::Eof) => break,
                 Err(e) => {
-                    warnings.push(format!("XML parsing error at position {}: {}", reader.buffer_position(), e));
+                    warnings.push(format!(
+                        "XML parsing error at position {}: {}",
+                        reader.buffer_position(),
+                        e
+                    ));
                 }
                 _ => {}
             }
@@ -130,11 +138,7 @@ impl SmsConnector {
     /// Parse iOS SMS CSV export
     async fn parse_ios_csv(&self, file_path: &Path) -> Result<ParseResult, ImportError> {
         let mut reader = csv::Reader::from_path(file_path)?;
-        let headers: Vec<String> = reader
-            .headers()?
-            .iter()
-            .map(|h| h.to_lowercase())
-            .collect();
+        let headers: Vec<String> = reader.headers()?.iter().map(|h| h.to_lowercase()).collect();
 
         let mut rows = Vec::new();
         let mut warnings = Vec::new();
@@ -152,11 +156,17 @@ impl SmsConnector {
                     for (i, field) in record.iter().enumerate() {
                         if let Some(header) = headers.get(i) {
                             match header.as_str() {
-                                "phone number" | "phone_number" | "number" => phone = field.to_string(),
-                                "contact" | "contact_name" | "name" => contact_name = field.to_string(),
+                                "phone number" | "phone_number" | "number" => {
+                                    phone = field.to_string()
+                                }
+                                "contact" | "contact_name" | "name" => {
+                                    contact_name = field.to_string()
+                                }
                                 "message" | "text" | "body" => message = field.to_string(),
                                 "date" | "timestamp" | "time" => date = field.to_string(),
-                                "is_from_me" | "sent" => is_from_me = field == "1" || field.to_lowercase() == "true",
+                                "is_from_me" | "sent" => {
+                                    is_from_me = field == "1" || field.to_lowercase() == "true"
+                                }
                                 _ => {}
                             }
                         }
@@ -185,13 +195,7 @@ impl SmsConnector {
                     if !message.is_empty() {
                         let notes = entry.get("notes").cloned().unwrap_or_default();
                         let msg_type = if is_from_me { "Sent" } else { "Received" };
-                        let new_note = format!(
-                            "{}\n[{}] {}: {}",
-                            notes,
-                            date,
-                            msg_type,
-                            message
-                        );
+                        let new_note = format!("{}\n[{}] {}: {}", notes, date, msg_type, message);
                         entry.insert("notes".to_string(), new_note);
                     }
                 }
@@ -232,7 +236,10 @@ impl SmsConnector {
         match ext.to_lowercase().as_str() {
             "xml" => Ok(SmsFormat::AndroidXml),
             "csv" => Ok(SmsFormat::IosCsv),
-            _ => Err(ImportError::Other(format!("Unsupported SMS format: {}", ext))),
+            _ => Err(ImportError::Other(format!(
+                "Unsupported SMS format: {}",
+                ext
+            ))),
         }
     }
 }
@@ -249,7 +256,9 @@ impl ImportConnector for SmsConnector {
         ConnectorMetadata {
             id: "sms".to_string(),
             name: "SMS Messages".to_string(),
-            description: "Import contacts from SMS backup files (Android SMS Backup & Restore XML, iOS CSV)".to_string(),
+            description:
+                "Import contacts from SMS backup files (Android SMS Backup & Restore XML, iOS CSV)"
+                    .to_string(),
             supported_extensions: vec!["xml".to_string(), "csv".to_string()],
             supported_mime_types: vec![
                 "text/xml".to_string(),
@@ -275,9 +284,10 @@ impl ImportConnector for SmsConnector {
                 // Check if it's an iOS SMS CSV by looking for common headers
                 if let Ok(mut reader) = csv::Reader::from_path(file_path) {
                     if let Ok(headers) = reader.headers() {
-                        let headers_str = headers.iter().collect::<Vec<_>>().join(",").to_lowercase();
-                        return headers_str.contains("phone") &&
-                               (headers_str.contains("message") || headers_str.contains("text"));
+                        let headers_str =
+                            headers.iter().collect::<Vec<_>>().join(",").to_lowercase();
+                        return headers_str.contains("phone")
+                            && (headers_str.contains("message") || headers_str.contains("text"));
                     }
                 }
             }
@@ -296,9 +306,10 @@ impl ImportConnector for SmsConnector {
 
     async fn validate_file(&self, file_path: &Path) -> Result<(), ImportError> {
         if !file_path.exists() {
-            return Err(ImportError::IoError(
-                std::io::Error::new(std::io::ErrorKind::NotFound, "File not found")
-            ));
+            return Err(ImportError::IoError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "File not found",
+            )));
         }
 
         // Try to detect format
@@ -330,7 +341,10 @@ mod tests {
 
         assert_eq!(result.rows.len(), 1);
         assert_eq!(result.rows[0].get("phone").unwrap(), "+1234567890");
-        assert!(result.rows[0].get("notes").unwrap().contains("Hello there!"));
+        assert!(result.rows[0]
+            .get("notes")
+            .unwrap()
+            .contains("Hello there!"));
     }
 
     #[tokio::test]

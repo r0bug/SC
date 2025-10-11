@@ -1,15 +1,15 @@
 use anyhow::Result;
+use chrono::{DateTime, Utc};
 use core_domain::*;
-use local_store::{LocalStore, ContactRepository};
-use uuid::Uuid;
-use chrono::{Utc, DateTime};
-use std::fs::File;
 use csv::Reader;
-use tracing::{info, warn};
-use std::io::{self, Write, BufReader};
-use std::collections::HashMap;
-use quick_xml::Reader as XmlReader;
+use local_store::{ContactRepository, LocalStore};
 use quick_xml::events::Event;
+use quick_xml::Reader as XmlReader;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{self, BufReader, Write};
+use tracing::{info, warn};
+use uuid::Uuid;
 
 pub async fn import_csv(path: &str, store: &LocalStore) -> Result<()> {
     let file = File::open(path)?;
@@ -30,7 +30,7 @@ pub async fn import_csv(path: &str, store: &LocalStore) -> Result<()> {
     for (idx, result) in reader.records().enumerate() {
         match result {
             Ok(record) => records.push(record),
-            Err(e) => errors.push(format!("Row {}: {}", idx + 2, e))
+            Err(e) => errors.push(format!("Row {}: {}", idx + 2, e)),
         }
     }
 
@@ -73,18 +73,20 @@ pub async fn import_csv(path: &str, store: &LocalStore) -> Result<()> {
 
     for record in records {
         match parse_csv_record(&record, &headers, &field_map) {
-            Ok(contact) => {
-                match repo.create(&contact).await {
-                    Ok(_) => {
-                        info!("Imported: {} {}", contact.first_name, contact.last_name.as_deref().unwrap_or(""));
-                        imported += 1;
-                    }
-                    Err(e) => {
-                        warn!("Failed to save contact: {}", e);
-                        failed += 1;
-                    }
+            Ok(contact) => match repo.create(&contact).await {
+                Ok(_) => {
+                    info!(
+                        "Imported: {} {}",
+                        contact.first_name,
+                        contact.last_name.as_deref().unwrap_or("")
+                    );
+                    imported += 1;
                 }
-            }
+                Err(e) => {
+                    warn!("Failed to save contact: {}", e);
+                    failed += 1;
+                }
+            },
             Err(e) => {
                 warn!("Failed to parse record: {}", e);
                 failed += 1;
@@ -135,7 +137,7 @@ fn build_field_mapping(headers: &csv::StringRecord) -> Result<HashMap<String, St
 fn parse_csv_record(
     record: &csv::StringRecord,
     headers: &csv::StringRecord,
-    field_map: &HashMap<String, String>
+    field_map: &HashMap<String, String>,
 ) -> Result<Contact> {
     let mut first_name = None;
     let mut last_name = None;
@@ -230,7 +232,8 @@ pub async fn import_sms(path: &str, store: &LocalStore) -> Result<()> {
         } else {
             "Unknown".to_string()
         };
-        println!("     {} - {} messages (first: {}, last: {})",
+        println!(
+            "     {} - {} messages (first: {}, last: {})",
             phone,
             info.message_count,
             info.first_message_date.format("%Y-%m-%d"),
@@ -241,7 +244,10 @@ pub async fn import_sms(path: &str, store: &LocalStore) -> Result<()> {
         }
     }
 
-    print!("\n❓ Import {} contacts from SMS history? [y/N]: ", contacts_map.len());
+    print!(
+        "\n❓ Import {} contacts from SMS history? [y/N]: ",
+        contacts_map.len()
+    );
     io::stdout().flush()?;
     let mut response = String::new();
     io::stdin().read_line(&mut response)?;
@@ -375,10 +381,10 @@ fn parse_sms_xml(path: &str) -> Result<HashMap<String, SmsContactInfo>> {
 
                 if let (Some(addr), Some(ms)) = (address, date_ms) {
                     let phone = normalize_phone_number(&addr);
-                    let date = DateTime::from_timestamp_millis(ms)
-                        .unwrap_or_else(Utc::now);
+                    let date = DateTime::from_timestamp_millis(ms).unwrap_or_else(Utc::now);
 
-                    contacts.entry(phone)
+                    contacts
+                        .entry(phone)
                         .and_modify(|info| {
                             info.message_count += 1;
                             if date < info.first_message_date {
@@ -402,7 +408,11 @@ fn parse_sms_xml(path: &str) -> Result<HashMap<String, SmsContactInfo>> {
             }
             Ok(Event::Eof) => break,
             Err(e) => {
-                warn!("Error parsing XML at position {}: {}", reader.buffer_position(), e);
+                warn!(
+                    "Error parsing XML at position {}: {}",
+                    reader.buffer_position(),
+                    e
+                );
                 break;
             }
             _ => {}

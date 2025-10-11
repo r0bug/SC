@@ -8,7 +8,9 @@ use serde::Serialize;
 use sqlx::Row;
 use std::io::Cursor;
 
-use crate::android_import::{insert_calls, insert_mms, insert_sms, parse_calls_xml, parse_mms_xml, parse_sms_xml};
+use crate::android_import::{
+    insert_calls, insert_mms, insert_sms, parse_calls_xml, parse_mms_xml, parse_sms_xml,
+};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
@@ -31,19 +33,22 @@ pub async fn import_android_calls(
     let mut file_data = Vec::new();
     let mut file_name = String::from("calls.xml");
 
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read multipart: {}", e)))?
-    {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to read multipart: {}", e),
+        )
+    })? {
         if let Some(name) = field.file_name() {
             file_name = name.to_string();
         }
 
-        let data = field
-            .bytes()
-            .await
-            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read file: {}", e)))?;
+        let data = field.bytes().await.map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to read file: {}", e),
+            )
+        })?;
         file_data = data.to_vec();
     }
 
@@ -53,8 +58,12 @@ pub async fn import_android_calls(
 
     // Parse XML
     let reader = Cursor::new(file_data);
-    let calls = parse_calls_xml(reader)
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to parse XML: {}", e)))?;
+    let calls = parse_calls_xml(reader).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to parse XML: {}", e),
+        )
+    })?;
 
     let total_records = calls.len();
 
@@ -64,7 +73,12 @@ pub async fn import_android_calls(
     // Insert into database
     let (imported, skipped) = insert_calls(&state.pool, calls, user_id, &file_name)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to import: {}", e)))?;
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to import: {}", e),
+            )
+        })?;
 
     let elapsed_seconds = start.elapsed().as_secs_f64();
 
@@ -88,19 +102,22 @@ pub async fn import_android_sms(
     let mut file_data = Vec::new();
     let mut file_name = String::from("sms.xml");
 
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read multipart: {}", e)))?
-    {
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to read multipart: {}", e),
+        )
+    })? {
         if let Some(name) = field.file_name() {
             file_name = name.to_string();
         }
 
-        let data = field
-            .bytes()
-            .await
-            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read file: {}", e)))?;
+        let data = field.bytes().await.map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to read file: {}", e),
+            )
+        })?;
         file_data = data.to_vec();
     }
 
@@ -115,33 +132,55 @@ pub async fn import_android_sms(
     let (imported, skipped, total_records) = if is_mms {
         // Parse as MMS
         let reader = Cursor::new(file_data);
-        let messages = parse_mms_xml(reader)
-            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to parse MMS XML: {}", e)))?;
+        let messages = parse_mms_xml(reader).map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to parse MMS XML: {}", e),
+            )
+        })?;
 
         let total = messages.len();
         let user_id = "system";
         let (imp, skip) = insert_mms(&state.pool, messages, user_id, &file_name)
             .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to import: {}", e)))?;
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to import: {}", e),
+                )
+            })?;
         (imp, skip, total)
     } else {
         // Parse as SMS
         let reader = Cursor::new(file_data);
-        let messages = parse_sms_xml(reader)
-            .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to parse SMS XML: {}", e)))?;
+        let messages = parse_sms_xml(reader).map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                format!("Failed to parse SMS XML: {}", e),
+            )
+        })?;
 
         let total = messages.len();
         let user_id = "system";
         let (imp, skip) = insert_sms(&state.pool, messages, user_id, &file_name)
             .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to import: {}", e)))?;
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to import: {}", e),
+                )
+            })?;
         (imp, skip, total)
     };
 
     let elapsed_seconds = start.elapsed().as_secs_f64();
 
     Ok(Json(AndroidImportResponse {
-        file_type: if is_mms { "mms".to_string() } else { "sms".to_string() },
+        file_type: if is_mms {
+            "mms".to_string()
+        } else {
+            "sms".to_string()
+        },
         total_records,
         imported,
         skipped,
@@ -170,12 +209,17 @@ pub async fn get_contact_communications(
         WHERE contact_id = ?
         ORDER BY call_date DESC
         LIMIT 100
-        "#
+        "#,
     )
     .bind(&contact_id)
     .fetch_all(&*state.pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)))?;
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Database error: {}", e),
+        )
+    })?;
 
     let calls_json: Vec<serde_json::Value> = calls
         .iter()
@@ -203,12 +247,17 @@ pub async fn get_contact_communications(
         WHERE contact_id = ?
         ORDER BY message_date DESC
         LIMIT 100
-        "#
+        "#,
     )
     .bind(&contact_id)
     .fetch_all(&*state.pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)))?;
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Database error: {}", e),
+        )
+    })?;
 
     let messages_json: Vec<serde_json::Value> = messages
         .iter()
@@ -260,14 +309,19 @@ pub async fn search_communications(
         WHERE contact_name LIKE ? OR phone_number LIKE ?
         ORDER BY call_date DESC
         LIMIT ?
-        "#
+        "#,
     )
     .bind(format!("%{}%", query))
     .bind(format!("%{}%", query))
     .bind(limit)
     .fetch_all(&*state.pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)))?;
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Database error: {}", e),
+        )
+    })?;
 
     let calls_json: Vec<serde_json::Value> = calls
         .iter()
@@ -295,7 +349,7 @@ pub async fn search_communications(
         WHERE contact_name LIKE ? OR phone_number LIKE ? OR body LIKE ?
         ORDER BY message_date DESC
         LIMIT ?
-        "#
+        "#,
     )
     .bind(format!("%{}%", query))
     .bind(format!("%{}%", query))
@@ -303,7 +357,12 @@ pub async fn search_communications(
     .bind(limit)
     .fetch_all(&*state.pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)))?;
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Database error: {}", e),
+        )
+    })?;
 
     let messages_json: Vec<serde_json::Value> = messages
         .iter()

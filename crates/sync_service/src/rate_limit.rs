@@ -26,7 +26,7 @@ impl RateLimitConfig {
     pub fn auth_routes() -> Self {
         Self {
             requests_per_second: 1,
-            burst_size: 10,           // Allow burst of 10 requests
+            burst_size: 10, // Allow burst of 10 requests
         }
     }
 
@@ -34,7 +34,7 @@ impl RateLimitConfig {
     pub fn attachment_routes() -> Self {
         Self {
             requests_per_second: 1,
-            burst_size: 100,          // Allow burst of 100 requests
+            burst_size: 100, // Allow burst of 100 requests
         }
     }
 
@@ -42,7 +42,7 @@ impl RateLimitConfig {
     pub fn search_routes() -> Self {
         Self {
             requests_per_second: 1,
-            burst_size: 30,           // Allow burst of 30 requests
+            burst_size: 30, // Allow burst of 30 requests
         }
     }
 }

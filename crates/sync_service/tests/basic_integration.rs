@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use sync_service::auth::{AuthService, SignupRequest, LoginRequest};
     use sqlx::sqlite::SqlitePool;
     use std::sync::Arc;
+    use sync_service::auth::{AuthService, LoginRequest, SignupRequest};
 
     async fn setup_test_db() -> Arc<SqlitePool> {
         let pool = SqlitePool::connect("sqlite::memory:")
@@ -23,7 +23,7 @@ mod tests {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 last_login_at TEXT
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -38,7 +38,7 @@ mod tests {
                 grants TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -52,7 +52,7 @@ mod tests {
                 permissions TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (acl_id) REFERENCES resource_acls(id)
-            )"
+            )",
         )
         .execute(&pool)
         .await
@@ -74,7 +74,11 @@ mod tests {
         };
 
         let signup_result = auth_service.signup(signup_req).await;
-        assert!(signup_result.is_ok(), "Signup failed: {:?}", signup_result.err());
+        assert!(
+            signup_result.is_ok(),
+            "Signup failed: {:?}",
+            signup_result.err()
+        );
         let signup_response = signup_result.unwrap();
         assert!(!signup_response.token.is_empty());
 
@@ -101,8 +105,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_acl_service_permissions() {
-        use sync_service::acl::AclService;
         use core_domain::{Permission, ShareEntityType};
+        use sync_service::acl::AclService;
         use uuid::Uuid;
 
         let pool = setup_test_db().await;
@@ -117,7 +121,11 @@ mod tests {
         let create_result = acl_service
             .create_acl(&owner_id, entity_type, &entity_id)
             .await;
-        assert!(create_result.is_ok(), "ACL creation failed: {:?}", create_result.err());
+        assert!(
+            create_result.is_ok(),
+            "ACL creation failed: {:?}",
+            create_result.err()
+        );
 
         // Owner should have all permissions
         let owner_can_read = acl_service
@@ -141,7 +149,13 @@ mod tests {
 
         // Grant read permission
         let grant_result = acl_service
-            .grant_permission(&owner_id, &user_id, entity_type, &entity_id, vec![Permission::Read])
+            .grant_permission(
+                &owner_id,
+                &user_id,
+                entity_type,
+                &entity_id,
+                vec![Permission::Read],
+            )
             .await;
         assert!(grant_result.is_ok());
 
@@ -162,7 +176,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_websocket_broadcaster() {
-        use sync_service::websocket::{WebSocketBroadcaster, BroadcastEvent};
+        use sync_service::websocket::{BroadcastEvent, WebSocketBroadcaster};
         use uuid::Uuid;
 
         let broadcaster = WebSocketBroadcaster::new();
