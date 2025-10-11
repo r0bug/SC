@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::fs;
 
 const GITHUB_API_BASE: &str = "https://api.github.com";

@@ -6,7 +6,7 @@ use axum::{
 };
 use import_service::{
     create_default_registry, ConnectorMetadata, DeduplicationConfig, DeduplicationEngine,
-    DuplicateStrategy, MatchCriteria, ParseResult,
+    DuplicateStrategy, MatchCriteria,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite, Row};
@@ -199,13 +199,10 @@ pub async fn execute_import(
         } else {
             // Handle config fields
             let value = field.text().await.map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-            match field_name.as_str() {
-                "config" => {
-                    // Parse JSON config
-                    request = serde_json::from_str(&value)
-                        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid config JSON: {}", e)))?;
-                }
-                _ => {}
+            if field_name.as_str() == "config" {
+                // Parse JSON config
+                request = serde_json::from_str(&value)
+                    .map_err(|e| (StatusCode::BAD_REQUEST, format!("Invalid config JSON: {}", e)))?;
             }
         }
     }

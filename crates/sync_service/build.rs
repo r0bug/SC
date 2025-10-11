@@ -9,7 +9,7 @@ fn main() {
 
     // Try to get Git hash
     if let Ok(output) = Command::new("git")
-        .args(&["rev-parse", "--short", "HEAD"])
+        .args(["rev-parse", "--short", "HEAD"])
         .output()
     {
         if output.status.success() {

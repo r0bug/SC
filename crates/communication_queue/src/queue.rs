@@ -10,6 +10,12 @@ pub struct CommunicationQueue {
     social_adapter: SocialAdapter,
 }
 
+impl Default for CommunicationQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CommunicationQueue {
     pub fn new() -> Self {
         Self {
@@ -23,9 +29,9 @@ impl CommunicationQueue {
         info!("Processing communication attempt {} for contact {}", attempt.id, attempt.contact_id);
 
         let result = match &attempt.method {
-            CommunicationMethod::Email => self.email_adapter.send(&attempt).await,
-            CommunicationMethod::SMS => self.sms_adapter.send(&attempt).await,
-            CommunicationMethod::Social { platform } => self.social_adapter.send(&attempt, platform).await,
+            CommunicationMethod::Email => self.email_adapter.send(attempt).await,
+            CommunicationMethod::SMS => self.sms_adapter.send(attempt).await,
+            CommunicationMethod::Social { platform } => self.social_adapter.send(attempt, platform).await,
         };
 
         match result {

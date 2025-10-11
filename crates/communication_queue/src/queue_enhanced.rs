@@ -132,6 +132,12 @@ pub struct EnhancedCommunicationQueue {
     batch_size: usize,
 }
 
+impl Default for EnhancedCommunicationQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EnhancedCommunicationQueue {
     pub fn new() -> Self {
         let mut rate_configs = HashMap::new();

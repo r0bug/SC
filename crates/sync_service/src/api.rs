@@ -9,7 +9,7 @@ use ai_middleware::SuggestionEngine;
 use serde::Deserialize;
 use uuid::Uuid;
 use crate::state::AppState;
-use crate::validation::{self, ValidationError};
+use crate::validation::{self};
 
 #[derive(Deserialize)]
 pub struct ListQuery {

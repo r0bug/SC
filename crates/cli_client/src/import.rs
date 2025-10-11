@@ -10,7 +10,6 @@ use std::io::{self, Write, BufReader};
 use std::collections::HashMap;
 use quick_xml::Reader as XmlReader;
 use quick_xml::events::Event;
-use regex::Regex;
 
 pub async fn import_csv(path: &str, store: &LocalStore) -> Result<()> {
     let file = File::open(path)?;
@@ -43,7 +42,7 @@ pub async fn import_csv(path: &str, store: &LocalStore) -> Result<()> {
         }
     }
 
-    if records.len() > 0 {
+    if !records.is_empty() {
         println!("\n📊 Preview (first 3 rows):");
         for (idx, record) in records.iter().take(3).enumerate() {
             println!("\n  Row {}:", idx + 1);
@@ -357,29 +356,27 @@ fn parse_sms_xml(path: &str) -> Result<HashMap<String, SmsContactInfo>> {
                 let mut date_ms = None;
                 let mut contact_name = None;
 
-                for attr in e.attributes() {
-                    if let Ok(attr) = attr {
-                        match attr.key.as_ref() {
-                            b"address" => {
-                                address = attr.unescape_value().ok().map(|v| v.to_string());
-                            }
-                            b"date" => {
-                                if let Ok(ms_str) = attr.unescape_value() {
-                                    date_ms = ms_str.parse::<i64>().ok();
-                                }
-                            }
-                            b"contact_name" => {
-                                contact_name = attr.unescape_value().ok().map(|v| v.to_string());
-                            }
-                            _ => {}
+                for attr in e.attributes().flatten() {
+                    match attr.key.as_ref() {
+                        b"address" => {
+                            address = attr.unescape_value().ok().map(|v| v.to_string());
                         }
+                        b"date" => {
+                            if let Ok(ms_str) = attr.unescape_value() {
+                                date_ms = ms_str.parse::<i64>().ok();
+                            }
+                        }
+                        b"contact_name" => {
+                            contact_name = attr.unescape_value().ok().map(|v| v.to_string());
+                        }
+                        _ => {}
                     }
                 }
 
                 if let (Some(addr), Some(ms)) = (address, date_ms) {
                     let phone = normalize_phone_number(&addr);
                     let date = DateTime::from_timestamp_millis(ms)
-                        .unwrap_or_else(|| Utc::now());
+                        .unwrap_or_else(Utc::now);
 
                     contacts.entry(phone)
                         .and_modify(|info| {

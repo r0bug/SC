@@ -21,6 +21,12 @@ pub trait SocialAdapterTrait: Send + Sync {
 // Mock implementations for alpha release
 pub struct MockEmailAdapter;
 
+impl Default for MockEmailAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockEmailAdapter {
     pub fn new() -> Self {
         Self
@@ -46,6 +52,12 @@ impl EmailAdapterTrait for MockEmailAdapter {
 
 pub struct MockSmsAdapter;
 
+impl Default for MockSmsAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockSmsAdapter {
     pub fn new() -> Self {
         Self
@@ -68,6 +80,12 @@ impl SmsAdapterTrait for MockSmsAdapter {
 }
 
 pub struct MockSocialAdapter;
+
+impl Default for MockSocialAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl MockSocialAdapter {
     pub fn new() -> Self {
@@ -97,6 +115,12 @@ impl SocialAdapterTrait for MockSocialAdapter {
 // Legacy structs for backward compatibility with queue.rs
 pub struct EmailAdapter;
 
+impl Default for EmailAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EmailAdapter {
     pub fn new() -> Self {
         Self
@@ -110,6 +134,12 @@ impl EmailAdapter {
 
 pub struct SmsAdapter;
 
+impl Default for SmsAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SmsAdapter {
     pub fn new() -> Self {
         Self
@@ -122,6 +152,12 @@ impl SmsAdapter {
 }
 
 pub struct SocialAdapter;
+
+impl Default for SocialAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SocialAdapter {
     pub fn new() -> Self {

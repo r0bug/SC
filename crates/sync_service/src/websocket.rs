@@ -45,6 +45,12 @@ pub struct WebSocketBroadcaster {
     clients: Clients,
 }
 
+impl Default for WebSocketBroadcaster {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WebSocketBroadcaster {
     pub fn new() -> Self {
         Self {

@@ -1,7 +1,6 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use serde::Deserialize;
 
 // Maximum size constants
 pub const MAX_NAME_LENGTH: usize = 100;

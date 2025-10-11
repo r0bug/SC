@@ -43,7 +43,7 @@ pub async fn create_share(
     };
 
     // Check if user can share this entity
-    if !app_state.acl_service.can_share(&user.id, entity_type.clone(), &req.entity_id).await
+    if !app_state.acl_service.can_share(&user.id, entity_type, &req.entity_id).await
         .unwrap_or(false) {
         return Err((StatusCode::FORBIDDEN, "You cannot share this entity"));
     }

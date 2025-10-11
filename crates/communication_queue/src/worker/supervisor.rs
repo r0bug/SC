@@ -33,6 +33,12 @@ pub struct WorkerSupervisor {
     restart_delay: Duration,
 }
 
+impl Default for WorkerSupervisor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WorkerSupervisor {
     pub fn new() -> Self {
         Self {

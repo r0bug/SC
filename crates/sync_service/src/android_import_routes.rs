@@ -4,7 +4,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sqlx::Row;
 use std::io::Cursor;
 

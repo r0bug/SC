@@ -5,7 +5,6 @@ use communication_queue::{
 };
 use local_store::LocalStore;
 use tracing::{info, error};
-use tracing_subscriber;
 use std::sync::Arc;
 
 #[tokio::main]

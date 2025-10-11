@@ -2,7 +2,6 @@
 // This is a simplified implementation for Alpha - production should use Redis-backed rate limiting
 
 use axum::{
-    body::Body,
     extract::Request,
     http::StatusCode,
     middleware::Next,
@@ -13,7 +12,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone)]

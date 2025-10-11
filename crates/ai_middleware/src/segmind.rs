@@ -175,7 +175,7 @@ impl SegmindClient {
             });
 
             match self.http_client
-                .post(&format!("{}/chat/completions", self.base_url))
+                .post(format!("{}/chat/completions", self.base_url))
                 .header("Authorization", format!("Bearer {}", api_key))
                 .json(&payload)
                 .send()
