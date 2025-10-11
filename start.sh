@@ -53,10 +53,15 @@ fi
 
 chmod -R u+w . 2>/dev/null || true
 
-# Always clean and reinstall to ensure fresh state
-echo -e "${YELLOW}Installing web dependencies...${NC}"
-rm -rf node_modules .svelte-kit 2>/dev/null || true
-pnpm install --force
+# Always clean build cache to prevent hydration issues
+echo -e "${YELLOW}Cleaning build cache and installing dependencies...${NC}"
+rm -rf .svelte-kit 2>/dev/null || true
+
+# Only reinstall if node_modules is missing or broken
+if [ ! -d "node_modules" ] || [ ! -f "node_modules/.pnpm/lock.yaml" ]; then
+    echo -e "${YELLOW}Installing dependencies...${NC}"
+    pnpm install
+fi
 
 cd "$SCRIPT_DIR"
 
