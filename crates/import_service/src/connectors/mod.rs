@@ -1,12 +1,16 @@
 pub mod contacts;
 pub mod email;
+pub mod google_contacts;
 pub mod sms;
 pub mod social;
+pub mod streaming_android;
 
 pub use contacts::{AppleContactsConnector, GenericCsvConnector, GoogleContactsConnector};
 pub use email::EmailConnector;
+pub use google_contacts::GoogleContactsImporter;
 pub use sms::SmsConnector;
 pub use social::{FacebookConnector, InstagramConnector, LinkedInConnector, TwitterConnector};
+pub use streaming_android::StreamingAndroidParser;
 
 use crate::connector::ConnectorRegistry;
 

@@ -2,6 +2,7 @@ mod auth;
 mod commands;
 mod commands_extended;
 mod import;
+mod import_large;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -35,6 +36,12 @@ enum Commands {
         vcard: Option<String>,
         #[arg(short, long)]
         sms: Option<String>,
+        #[arg(long)]
+        google_csv: Option<String>,
+        #[arg(long)]
+        sms_xml_large: Option<String>,
+        #[arg(long)]
+        calls_xml: Option<String>,
     },
     List {
         #[arg(short, long, default_value = "50")]
@@ -228,8 +235,28 @@ async fn main() -> Result<()> {
             commands::status_command().await?;
         }
         // Original commands
-        Commands::Import { csv, vcard, sms } => {
-            commands::import_command(csv, vcard, sms).await?;
+        Commands::Import {
+            csv,
+            vcard,
+            sms,
+            google_csv,
+            sms_xml_large,
+            calls_xml,
+        } => {
+            // Handle new streaming importers
+            if let Some(path) = google_csv {
+                let store = local_store::LocalStore::new("sqlite:./data/contacts.db").await?;
+                import_large::import_google_contacts_csv(&path, &store).await?;
+            } else if let Some(path) = sms_xml_large {
+                let store = local_store::LocalStore::new("sqlite:./data/contacts.db").await?;
+                import_large::import_sms_xml_streaming(&path, &store).await?;
+            } else if let Some(path) = calls_xml {
+                let store = local_store::LocalStore::new("sqlite:./data/contacts.db").await?;
+                import_large::import_calls_xml_streaming(&path, &store).await?;
+            } else {
+                // Fall back to original import command
+                commands::import_command(csv, vcard, sms).await?;
+            }
         }
         Commands::List { limit } => {
             commands::list_command(limit).await?;
