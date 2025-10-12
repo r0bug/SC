@@ -68,8 +68,7 @@ cd "$SCRIPT_DIR"
 # Start sync service
 echo ""
 echo -e "${GREEN}Starting Sync Service (Backend API)...${NC}"
-cd crates/sync_service
-~/.cargo/bin/cargo run --release > /tmp/sagenscontact-backend.log 2>&1 &
+~/.cargo/bin/cargo run --release --bin sync_service > /tmp/sagenscontact-backend.log 2>&1 &
 BACKEND_PID=$!
 echo -e "${GREEN}✓ Backend started (PID: $BACKEND_PID)${NC}"
 
