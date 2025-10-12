@@ -91,20 +91,38 @@ pub async fn import_sms_xml_streaming(path: &str, store: &LocalStore) -> Result<
     println!("\n⏳ Starting streaming import...");
     println!("   Processing in batches of 1000...\n");
 
-    let repo = ContactRepository::new(store.pool());
+    let contact_repo = ContactRepository::new(store.pool());
+    let comm_repo = local_store::repositories::CommunicationRepository::new(store.pool());
     let parser = StreamingAndroidParser::new(1000);
 
     let stats = parser.parse_sms_stream(Path::new(path), |batch| {
-        let repo = ContactRepository::new(store.pool());
+        let contact_repo = ContactRepository::new(store.pool());
+        let comm_repo = local_store::repositories::CommunicationRepository::new(store.pool());
         async move {
-            info!("Processing batch of {} contacts", batch.len());
+            info!("Processing batch of {} contact+communication pairs", batch.len());
 
-            let mut batch_imported = 0;
+            let mut batch_contacts = 0;
+            let mut batch_communications = 0;
             let mut batch_failed = 0;
 
-            for contact in batch {
-                match repo.create(&contact).await {
-                    Ok(_) => batch_imported += 1,
+            for (contact, communications) in batch {
+                // Try to create contact
+                match contact_repo.create(&contact).await {
+                    Ok(_) => {
+                        batch_contacts += 1;
+                        // Now store all communications for this contact
+                        for mut comm in communications {
+                            comm.contact_id = contact.id; // Ensure correct contact_id
+                            match comm_repo.create_communication(&comm).await {
+                                Ok(_) => batch_communications += 1,
+                                Err(e) => {
+                                    if !e.to_string().contains("UNIQUE") {
+                                        eprintln!("⚠️  Failed to import communication: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Err(e) => {
                         // Skip duplicates silently
                         if !e.to_string().contains("UNIQUE") {
@@ -116,8 +134,8 @@ pub async fn import_sms_xml_streaming(path: &str, store: &LocalStore) -> Result<
             }
 
             println!(
-                "   Batch complete: {} imported in this batch",
-                batch_imported
+                "   Batch: {} contacts, {} communications imported",
+                batch_contacts, batch_communications
             );
 
             Ok(())
@@ -150,18 +168,35 @@ pub async fn import_calls_xml_streaming(path: &str, store: &LocalStore) -> Resul
 
     println!("\n⏳ Starting streaming import...");
 
-    let repo = ContactRepository::new(store.pool());
+    let contact_repo = ContactRepository::new(store.pool());
+    let comm_repo = local_store::repositories::CommunicationRepository::new(store.pool());
     let parser = StreamingAndroidParser::new(1000);
 
     let stats = parser.parse_calls_stream(Path::new(path), |batch| {
-        let repo = ContactRepository::new(store.pool());
+        let contact_repo = ContactRepository::new(store.pool());
+        let comm_repo = local_store::repositories::CommunicationRepository::new(store.pool());
         async move {
-            let mut batch_imported = 0;
+            let mut batch_contacts = 0;
+            let mut batch_communications = 0;
             let mut batch_failed = 0;
 
-            for contact in batch {
-                match repo.create(&contact).await {
-                    Ok(_) => batch_imported += 1,
+            for (contact, communications) in batch {
+                match contact_repo.create(&contact).await {
+                    Ok(_) => {
+                        batch_contacts += 1;
+                        // Store all communications for this contact
+                        for mut comm in communications {
+                            comm.contact_id = contact.id;
+                            match comm_repo.create_communication(&comm).await {
+                                Ok(_) => batch_communications += 1,
+                                Err(e) => {
+                                    if !e.to_string().contains("UNIQUE") {
+                                        eprintln!("⚠️  Failed to import communication: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Err(e) => {
                         if !e.to_string().contains("UNIQUE") {
                             eprintln!("⚠️  Failed to import contact: {}", e);
@@ -172,8 +207,8 @@ pub async fn import_calls_xml_streaming(path: &str, store: &LocalStore) -> Resul
             }
 
             println!(
-                "   Batch: {} imported in this batch",
-                batch_imported
+                "   Batch: {} contacts, {} communications imported",
+                batch_contacts, batch_communications
             );
 
             Ok(())

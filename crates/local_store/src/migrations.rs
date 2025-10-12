@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     FOREIGN KEY (uploaded_by) REFERENCES users(id)
 );
 
--- Communication attempts
+-- Communication attempts (for outgoing scheduled communications)
 CREATE TABLE IF NOT EXISTS communication_attempts (
     id TEXT PRIMARY KEY,
     contact_id TEXT NOT NULL,
@@ -225,6 +225,24 @@ CREATE TABLE IF NOT EXISTS communication_attempts (
     attempted_at TEXT,
     retry_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+);
+
+-- Communications (historical records of SMS, calls, emails that occurred)
+CREATE TABLE IF NOT EXISTS communications (
+    id TEXT PRIMARY KEY,
+    contact_id TEXT NOT NULL,
+    communication_type TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    content TEXT,
+    duration_seconds INTEGER,
+    phone_number TEXT,
+    thread_id TEXT,
+    status TEXT NOT NULL,
+    metadata TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
     FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
 );
 
@@ -378,6 +396,11 @@ CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, en
 CREATE INDEX IF NOT EXISTS idx_attachments_uploaded_by ON attachments(uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_comm_attempts_contact ON communication_attempts(contact_id);
 CREATE INDEX IF NOT EXISTS idx_comm_attempts_status ON communication_attempts(status);
+CREATE INDEX IF NOT EXISTS idx_communications_contact ON communications(contact_id);
+CREATE INDEX IF NOT EXISTS idx_communications_timestamp ON communications(timestamp);
+CREATE INDEX IF NOT EXISTS idx_communications_phone ON communications(phone_number);
+CREATE INDEX IF NOT EXISTS idx_communications_thread ON communications(thread_id);
+CREATE INDEX IF NOT EXISTS idx_communications_type ON communications(communication_type);
 CREATE INDEX IF NOT EXISTS idx_share_invites_email ON share_invites(shared_with_email);
 CREATE INDEX IF NOT EXISTS idx_share_invites_user ON share_invites(shared_with_user);
 CREATE INDEX IF NOT EXISTS idx_share_invites_entity ON share_invites(entity_type, entity_id);

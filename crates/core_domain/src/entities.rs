@@ -430,3 +430,46 @@ pub struct AiSuggestion {
     pub applied: bool,
     pub created_at: DateTime<Utc>,
 }
+
+/// Historical communication record (SMS, calls, emails that already occurred)
+/// Different from CommunicationAttempt which is for outgoing scheduled communications
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Communication {
+    pub id: Uuid,
+    pub contact_id: Uuid,
+    pub communication_type: CommunicationType,
+    pub direction: CommunicationDirection,
+    pub timestamp: DateTime<Utc>,
+    pub content: Option<String>,        // Message body for SMS/email, description for calls
+    pub duration_seconds: Option<i32>,  // For calls
+    pub phone_number: Option<String>,   // Normalized phone number for linking
+    pub thread_id: Option<String>,      // Thread/conversation identifier for grouping
+    pub status: CommunicationHistoryStatus,
+    pub metadata: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CommunicationType {
+    Sms,
+    Call,
+    Email,
+    VideoCall,
+    VoiceMail,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CommunicationDirection {
+    Inbound,
+    Outbound,
+    Missed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CommunicationHistoryStatus {
+    Completed,
+    Failed,
+    Blocked,
+    Rejected,
+}

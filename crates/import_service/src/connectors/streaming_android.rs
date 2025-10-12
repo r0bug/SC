@@ -1,6 +1,6 @@
 use anyhow::Result;
-use chrono::Utc;
-use core_domain::Contact;
+use chrono::{DateTime, Utc};
+use core_domain::{Communication, CommunicationDirection, CommunicationType, CommunicationHistoryStatus, Contact};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use serde_json::json;
@@ -35,7 +35,7 @@ impl StreamingAndroidParser {
         mut callback: F,
     ) -> Result<ParseStats>
     where
-        F: FnMut(Vec<Contact>) -> Fut,
+        F: FnMut(Vec<(Contact, Vec<Communication>)>) -> Fut,
         Fut: std::future::Future<Output = Result<()>>,
     {
         info!(
@@ -49,7 +49,7 @@ impl StreamingAndroidParser {
         reader.trim_text(true);
 
         let mut stats = ParseStats::default();
-        let mut current_batch: Vec<Contact> = Vec::new();
+        let mut current_batch: Vec<(Contact, Vec<Communication>)> = Vec::new();
         let mut contact_map: HashMap<String, usize> = HashMap::new();
         let mut buf = Vec::new();
 
@@ -58,13 +58,17 @@ impl StreamingAndroidParser {
                 Ok(Event::Empty(ref e)) if e.name().as_ref() == b"sms" => {
                     stats.total_messages += 1;
 
-                    if let Some(contact) = self.parse_sms_element(&mut reader, e)? {
+                    if let Some((contact, communication)) = self.parse_sms_element(&mut reader, e)? {
                         let phone = contact.phone.clone().unwrap_or_default();
 
-                        // Group by phone number to avoid duplicates
-                        if !contact_map.contains_key(&phone) {
+                        // Group by phone number to accumulate communications
+                        if let Some(&idx) = contact_map.get(&phone) {
+                            // Add communication to existing contact
+                            current_batch[idx].1.push(communication);
+                        } else {
+                            // New contact
                             contact_map.insert(phone.clone(), current_batch.len());
-                            current_batch.push(contact);
+                            current_batch.push((contact, vec![communication]));
 
                             // Process batch when it reaches batch_size
                             if current_batch.len() >= self.batch_size {
@@ -110,7 +114,7 @@ impl StreamingAndroidParser {
         mut callback: F,
     ) -> Result<ParseStats>
     where
-        F: FnMut(Vec<Contact>) -> Fut,
+        F: FnMut(Vec<(Contact, Vec<Communication>)>) -> Fut,
         Fut: std::future::Future<Output = Result<()>>,
     {
         info!(
@@ -124,7 +128,7 @@ impl StreamingAndroidParser {
         reader.trim_text(true);
 
         let mut stats = ParseStats::default();
-        let mut current_batch: Vec<Contact> = Vec::new();
+        let mut current_batch: Vec<(Contact, Vec<Communication>)> = Vec::new();
         let mut contact_map: HashMap<String, usize> = HashMap::new();
         let mut buf = Vec::new();
 
@@ -133,12 +137,16 @@ impl StreamingAndroidParser {
                 Ok(Event::Empty(ref e)) if e.name().as_ref() == b"call" => {
                     stats.total_messages += 1;
 
-                    if let Some(contact) = self.parse_call_element(&mut reader, e)? {
+                    if let Some((contact, communication)) = self.parse_call_element(&mut reader, e)? {
                         let phone = contact.phone.clone().unwrap_or_default();
 
-                        if !contact_map.contains_key(&phone) {
+                        if let Some(&idx) = contact_map.get(&phone) {
+                            // Add communication to existing contact
+                            current_batch[idx].1.push(communication);
+                        } else {
+                            // New contact
                             contact_map.insert(phone.clone(), current_batch.len());
-                            current_batch.push(contact);
+                            current_batch.push((contact, vec![communication]));
 
                             if current_batch.len() >= self.batch_size {
                                 stats.contacts_created += current_batch.len();
@@ -178,7 +186,7 @@ impl StreamingAndroidParser {
         &self,
         _reader: &mut Reader<R>,
         element: &quick_xml::events::BytesStart,
-    ) -> Result<Option<Contact>> {
+    ) -> Result<Option<(Contact, Communication)>> {
         let mut attrs: HashMap<String, String> = HashMap::new();
 
         for attr in element.attributes() {
@@ -193,6 +201,12 @@ impl StreamingAndroidParser {
             _ => return Ok(None),
         };
 
+        let body = attrs.get("body").cloned().unwrap_or_default();
+        let date_ms = attrs
+            .get("date")
+            .and_then(|d| d.parse::<i64>().ok())
+            .unwrap_or(0);
+        let sms_type = attrs.get("type").cloned().unwrap_or_default();
         let contact_name = attrs.get("contact_name").cloned();
 
         // Parse name from contact_name if available
@@ -230,14 +244,43 @@ impl StreamingAndroidParser {
             metadata: json!({}),
         };
 
-        Ok(Some(contact))
+        // Create Communication record
+        let direction = if sms_type == "2" {
+            CommunicationDirection::Outbound
+        } else {
+            CommunicationDirection::Inbound
+        };
+
+        let timestamp = DateTime::from_timestamp_millis(date_ms)
+            .unwrap_or_else(Utc::now);
+
+        let communication = Communication {
+            id: Uuid::new_v4(),
+            contact_id: contact.id,
+            communication_type: CommunicationType::Sms,
+            direction,
+            timestamp,
+            content: Some(body),
+            duration_seconds: None,
+            phone_number: Some(address.clone()),
+            thread_id: Some(address.clone()), // Use phone number as thread ID for grouping
+            status: CommunicationHistoryStatus::Completed,
+            metadata: json!({
+                "sms_type": sms_type,
+                "contact_name": contact_name.unwrap_or_else(|| "(Unknown)".to_string()),
+            }),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        Ok(Some((contact, communication)))
     }
 
     fn parse_call_element<R: std::io::BufRead>(
         &self,
         _reader: &mut Reader<R>,
         element: &quick_xml::events::BytesStart,
-    ) -> Result<Option<Contact>> {
+    ) -> Result<Option<(Contact, Communication)>> {
         let mut attrs: HashMap<String, String> = HashMap::new();
 
         for attr in element.attributes() {
@@ -252,6 +295,15 @@ impl StreamingAndroidParser {
             _ => return Ok(None),
         };
 
+        let date_ms = attrs
+            .get("date")
+            .and_then(|d| d.parse::<i64>().ok())
+            .unwrap_or(0);
+        let duration = attrs
+            .get("duration")
+            .and_then(|d| d.parse::<i32>().ok())
+            .unwrap_or(0);
+        let call_type = attrs.get("type").and_then(|t| t.parse::<i32>().ok()).unwrap_or(1);
         let contact_name = attrs.get("contact_name").cloned();
 
         let (first_name, last_name) = if let Some(name) = contact_name.as_ref() {
@@ -288,7 +340,36 @@ impl StreamingAndroidParser {
             metadata: json!({}),
         };
 
-        Ok(Some(contact))
+        // Type: 1=incoming, 2=outgoing, 3=missed
+        let direction = match call_type {
+            2 => CommunicationDirection::Outbound,
+            3 => CommunicationDirection::Missed,
+            _ => CommunicationDirection::Inbound,
+        };
+
+        let timestamp = DateTime::from_timestamp_millis(date_ms)
+            .unwrap_or_else(Utc::now);
+
+        let communication = Communication {
+            id: Uuid::new_v4(),
+            contact_id: contact.id,
+            communication_type: CommunicationType::Call,
+            direction,
+            timestamp,
+            content: Some(format!("Duration: {}s", duration)),
+            duration_seconds: Some(duration),
+            phone_number: Some(number.clone()),
+            thread_id: Some(number.clone()), // Use phone number as thread ID
+            status: CommunicationHistoryStatus::Completed,
+            metadata: json!({
+                "call_type": call_type,
+                "contact_name": contact_name.unwrap_or_else(|| "(Unknown)".to_string()),
+            }),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        Ok(Some((contact, communication)))
     }
 }
 
