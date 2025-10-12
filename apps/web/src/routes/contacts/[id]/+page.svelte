@@ -51,14 +51,44 @@
 			contact = await response.json();
 			console.log('Loaded contact:', contact);
 
-			notes = await api.getNotes('Contact', contactId);
-			const allProjects = await api.getProjects();
-			projects = allProjects.filter(p => p.contacts.includes(contactId));
-			const allGroups = await api.getGroups();
-			groups = allGroups.filter(g => g.members.includes(contactId));
-			const allEvents = await api.getCalendarEvents();
-			events = allEvents.filter(e => e.participants?.includes(contactId));
-			attachments = await api.getAttachments('Contact', contactId);
+			// Load related data with graceful error handling
+			try {
+				notes = await api.getNotes('Contact', contactId);
+			} catch (e) {
+				console.warn('Failed to load notes:', e);
+				notes = [];
+			}
+
+			try {
+				const allProjects = await api.getProjects();
+				projects = allProjects.filter(p => p.contacts.includes(contactId));
+			} catch (e) {
+				console.warn('Failed to load projects:', e);
+				projects = [];
+			}
+
+			try {
+				const allGroups = await api.getGroups();
+				groups = allGroups.filter(g => g.members.includes(contactId));
+			} catch (e) {
+				console.warn('Failed to load groups:', e);
+				groups = [];
+			}
+
+			try {
+				const allEvents = await api.getCalendarEvents();
+				events = allEvents.filter(e => e.participants?.includes(contactId));
+			} catch (e) {
+				console.warn('Failed to load events:', e);
+				events = [];
+			}
+
+			try {
+				attachments = await api.getAttachments('Contact', contactId);
+			} catch (e) {
+				console.warn('Failed to load attachments:', e);
+				attachments = [];
+			}
 
 			resetForm();
 		} catch (error) {
