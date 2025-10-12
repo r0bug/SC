@@ -1,7 +1,11 @@
 use anyhow::{anyhow, Result};
+use chrono::{DateTime, Utc};
+use core_domain::{Communication, CommunicationDirection, CommunicationType, CommunicationHistoryStatus};
+use local_store::repositories::CommunicationRepository;
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::{Pool, Sqlite};
 use std::io::BufRead;
 use uuid::Uuid;
@@ -265,7 +269,7 @@ pub async fn insert_calls(
     user_id: &str,
     source_file: &str,
 ) -> Result<(usize, usize)> {
-    let imported_at = chrono::Utc::now().to_rfc3339();
+    let comm_repo = CommunicationRepository::new(pool);
     let mut inserted = 0;
     let mut skipped = 0;
 
@@ -277,31 +281,50 @@ pub async fn insert_calls(
                 .fetch_optional(pool)
                 .await?;
 
-        // Insert call record
-        let result = sqlx::query(
-            r#"
-            INSERT INTO call_history
-            (id, contact_id, phone_number, contact_name, call_date, duration,
-             call_type, readable_date, subscription_id, imported_at, imported_by, source_file)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
-        )
-        .bind(&call.id)
-        .bind(contact_id)
-        .bind(&call.phone_number)
-        .bind(&call.contact_name)
-        .bind(call.call_date)
-        .bind(call.duration)
-        .bind(call.call_type)
-        .bind(&call.readable_date)
-        .bind(&call.subscription_id)
-        .bind(&imported_at)
-        .bind(user_id)
-        .bind(source_file)
-        .execute(pool)
-        .await;
+        // Skip if no contact found
+        let contact_uuid = match contact_id {
+            Some(id) => Uuid::parse_str(&id).unwrap(),
+            None => {
+                skipped += 1;
+                continue;
+            }
+        };
 
-        match result {
+        // Convert call_type: 1=incoming, 2=outgoing, 3=missed
+        let direction = match call.call_type {
+            2 => CommunicationDirection::Outbound,
+            3 => CommunicationDirection::Missed,
+            _ => CommunicationDirection::Inbound,
+        };
+
+        // Convert timestamp from milliseconds
+        let timestamp = DateTime::from_timestamp_millis(call.call_date)
+            .unwrap_or_else(Utc::now);
+
+        let communication = Communication {
+            id: Uuid::parse_str(&call.id).unwrap_or_else(|_| Uuid::new_v4()),
+            contact_id: contact_uuid,
+            communication_type: CommunicationType::Call,
+            direction,
+            timestamp,
+            content: Some(format!("Duration: {}s", call.duration)),
+            duration_seconds: Some(call.duration as i32),
+            phone_number: Some(call.phone_number.clone()),
+            thread_id: Some(call.phone_number.clone()),
+            status: CommunicationHistoryStatus::Completed,
+            metadata: json!({
+                "call_type": call.call_type,
+                "contact_name": call.contact_name,
+                "readable_date": call.readable_date,
+                "subscription_id": call.subscription_id,
+                "source_file": source_file,
+                "imported_by": user_id,
+            }),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        match comm_repo.create_communication(&communication).await {
             Ok(_) => inserted += 1,
             Err(_) => skipped += 1,
         }
@@ -317,7 +340,7 @@ pub async fn insert_sms(
     user_id: &str,
     source_file: &str,
 ) -> Result<(usize, usize)> {
-    let imported_at = chrono::Utc::now().to_rfc3339();
+    let comm_repo = CommunicationRepository::new(pool);
     let mut inserted = 0;
     let mut skipped = 0;
 
@@ -329,35 +352,52 @@ pub async fn insert_sms(
                 .fetch_optional(pool)
                 .await?;
 
-        // Insert SMS record
-        let result = sqlx::query(
-            r#"
-            INSERT INTO sms_history
-            (id, contact_id, phone_number, contact_name, message_date, message_type,
-             subject, body, readable_date, thread_id, read_status, subscription_id,
-             imported_at, imported_by, source_file)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
-        )
-        .bind(&sms.id)
-        .bind(contact_id)
-        .bind(&sms.phone_number)
-        .bind(&sms.contact_name)
-        .bind(sms.message_date)
-        .bind(sms.message_type)
-        .bind(&sms.subject)
-        .bind(&sms.body)
-        .bind(&sms.readable_date)
-        .bind(sms.thread_id)
-        .bind(sms.read_status)
-        .bind(&sms.subscription_id)
-        .bind(&imported_at)
-        .bind(user_id)
-        .bind(source_file)
-        .execute(pool)
-        .await;
+        // Skip if no contact found
+        let contact_uuid = match contact_id {
+            Some(id) => Uuid::parse_str(&id).unwrap(),
+            None => {
+                skipped += 1;
+                continue;
+            }
+        };
 
-        match result {
+        // Convert message_type: 1=received, 2=sent, 3=draft, 4=outbox, 5=failed, 6=queued
+        let direction = if sms.message_type == 2 {
+            CommunicationDirection::Outbound
+        } else {
+            CommunicationDirection::Inbound
+        };
+
+        // Convert timestamp from milliseconds
+        let timestamp = DateTime::from_timestamp_millis(sms.message_date)
+            .unwrap_or_else(Utc::now);
+
+        let communication = Communication {
+            id: Uuid::parse_str(&sms.id).unwrap_or_else(|_| Uuid::new_v4()),
+            contact_id: contact_uuid,
+            communication_type: CommunicationType::Sms,
+            direction,
+            timestamp,
+            content: Some(sms.body.clone()),
+            duration_seconds: None,
+            phone_number: Some(sms.phone_number.clone()),
+            thread_id: sms.thread_id.map(|t| t.to_string()),
+            status: CommunicationHistoryStatus::Completed,
+            metadata: json!({
+                "message_type": sms.message_type,
+                "contact_name": sms.contact_name,
+                "subject": sms.subject,
+                "readable_date": sms.readable_date,
+                "read_status": sms.read_status,
+                "subscription_id": sms.subscription_id,
+                "source_file": source_file,
+                "imported_by": user_id,
+            }),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        match comm_repo.create_communication(&communication).await {
             Ok(_) => inserted += 1,
             Err(_) => skipped += 1,
         }
@@ -373,7 +413,7 @@ pub async fn insert_mms(
     user_id: &str,
     source_file: &str,
 ) -> Result<(usize, usize)> {
-    let imported_at = chrono::Utc::now().to_rfc3339();
+    let comm_repo = CommunicationRepository::new(pool);
     let mut inserted = 0;
     let mut skipped = 0;
 
@@ -385,61 +425,60 @@ pub async fn insert_mms(
                 .fetch_optional(pool)
                 .await?;
 
+        // Skip if no contact found
+        let contact_uuid = match contact_id {
+            Some(id) => Uuid::parse_str(&id).unwrap(),
+            None => {
+                skipped += 1;
+                continue;
+            }
+        };
+
         // Combine MMS parts into body text
         let body_parts: Vec<String> = mms.parts.iter().filter_map(|p| p.text.clone()).collect();
         let body = body_parts.join("\n");
 
-        // Insert MMS record as SMS
-        let result = sqlx::query(
-            r#"
-            INSERT INTO sms_history
-            (id, contact_id, phone_number, contact_name, message_date, message_type,
-             subject, body, readable_date, thread_id, read_status, subscription_id,
-             imported_at, imported_by, source_file)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            "#,
-        )
-        .bind(&mms.id)
-        .bind(contact_id)
-        .bind(&mms.phone_number)
-        .bind(&mms.contact_name)
-        .bind(mms.message_date)
-        .bind(mms.message_type)
-        .bind(&mms.subject)
-        .bind(&body)
-        .bind(&mms.readable_date)
-        .bind(mms.thread_id)
-        .bind(mms.read_status)
-        .bind(&mms.subscription_id)
-        .bind(&imported_at)
-        .bind(user_id)
-        .bind(source_file)
-        .execute(pool)
-        .await;
-
-        if result.is_ok() {
-            // Insert MMS parts
-            for (idx, part) in mms.parts.iter().enumerate() {
-                let part_id = Uuid::new_v4().to_string();
-                let _ = sqlx::query(
-                    r#"
-                    INSERT INTO mms_parts
-                    (id, sms_id, sequence, content_type, name, text)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    "#,
-                )
-                .bind(&part_id)
-                .bind(&mms.id)
-                .bind(idx as i32)
-                .bind(&part.content_type)
-                .bind(&part.name)
-                .bind(&part.text)
-                .execute(pool)
-                .await;
-            }
-            inserted += 1;
+        // Convert message_type: 1=received, 2=sent
+        let direction = if mms.message_type == 2 {
+            CommunicationDirection::Outbound
         } else {
-            skipped += 1;
+            CommunicationDirection::Inbound
+        };
+
+        // Convert timestamp from milliseconds
+        let timestamp = DateTime::from_timestamp_millis(mms.message_date)
+            .unwrap_or_else(Utc::now);
+
+        let communication = Communication {
+            id: Uuid::parse_str(&mms.id).unwrap_or_else(|_| Uuid::new_v4()),
+            contact_id: contact_uuid,
+            communication_type: CommunicationType::Sms, // Store MMS as SMS
+            direction,
+            timestamp,
+            content: Some(body),
+            duration_seconds: None,
+            phone_number: Some(mms.phone_number.clone()),
+            thread_id: mms.thread_id.map(|t| t.to_string()),
+            status: CommunicationHistoryStatus::Completed,
+            metadata: json!({
+                "message_type": mms.message_type,
+                "contact_name": mms.contact_name,
+                "subject": mms.subject,
+                "readable_date": mms.readable_date,
+                "read_status": mms.read_status,
+                "subscription_id": mms.subscription_id,
+                "source_file": source_file,
+                "imported_by": user_id,
+                "is_mms": true,
+                "mms_parts": mms.parts,
+            }),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        match comm_repo.create_communication(&communication).await {
+            Ok(_) => inserted += 1,
+            Err(_) => skipped += 1,
         }
     }
 

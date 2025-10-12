@@ -60,6 +60,64 @@ impl<'a> ContactRepository<'a> {
         Ok(())
     }
 
+    pub async fn get_by_phone(&self, phone: &str) -> DomainResult<Option<Contact>> {
+        let row = sqlx::query_as::<_, ContactRow>(
+            "SELECT id, first_name, last_name, email, phone, organization, title, notes, metadata, created_at, updated_at, created_by, version, last_synced_at
+             FROM contacts WHERE phone = ? LIMIT 1"
+        )
+        .bind(phone)
+        .fetch_optional(self.pool)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        if let Some(row) = row {
+            let social_handles = sqlx::query_as::<_, SocialHandleRow>(
+                "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?",
+            )
+            .bind(row.id.clone())
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+            let tags = sqlx::query_scalar::<_, String>(
+                "SELECT tag_id FROM contact_tags WHERE contact_id = ?",
+            )
+            .bind(&row.id)
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?
+            .into_iter()
+            .filter_map(|s| Uuid::parse_str(&s).ok())
+            .collect();
+
+            let projects = sqlx::query_scalar::<_, String>(
+                "SELECT project_id FROM project_contacts WHERE contact_id = ?",
+            )
+            .bind(&row.id)
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?
+            .into_iter()
+            .filter_map(|s| Uuid::parse_str(&s).ok())
+            .collect();
+
+            let groups = sqlx::query_scalar::<_, String>(
+                "SELECT group_id FROM contact_groups WHERE contact_id = ?",
+            )
+            .bind(&row.id)
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?
+            .into_iter()
+            .filter_map(|s| Uuid::parse_str(&s).ok())
+            .collect();
+
+            Ok(Some(row.into_contact(social_handles, tags, projects, groups)))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn get_by_id(&self, id: Uuid) -> DomainResult<Contact> {
         let row = sqlx::query_as::<_, ContactRow>(
             "SELECT id, first_name, last_name, email, phone, organization, title, notes, metadata, created_at, updated_at, created_by, version, last_synced_at

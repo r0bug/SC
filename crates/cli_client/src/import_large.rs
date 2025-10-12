@@ -106,29 +106,58 @@ pub async fn import_sms_xml_streaming(path: &str, store: &LocalStore) -> Result<
             let mut batch_failed = 0;
 
             for (contact, communications) in batch {
-                // Try to create contact
-                match contact_repo.create(&contact).await {
-                    Ok(_) => {
-                        batch_contacts += 1;
-                        // Now store all communications for this contact
-                        for mut comm in communications {
-                            comm.contact_id = contact.id; // Ensure correct contact_id
-                            match comm_repo.create_communication(&comm).await {
-                                Ok(_) => batch_communications += 1,
+                // Check if contact already exists by phone
+                let contact_id = if let Some(phone) = &contact.phone {
+                    match contact_repo.get_by_phone(phone).await {
+                        Ok(Some(existing)) => {
+                            // Contact exists, use their ID
+                            existing.id
+                        }
+                        Ok(None) => {
+                            // Contact doesn't exist, create new one
+                            match contact_repo.create(&contact).await {
+                                Ok(_) => {
+                                    batch_contacts += 1;
+                                    contact.id
+                                }
                                 Err(e) => {
-                                    if !e.to_string().contains("UNIQUE") {
-                                        eprintln!("⚠️  Failed to import communication: {}", e);
-                                    }
+                                    eprintln!("⚠️  Failed to create contact {}: {}", phone, e);
+                                    batch_failed += 1;
+                                    continue; // Skip communications for this contact
                                 }
                             }
                         }
-                    }
-                    Err(e) => {
-                        // Skip duplicates silently
-                        if !e.to_string().contains("UNIQUE") {
-                            eprintln!("⚠️  Failed to import contact: {}", e);
+                        Err(e) => {
+                            eprintln!("⚠️  Failed to lookup contact {}: {}", phone, e);
+                            batch_failed += 1;
+                            continue;
                         }
-                        batch_failed += 1;
+                    }
+                } else {
+                    // No phone number, create contact anyway
+                    match contact_repo.create(&contact).await {
+                        Ok(_) => {
+                            batch_contacts += 1;
+                            contact.id
+                        }
+                        Err(e) => {
+                            eprintln!("⚠️  Failed to create contact: {}", e);
+                            batch_failed += 1;
+                            continue;
+                        }
+                    }
+                };
+
+                // Now store all communications for this contact
+                for mut comm in communications {
+                    comm.contact_id = contact_id; // Use the resolved contact ID
+                    match comm_repo.create_communication(&comm).await {
+                        Ok(_) => batch_communications += 1,
+                        Err(e) => {
+                            if !e.to_string().contains("UNIQUE") {
+                                eprintln!("⚠️  Failed to import communication: {}", e);
+                            }
+                        }
                     }
                 }
             }
@@ -181,27 +210,58 @@ pub async fn import_calls_xml_streaming(path: &str, store: &LocalStore) -> Resul
             let mut batch_failed = 0;
 
             for (contact, communications) in batch {
-                match contact_repo.create(&contact).await {
-                    Ok(_) => {
-                        batch_contacts += 1;
-                        // Store all communications for this contact
-                        for mut comm in communications {
-                            comm.contact_id = contact.id;
-                            match comm_repo.create_communication(&comm).await {
-                                Ok(_) => batch_communications += 1,
+                // Check if contact already exists by phone
+                let contact_id = if let Some(phone) = &contact.phone {
+                    match contact_repo.get_by_phone(phone).await {
+                        Ok(Some(existing)) => {
+                            // Contact exists, use their ID
+                            existing.id
+                        }
+                        Ok(None) => {
+                            // Contact doesn't exist, create new one
+                            match contact_repo.create(&contact).await {
+                                Ok(_) => {
+                                    batch_contacts += 1;
+                                    contact.id
+                                }
                                 Err(e) => {
-                                    if !e.to_string().contains("UNIQUE") {
-                                        eprintln!("⚠️  Failed to import communication: {}", e);
-                                    }
+                                    eprintln!("⚠️  Failed to create contact {}: {}", phone, e);
+                                    batch_failed += 1;
+                                    continue; // Skip communications for this contact
                                 }
                             }
                         }
-                    }
-                    Err(e) => {
-                        if !e.to_string().contains("UNIQUE") {
-                            eprintln!("⚠️  Failed to import contact: {}", e);
+                        Err(e) => {
+                            eprintln!("⚠️  Failed to lookup contact {}: {}", phone, e);
+                            batch_failed += 1;
+                            continue;
                         }
-                        batch_failed += 1;
+                    }
+                } else {
+                    // No phone number, create contact anyway
+                    match contact_repo.create(&contact).await {
+                        Ok(_) => {
+                            batch_contacts += 1;
+                            contact.id
+                        }
+                        Err(e) => {
+                            eprintln!("⚠️  Failed to create contact: {}", e);
+                            batch_failed += 1;
+                            continue;
+                        }
+                    }
+                };
+
+                // Now store all communications for this contact
+                for mut comm in communications {
+                    comm.contact_id = contact_id; // Use the resolved contact ID
+                    match comm_repo.create_communication(&comm).await {
+                        Ok(_) => batch_communications += 1,
+                        Err(e) => {
+                            if !e.to_string().contains("UNIQUE") {
+                                eprintln!("⚠️  Failed to import communication: {}", e);
+                            }
+                        }
                     }
                 }
             }

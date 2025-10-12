@@ -4,9 +4,11 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use local_store::repositories::CommunicationRepository;
 use serde::Serialize;
 use sqlx::Row;
 use std::io::Cursor;
+use uuid::Uuid;
 
 use crate::android_import::{
     insert_calls, insert_mms, insert_sms, parse_calls_xml, parse_mms_xml, parse_sms_xml,
@@ -193,93 +195,46 @@ pub async fn get_contact_communications(
     State(state): State<AppState>,
     axum::extract::Path(contact_id): axum::extract::Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    #[derive(Serialize)]
-    struct CommunicationHistory {
-        calls: Vec<serde_json::Value>,
-        messages: Vec<serde_json::Value>,
-    }
+    let comm_repo = CommunicationRepository::new(&state.pool);
 
-    // Get calls
-    let calls = sqlx::query(
-        r#"
-        SELECT
-            id, phone_number, contact_name, call_date, duration, call_type,
-            readable_date, imported_at
-        FROM call_history
-        WHERE contact_id = ?
-        ORDER BY call_date DESC
-        LIMIT 100
-        "#,
-    )
-    .bind(&contact_id)
-    .fetch_all(&*state.pool)
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Database error: {}", e),
-        )
-    })?;
+    let contact_uuid = Uuid::parse_str(&contact_id)
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid contact ID".to_string()))?;
 
-    let calls_json: Vec<serde_json::Value> = calls
+    let communications = comm_repo
+        .get_communications_by_contact(contact_uuid)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Database error: {}", e),
+            )
+        })?;
+
+    // Convert to JSON with proper serialization
+    let comms_json: Vec<serde_json::Value> = communications
         .iter()
-        .map(|row| {
+        .map(|comm| {
             serde_json::json!({
-                "id": row.get::<String, _>("id"),
-                "phone_number": row.get::<String, _>("phone_number"),
-                "contact_name": row.get::<Option<String>, _>("contact_name"),
-                "call_date": row.get::<i64, _>("call_date"),
-                "duration": row.get::<i64, _>("duration"),
-                "call_type": row.get::<i32, _>("call_type"),
-                "readable_date": row.get::<String, _>("readable_date"),
-                "imported_at": row.get::<String, _>("imported_at"),
+                "id": comm.id.to_string(),
+                "contact_id": comm.contact_id.to_string(),
+                "communication_type": format!("{:?}", comm.communication_type),
+                "direction": format!("{:?}", comm.direction),
+                "timestamp": comm.timestamp.to_rfc3339(),
+                "content": comm.content,
+                "duration_seconds": comm.duration_seconds,
+                "phone_number": comm.phone_number,
+                "thread_id": comm.thread_id,
+                "status": format!("{:?}", comm.status),
+                "metadata": comm.metadata,
+                "created_at": comm.created_at.to_rfc3339(),
             })
         })
         .collect();
 
-    // Get messages
-    let messages = sqlx::query(
-        r#"
-        SELECT
-            id, phone_number, contact_name, message_date, message_type,
-            subject, body, readable_date, imported_at
-        FROM sms_history
-        WHERE contact_id = ?
-        ORDER BY message_date DESC
-        LIMIT 100
-        "#,
-    )
-    .bind(&contact_id)
-    .fetch_all(&*state.pool)
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Database error: {}", e),
-        )
-    })?;
-
-    let messages_json: Vec<serde_json::Value> = messages
-        .iter()
-        .map(|row| {
-            serde_json::json!({
-                "id": row.get::<String, _>("id"),
-                "phone_number": row.get::<String, _>("phone_number"),
-                "contact_name": row.get::<Option<String>, _>("contact_name"),
-                "message_date": row.get::<i64, _>("message_date"),
-                "message_type": row.get::<i32, _>("message_type"),
-                "subject": row.get::<Option<String>, _>("subject"),
-                "body": row.get::<String, _>("body"),
-                "readable_date": row.get::<String, _>("readable_date"),
-                "imported_at": row.get::<String, _>("imported_at"),
-            })
-        })
-        .collect();
-
-    Ok(Json(CommunicationHistory {
-        calls: calls_json,
-        messages: messages_json,
-    }))
+    Ok(Json(serde_json::json!({
+        "communications": comms_json,
+        "total": comms_json.len(),
+    })))
 }
 
 /// GET /api/communications/search - Search communication history
@@ -293,21 +248,15 @@ pub async fn search_communications(
         .and_then(|s| s.parse().ok())
         .unwrap_or(50);
 
-    #[derive(Serialize)]
-    struct SearchResults {
-        calls: Vec<serde_json::Value>,
-        messages: Vec<serde_json::Value>,
-    }
-
-    // Search in calls (by contact_name or phone_number)
-    let calls = sqlx::query(
+    // Search in communications table by phone_number or content
+    let results = sqlx::query(
         r#"
         SELECT
-            id, phone_number, contact_name, call_date, duration, call_type,
-            readable_date, contact_id
-        FROM call_history
-        WHERE contact_name LIKE ? OR phone_number LIKE ?
-        ORDER BY call_date DESC
+            id, contact_id, communication_type, direction, timestamp,
+            content, duration_seconds, phone_number, thread_id, status, metadata
+        FROM communications
+        WHERE phone_number LIKE ? OR content LIKE ?
+        ORDER BY timestamp DESC
         LIMIT ?
         "#,
     )
@@ -323,66 +272,28 @@ pub async fn search_communications(
         )
     })?;
 
-    let calls_json: Vec<serde_json::Value> = calls
+    let comms_json: Vec<serde_json::Value> = results
         .iter()
         .map(|row| {
             serde_json::json!({
                 "id": row.get::<String, _>("id"),
-                "phone_number": row.get::<String, _>("phone_number"),
-                "contact_name": row.get::<Option<String>, _>("contact_name"),
-                "call_date": row.get::<i64, _>("call_date"),
-                "duration": row.get::<i64, _>("duration"),
-                "call_type": row.get::<i32, _>("call_type"),
-                "readable_date": row.get::<String, _>("readable_date"),
-                "contact_id": row.get::<Option<String>, _>("contact_id"),
+                "contact_id": row.get::<String, _>("contact_id"),
+                "communication_type": row.get::<String, _>("communication_type"),
+                "direction": row.get::<String, _>("direction"),
+                "timestamp": row.get::<String, _>("timestamp"),
+                "content": row.get::<Option<String>, _>("content"),
+                "duration_seconds": row.get::<Option<i32>, _>("duration_seconds"),
+                "phone_number": row.get::<Option<String>, _>("phone_number"),
+                "thread_id": row.get::<Option<String>, _>("thread_id"),
+                "status": row.get::<String, _>("status"),
+                "metadata": row.get::<String, _>("metadata"),
             })
         })
         .collect();
 
-    // Search in messages (by contact_name, phone_number, or body text)
-    let messages = sqlx::query(
-        r#"
-        SELECT
-            id, phone_number, contact_name, message_date, message_type,
-            subject, body, readable_date, contact_id
-        FROM sms_history
-        WHERE contact_name LIKE ? OR phone_number LIKE ? OR body LIKE ?
-        ORDER BY message_date DESC
-        LIMIT ?
-        "#,
-    )
-    .bind(format!("%{}%", query))
-    .bind(format!("%{}%", query))
-    .bind(format!("%{}%", query))
-    .bind(limit)
-    .fetch_all(&*state.pool)
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Database error: {}", e),
-        )
-    })?;
-
-    let messages_json: Vec<serde_json::Value> = messages
-        .iter()
-        .map(|row| {
-            serde_json::json!({
-                "id": row.get::<String, _>("id"),
-                "phone_number": row.get::<String, _>("phone_number"),
-                "contact_name": row.get::<Option<String>, _>("contact_name"),
-                "message_date": row.get::<i64, _>("message_date"),
-                "message_type": row.get::<i32, _>("message_type"),
-                "subject": row.get::<Option<String>, _>("subject"),
-                "body": row.get::<String, _>("body"),
-                "readable_date": row.get::<String, _>("readable_date"),
-                "contact_id": row.get::<Option<String>, _>("contact_id"),
-            })
-        })
-        .collect();
-
-    Ok(Json(SearchResults {
-        calls: calls_json,
-        messages: messages_json,
-    }))
+    Ok(Json(serde_json::json!({
+        "results": comms_json,
+        "total": comms_json.len(),
+        "query": query,
+    })))
 }
