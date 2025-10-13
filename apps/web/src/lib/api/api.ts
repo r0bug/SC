@@ -105,9 +105,11 @@ export class ApiClient {
 	}
 
 	async searchContacts(query: string, filters?: Record<string, any>): Promise<Contact[]> {
+		// Backend only accepts query parameter currently
+		// TODO: Enhance backend to support filters (tags, etc.)
 		return this.request('/contacts/search', {
 			method: 'POST',
-			body: JSON.stringify({ query, filters })
+			body: JSON.stringify({ query })
 		});
 	}
 
@@ -621,26 +623,43 @@ export class ApiClient {
 	connectWebSocket() {
 		if (!this.token || this.ws) return;
 
-		const wsUrl = this.baseUrl.replace('http', 'ws').replace('/api', '/ws');
-		this.ws = new WebSocket(`${wsUrl}?token=${this.token}`);
+		try {
+			const wsUrl = this.baseUrl.replace('http', 'ws').replace('/api', '/ws');
+			this.ws = new WebSocket(`${wsUrl}?token=${this.token}`);
 
-		this.ws.onmessage = (event) => {
-			const data = JSON.parse(event.data);
-			const listeners = this.wsListeners.get(data.type) || new Set();
-			listeners.forEach(listener => listener(data.payload));
-		};
+			this.ws.onmessage = (event) => {
+				try {
+					const data = JSON.parse(event.data);
+					const listeners = this.wsListeners.get(data.type) || new Set();
+					listeners.forEach(listener => {
+						try {
+							listener(data.payload);
+						} catch (err) {
+							console.error('WebSocket listener error:', err);
+						}
+					});
+				} catch (err) {
+					console.error('WebSocket message parse error:', err);
+				}
+			};
 
-		this.ws.onerror = (error) => {
-			console.error('WebSocket error:', error);
-		};
+			this.ws.onerror = (error) => {
+				// Log but don't throw - WebSocket errors shouldn't block navigation
+				console.warn('WebSocket error (non-critical):', error);
+			};
 
-		this.ws.onclose = () => {
+			this.ws.onclose = () => {
+				this.ws = null;
+				// Attempt reconnection after 5 seconds
+				setTimeout(() => {
+					if (this.token) this.connectWebSocket();
+				}, 5000);
+			};
+		} catch (error) {
+			// WebSocket connection failed - continue without it
+			console.warn('WebSocket connection failed (continuing without real-time updates):', error);
 			this.ws = null;
-			// Attempt reconnection after 5 seconds
-			setTimeout(() => {
-				if (this.token) this.connectWebSocket();
-			}, 5000);
-		};
+		}
 	}
 
 	onWebSocketMessage(type: string, callback: (data: any) => void) {
@@ -718,8 +737,9 @@ export class ApiClient {
 				errorMessage = 'Your session has expired. Please log in again.';
 				// Auto-logout on 401
 				this.logout();
+				// Dispatch event instead of hard redirect to avoid navigation freeze
 				if (typeof window !== 'undefined') {
-					window.location.href = '/auth/login';
+					window.dispatchEvent(new CustomEvent('auth:logout'));
 				}
 				break;
 			case 403:

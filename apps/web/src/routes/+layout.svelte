@@ -23,6 +23,20 @@
 
 	onMount(() => {
 		auth.checkAuth();
+
+		// Listen for auth logout event from API client to avoid navigation freeze
+		const handleAuthLogout = () => {
+			// Use goto instead of window.location to avoid breaking SvelteKit navigation
+			import('$app/navigation').then(({ goto }) => {
+				goto('/auth/login', { replaceState: true });
+			});
+		};
+
+		window.addEventListener('auth:logout', handleAuthLogout);
+
+		return () => {
+			window.removeEventListener('auth:logout', handleAuthLogout);
+		};
 	});
 </script>
 

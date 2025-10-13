@@ -7,6 +7,7 @@
 	let loading = true;
 	let searchQuery = '';
 	let selectedTags: string[] = [];
+	let searchError = '';
 
 	onMount(async () => {
 		await loadContacts();
@@ -24,15 +25,23 @@
 	}
 
 	async function handleSearch() {
+		searchError = ''; // Clear previous errors
+
 		if (!searchQuery.trim() && selectedTags.length === 0) {
 			await loadContacts();
 			return;
 		}
 
 		try {
+			loading = true;
 			contacts = await api.searchContacts(searchQuery, { tags: selectedTags });
-		} catch (error) {
+			searchError = ''; // Clear error on success
+		} catch (error: any) {
 			console.error('Search failed:', error);
+			searchError = error.message || 'Failed to search contacts. Please try again.';
+			// Keep showing current contacts even if search fails
+		} finally {
+			loading = false;
 		}
 	}
 
@@ -65,6 +74,9 @@
 			on:input={handleSearch}
 			class="search-input"
 		/>
+		{#if searchError}
+			<div class="error-message">{searchError}</div>
+		{/if}
 	</div>
 
 	{#if loading}
@@ -148,6 +160,15 @@
 		border: 1px solid var(--gray-300);
 		border-radius: 6px;
 		font-size: 1rem;
+	}
+
+	.error-message {
+		margin-top: 0.75rem;
+		padding: 0.75rem;
+		background: #fee;
+		color: #c33;
+		border-radius: 6px;
+		font-size: 0.875rem;
 	}
 
 	.contact-grid {
