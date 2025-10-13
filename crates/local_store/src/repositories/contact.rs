@@ -297,7 +297,7 @@ impl<'a> ContactRepository<'a> {
     pub async fn search(&self, query: &str) -> DomainResult<Vec<Contact>> {
         let search_pattern = format!("%{}%", query);
         let rows = sqlx::query_as::<_, ContactRow>(
-            "SELECT id, first_name, last_name, email, phone, organization, title, notes, metadata, created_at, updated_at
+            "SELECT id, first_name, last_name, email, phone, organization, title, notes, metadata, created_at, updated_at, created_by, version, last_synced_at
              FROM contacts
              WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ? OR organization LIKE ?
              ORDER BY last_name, first_name"
