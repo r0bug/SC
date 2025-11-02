@@ -1,0 +1,45 @@
+/**
+ * SagensContact Web Application Styles
+ * Main stylesheet importing design system and components
+ */
+
+@import './lib/styles/design-tokens.css';
+@import './lib/styles/components.css';
+
+/* === Base Styles === */
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
+body {
+	font-family: var(--font-sans);
+	font-size: var(--text-base);
+	line-height: var(--leading-normal);
+	color: var(--color-neutral-900);
+	background: var(--color-neutral-50);
+	min-height: 100vh;
+}
+
+/* === Improved Focus Styles === */
+*:focus-visible {
+	outline: var(--focus-ring-width) solid var(--focus-ring-color);
+	outline-offset: var(--focus-ring-offset);
+	border-radius: var(--radius-sm);
+}
+
+/* Remove default focus for mouse users */
+*:focus:not(:focus-visible) {
+	outline: none;
+}
+
+/* Legacy styles removed - now using design system from components.css */

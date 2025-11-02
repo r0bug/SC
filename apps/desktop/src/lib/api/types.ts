@@ -163,6 +163,26 @@ export interface CommunicationAttempt {
 export type CommunicationMethod = 'Email' | 'SMS' | { Social: { platform: string } };
 export type CommunicationStatus = 'Pending' | 'Sent' | 'Retrying' | { Failed: { reason: string } };
 
+export interface Communication {
+	id: string;
+	contact_id: string;
+	communication_type: CommunicationType;
+	direction: CommunicationDirection;
+	timestamp: string;
+	content?: string;
+	duration_seconds?: number;
+	phone_number?: string;
+	thread_id?: string;
+	status: CommunicationHistoryStatus;
+	metadata: Record<string, any>;
+	created_at: string;
+	updated_at: string;
+}
+
+export type CommunicationType = 'Sms' | 'Call' | 'Email' | 'VideoCall' | 'VoiceMail';
+export type CommunicationDirection = 'Inbound' | 'Outbound' | 'Missed';
+export type CommunicationHistoryStatus = 'Completed' | 'Failed' | 'Blocked' | 'Rejected';
+
 export interface ShareInvite {
 	id: string;
 	entity_type: ShareEntityType;

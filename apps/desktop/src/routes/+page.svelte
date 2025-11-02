@@ -69,26 +69,26 @@
 		<div class="dashboard-grid">
 			<a href="/contacts" class="dashboard-card card">
 				<h2>Contacts</h2>
-				<div class="stat">{dashboard.contacts_count}</div>
+				<div class="stat">{dashboard.total_contacts}</div>
 				<p>Total contacts in your network</p>
 			</a>
 
 			<a href="/projects" class="dashboard-card card">
-				<h2>Active Projects</h2>
-				<div class="stat">{dashboard.projects_active}</div>
-				<p>Projects currently in progress</p>
+				<h2>Projects</h2>
+				<div class="stat">{dashboard.total_projects}</div>
+				<p>Total projects</p>
+			</a>
+
+			<a href="/groups" class="dashboard-card card">
+				<h2>Groups</h2>
+				<div class="stat">{dashboard.total_groups}</div>
+				<p>Contact groups</p>
 			</a>
 
 			<a href="/calendar" class="dashboard-card card">
 				<h2>Upcoming Events</h2>
-				<div class="stat">{dashboard.upcoming_events.length}</div>
+				<div class="stat">{dashboard.upcoming_events}</div>
 				<p>Events scheduled soon</p>
-			</a>
-
-			<a href="/communications" class="dashboard-card card">
-				<h2>Recent Communications</h2>
-				<div class="stat">{dashboard.recent_communications.length}</div>
-				<p>Recent outreach attempts</p>
 			</a>
 		</div>
 

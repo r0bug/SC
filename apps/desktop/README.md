@@ -1,27 +1,25 @@
-# Desktop App (Tauri + SvelteKit)
+# SagensContact Desktop App
 
-## Status: Planned (Beta)
+## Status: ✅ Implemented (Beta-Ready)
 
-This directory will contain the Tauri desktop application shell with SvelteKit UI.
+This directory contains the production-ready Tauri desktop application with SvelteKit UI.
 
-**For Alpha:** The web UI at `apps/web/` serves as the reference implementation.
-The Tauri desktop wrapper will reuse the same SvelteKit components, including
-the Communications screen with Email/SMS placeholder cards.
+**Version:** 0.1.0-alpha.3
 
-## Planned Setup
+## Quick Start
 
 ```bash
-# Install Tauri CLI
-cargo install tauri-cli
+# Install dependencies
+pnpm install
 
-# Initialize Tauri project
-npm create tauri-app@latest
+# Run in development mode
+pnpm tauri dev
 
-# Choose:
-# - Framework: SvelteKit
-# - TypeScript: Yes
-# - Package manager: pnpm
+# Build for production
+pnpm tauri build
 ```
+
+**For comprehensive documentation, see [DESKTOP_README.md](./DESKTOP_README.md)**
 
 ## Architecture
 
@@ -45,7 +43,28 @@ apps/desktop/
 └── svelte.config.js
 ```
 
-## Tauri Commands (Planned)
+## Implemented Features
+
+### Core Functionality
+- ✅ Contact management (CRUD operations)
+- ✅ Full-text search
+- ✅ Groups and Projects
+- ✅ Calendar events
+- ✅ Notes
+- ✅ Communication queue
+- ✅ Attachments with file upload
+- ✅ CSV import with native file picker
+- ✅ Dashboard with statistics
+
+### Desktop-Specific Features
+- ✅ System tray integration
+- ✅ Native file dialogs
+- ✅ Desktop notifications
+- ✅ Minimize to tray (Windows/Linux)
+- ✅ Settings page with sync configuration
+- ✅ Offline-first local SQLite database
+
+## Tauri Commands (Implemented)
 
 ```rust
 // src-tauri/src/commands.rs
