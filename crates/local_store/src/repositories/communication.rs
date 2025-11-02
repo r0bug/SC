@@ -178,6 +178,20 @@ impl<'a> CommunicationRepository<'a> {
 
         Ok(count.0)
     }
+
+    pub async fn list_all(&self, limit: i64, offset: i64) -> DomainResult<Vec<Communication>> {
+        let rows = sqlx::query_as::<_, CommunicationRow>(
+            "SELECT id, contact_id, communication_type, direction, timestamp, content, duration_seconds, phone_number, thread_id, status, metadata, created_at, updated_at
+             FROM communications ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+        )
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(self.pool)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        rows.into_iter().map(|row| row.try_into()).collect()
+    }
 }
 
 #[derive(sqlx::FromRow)]

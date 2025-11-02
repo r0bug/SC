@@ -9,6 +9,9 @@ members = [
     "crates/cli_client",
     "crates/import_service",
 ]
+exclude = [
+    "apps/desktop/src-tauri",
+]
 
 [workspace.package]
 version = "0.1.0-alpha.3"
