@@ -3,11 +3,14 @@
 	import { api } from '$lib/api/api';
 	import type { Contact } from '$lib/api/types';
 
+	let allContacts: Contact[] = [];
 	let contacts: Contact[] = [];
 	let loading = true;
 	let searchQuery = '';
 	let selectedTags: string[] = [];
 	let searchError = '';
+	let onlyWithNames = false;
+	let searchTimeout: number | undefined;
 
 	onMount(async () => {
 		await loadContacts();
@@ -16,7 +19,8 @@
 	async function loadContacts() {
 		try {
 			loading = true;
-			contacts = await api.getContacts(100, 0);
+			allContacts = await api.getContacts(100000, 0); // Load all contacts
+			applyFilters();
 		} catch (error) {
 			console.error('Failed to load contacts:', error);
 		} finally {
@@ -24,25 +28,62 @@
 		}
 	}
 
-	async function handleSearch() {
-		searchError = ''; // Clear previous errors
+	function getDisplayName(contact: Contact): string {
+		if (contact.first_name || contact.last_name) {
+			return `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+		}
+		if (contact.phone) return contact.phone;
+		if (contact.email) return contact.email;
+		return 'Unnamed Contact';
+	}
 
-		if (!searchQuery.trim() && selectedTags.length === 0) {
-			await loadContacts();
-			return;
+	function applyFilters() {
+		let filtered = [...allContacts];
+
+		// Filter by search query
+		if (searchQuery.trim()) {
+			const query = searchQuery.toLowerCase().trim();
+			filtered = filtered.filter(c => {
+				const name = getDisplayName(c).toLowerCase();
+				const email = (c.email || '').toLowerCase();
+				const phone = (c.phone || '').toLowerCase();
+				const org = (c.organization || '').toLowerCase();
+				return name.includes(query) || email.includes(query) ||
+				       phone.includes(query) || org.includes(query);
+			});
 		}
 
-		try {
-			loading = true;
-			contacts = await api.searchContacts(searchQuery, { tags: selectedTags });
-			searchError = ''; // Clear error on success
-		} catch (error: any) {
-			console.error('Search failed:', error);
-			searchError = error.message || 'Failed to search contacts. Please try again.';
-			// Keep showing current contacts even if search fails
-		} finally {
-			loading = false;
+		// Filter by tags
+		if (selectedTags.length > 0) {
+			filtered = filtered.filter(c =>
+				selectedTags.some(tag => c.tags.includes(tag))
+			);
 		}
+
+		// Filter by has name
+		if (onlyWithNames) {
+			filtered = filtered.filter(c =>
+				(c.first_name && c.first_name.trim()) ||
+				(c.last_name && c.last_name.trim())
+			);
+		}
+
+		contacts = filtered;
+	}
+
+	function handleSearchInput() {
+		// Debounce search to prevent race conditions
+		if (searchTimeout) {
+			clearTimeout(searchTimeout);
+		}
+		searchTimeout = window.setTimeout(() => {
+			applyFilters();
+		}, 300);
+	}
+
+	function toggleNameFilter() {
+		onlyWithNames = !onlyWithNames;
+		applyFilters();
 	}
 
 	async function deleteContact(id: string) {
@@ -67,13 +108,23 @@
 	</div>
 
 	<div class="filters card">
-		<input
-			type="text"
-			placeholder="Search contacts..."
-			bind:value={searchQuery}
-			on:input={handleSearch}
-			class="search-input"
-		/>
+		<div class="search-row">
+			<input
+				type="text"
+				placeholder="Search contacts..."
+				bind:value={searchQuery}
+				on:input={handleSearchInput}
+				class="search-input"
+			/>
+			<label class="filter-checkbox">
+				<input
+					type="checkbox"
+					bind:checked={onlyWithNames}
+					on:change={toggleNameFilter}
+				/>
+				<span>Only show contacts with names</span>
+			</label>
+		</div>
 		{#if searchError}
 			<div class="error-message">{searchError}</div>
 		{/if}
@@ -154,12 +205,40 @@
 		padding: 1.5rem;
 	}
 
+	.search-row {
+		display: flex;
+		gap: 1rem;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
 	.search-input {
-		width: 100%;
+		flex: 1;
+		min-width: 300px;
 		padding: 0.75rem;
 		border: 1px solid var(--gray-300);
 		border-radius: 6px;
 		font-size: 1rem;
+	}
+
+	.filter-checkbox {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+		user-select: none;
+		white-space: nowrap;
+	}
+
+	.filter-checkbox input[type="checkbox"] {
+		cursor: pointer;
+		width: 1.125rem;
+		height: 1.125rem;
+	}
+
+	.filter-checkbox span {
+		font-size: 0.9rem;
+		color: var(--gray-700);
 	}
 
 	.error-message {

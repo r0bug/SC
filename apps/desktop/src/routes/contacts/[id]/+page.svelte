@@ -10,6 +10,7 @@
 	let communications: Communication[] = [];
 	let loading = true;
 	let editing = false;
+	let activeTab: 'all' | 'threads' = 'all';
 
 	// Form fields
 	let formFirstName = '';
@@ -109,6 +110,31 @@
 			alert('Failed to delete contact');
 		}
 	}
+
+	// Group SMS messages by thread_id
+	$: smsThreads = communications
+		.filter(c => c.communication_type === 'Sms' && c.thread_id)
+		.reduce((threads, sms) => {
+			const threadId = sms.thread_id!;
+			if (!threads[threadId]) {
+				threads[threadId] = [];
+			}
+			threads[threadId].push(sms);
+			return threads;
+		}, {} as Record<string, Communication[]>);
+
+	// Sort messages within each thread by timestamp
+	$: sortedThreads = Object.entries(smsThreads).map(([threadId, messages]) => ({
+		threadId,
+		messages: messages.sort((a, b) =>
+			new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+		),
+		lastMessage: messages.sort((a, b) =>
+			new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+		)[0]
+	})).sort((a, b) =>
+		new Date(b.lastMessage.timestamp).getTime() - new Date(a.lastMessage.timestamp).getTime()
+	);
 </script>
 
 {#if loading}
@@ -233,38 +259,85 @@
 
 				{#if communications.length > 0}
 					<div class="card">
-						<h2>Communications ({communications.length})</h2>
-						<div class="communications-list">
-							{#each communications.slice(0, 20) as comm}
-								<div class="comm-item {comm.direction.toLowerCase()}">
-									<div class="comm-header">
-										<span class="comm-type">
-											{#if comm.communication_type === 'Sms'}📱 SMS
-											{:else if comm.communication_type === 'Call'}📞 Call
-											{:else if comm.communication_type === 'Email'}📧 Email
-											{:else}{comm.communication_type}
-											{/if}
-										</span>
-										<span class="comm-direction {comm.direction.toLowerCase()}">
-											{#if comm.direction === 'Inbound'}⬇️ Inbound
-											{:else if comm.direction === 'Outbound'}⬆️ Outbound
-											{:else}❌ Missed
-											{/if}
-										</span>
-										<span class="comm-date">{new Date(comm.timestamp).toLocaleString()}</span>
-									</div>
-									{#if comm.content}
-										<p class="comm-content">{comm.content}</p>
-									{/if}
-									{#if comm.duration_seconds}
-										<span class="comm-duration">Duration: {Math.floor(comm.duration_seconds / 60)}m {comm.duration_seconds % 60}s</span>
-									{/if}
-								</div>
-							{/each}
-							{#if communications.length > 20}
-								<p class="more-info">Showing 20 of {communications.length} communications</p>
-							{/if}
+						<div class="comm-header-row">
+							<h2>Communications ({communications.length})</h2>
+							<div class="tabs">
+								<button
+									class="tab {activeTab === 'all' ? 'active' : ''}"
+									on:click={() => activeTab = 'all'}
+								>
+									All Communications
+								</button>
+								<button
+									class="tab {activeTab === 'threads' ? 'active' : ''}"
+									on:click={() => activeTab = 'threads'}
+								>
+									SMS Threads ({sortedThreads.length})
+								</button>
+							</div>
 						</div>
+
+						{#if activeTab === 'all'}
+							<div class="communications-list">
+								{#each communications.slice(0, 20) as comm}
+									<div class="comm-item {comm.direction.toLowerCase()}">
+										<div class="comm-header">
+											<span class="comm-type">
+												{#if comm.communication_type === 'Sms'}📱 SMS
+												{:else if comm.communication_type === 'Call'}📞 Call
+												{:else if comm.communication_type === 'Email'}📧 Email
+												{:else}{comm.communication_type}
+												{/if}
+											</span>
+											<span class="comm-direction {comm.direction.toLowerCase()}">
+												{#if comm.direction === 'Inbound'}⬇️ Inbound
+												{:else if comm.direction === 'Outbound'}⬆️ Outbound
+												{:else}❌ Missed
+												{/if}
+											</span>
+											<span class="comm-date">{new Date(comm.timestamp).toLocaleString()}</span>
+										</div>
+										{#if comm.content}
+											<p class="comm-content">{comm.content}</p>
+										{/if}
+										{#if comm.duration_seconds}
+											<span class="comm-duration">Duration: {Math.floor(comm.duration_seconds / 60)}m {comm.duration_seconds % 60}s</span>
+										{/if}
+									</div>
+								{/each}
+								{#if communications.length > 20}
+									<p class="more-info">Showing 20 of {communications.length} communications</p>
+								{/if}
+							</div>
+						{:else}
+							<div class="threads-container">
+								{#if sortedThreads.length === 0}
+									<p class="empty-state">No SMS threads found</p>
+								{:else}
+									{#each sortedThreads as thread}
+										<details class="thread-item">
+											<summary class="thread-summary">
+												<div class="thread-info">
+													<span class="thread-phone">{thread.lastMessage.phone_number || 'Unknown'}</span>
+													<span class="thread-count">{thread.messages.length} messages</span>
+												</div>
+												<span class="thread-date">{new Date(thread.lastMessage.timestamp).toLocaleString()}</span>
+											</summary>
+											<div class="thread-messages">
+												{#each thread.messages as msg}
+													<div class="message {msg.direction.toLowerCase()}">
+														<div class="message-bubble">
+															<p class="message-text">{msg.content}</p>
+															<span class="message-time">{new Date(msg.timestamp).toLocaleTimeString()}</span>
+														</div>
+													</div>
+												{/each}
+											</div>
+										</details>
+									{/each}
+								{/if}
+							</div>
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -668,5 +741,149 @@
 		color: var(--gray-600);
 		font-size: 0.875rem;
 		font-style: italic;
+	}
+
+	/* Tabs */
+	.comm-header-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 1.5rem;
+		flex-wrap: wrap;
+		gap: 1rem;
+	}
+
+	.tabs {
+		display: flex;
+		gap: 0.5rem;
+		border-bottom: 2px solid var(--gray-200);
+	}
+
+	.tab {
+		padding: 0.5rem 1rem;
+		background: none;
+		border: none;
+		border-bottom: 2px solid transparent;
+		cursor: pointer;
+		font-weight: 500;
+		color: var(--gray-600);
+		transition: all 0.2s;
+		margin-bottom: -2px;
+	}
+
+	.tab:hover {
+		color: var(--primary);
+	}
+
+	.tab.active {
+		color: var(--primary);
+		border-bottom-color: var(--primary);
+	}
+
+	/* Threads */
+	.threads-container {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+	}
+
+	.empty-state {
+		text-align: center;
+		padding: 2rem;
+		color: var(--gray-500);
+	}
+
+	.thread-item {
+		border: 1px solid var(--gray-200);
+		border-radius: 8px;
+		overflow: hidden;
+	}
+
+	.thread-summary {
+		padding: 1rem;
+		cursor: pointer;
+		background: var(--gray-50);
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		transition: background 0.2s;
+	}
+
+	.thread-summary:hover {
+		background: var(--gray-100);
+	}
+
+	.thread-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.thread-phone {
+		font-weight: 600;
+		color: var(--gray-900);
+	}
+
+	.thread-count {
+		font-size: 0.875rem;
+		color: var(--gray-600);
+	}
+
+	.thread-date {
+		font-size: 0.875rem;
+		color: var(--gray-500);
+	}
+
+	/* Message bubbles */
+	.thread-messages {
+		padding: 1rem;
+		background: white;
+		max-height: 500px;
+		overflow-y: auto;
+	}
+
+	.message {
+		display: flex;
+		margin-bottom: 0.75rem;
+	}
+
+	.message.inbound {
+		justify-content: flex-start;
+	}
+
+	.message.outbound {
+		justify-content: flex-end;
+	}
+
+	.message-bubble {
+		max-width: 70%;
+		padding: 0.75rem 1rem;
+		border-radius: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.message.inbound .message-bubble {
+		background: var(--gray-200);
+		border-bottom-left-radius: 0.25rem;
+	}
+
+	.message.outbound .message-bubble {
+		background: var(--primary);
+		color: white;
+		border-bottom-right-radius: 0.25rem;
+	}
+
+	.message-text {
+		margin: 0;
+		word-wrap: break-word;
+		line-height: 1.4;
+	}
+
+	.message-time {
+		font-size: 0.75rem;
+		opacity: 0.7;
+		align-self: flex-end;
 	}
 </style>

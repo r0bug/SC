@@ -359,6 +359,297 @@ impl<'a> ContactRepository<'a> {
 
         Ok(contacts)
     }
+
+    /// Find duplicate contacts grouped by phone number
+    /// Returns a map of phone numbers to lists of contacts with that phone number
+    /// Only includes phone numbers with 2+ contacts
+    pub async fn find_duplicates_by_phone(&self) -> DomainResult<std::collections::HashMap<String, Vec<Contact>>> {
+        use std::collections::HashMap;
+
+        // Get all contacts with phone numbers
+        let rows = sqlx::query_as::<_, ContactRow>(
+            "SELECT id, first_name, last_name, email, phone, organization, title, notes, metadata, created_at, updated_at, created_by, version, last_synced_at
+             FROM contacts
+             WHERE phone IS NOT NULL AND phone != ''
+             ORDER BY phone, created_at"
+        )
+        .fetch_all(self.pool)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        let mut duplicates: HashMap<String, Vec<Contact>> = HashMap::new();
+
+        for row in rows {
+            // Clone phone before borrowing row
+            let phone = match &row.phone {
+                Some(p) => p.clone(),
+                None => continue,
+            };
+
+            let social_handles = sqlx::query_as::<_, SocialHandleRow>(
+                "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?",
+            )
+            .bind(row.id.clone())
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+            let tags = sqlx::query_scalar::<_, String>(
+                "SELECT tag_id FROM contact_tags WHERE contact_id = ?",
+            )
+            .bind(&row.id)
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?
+            .into_iter()
+            .filter_map(|s| Uuid::parse_str(&s).ok())
+            .collect();
+
+            let projects = sqlx::query_scalar::<_, String>(
+                "SELECT project_id FROM project_contacts WHERE contact_id = ?",
+            )
+            .bind(&row.id)
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?
+            .into_iter()
+            .filter_map(|s| Uuid::parse_str(&s).ok())
+            .collect();
+
+            let groups = sqlx::query_scalar::<_, String>(
+                "SELECT group_id FROM contact_groups WHERE contact_id = ?",
+            )
+            .bind(&row.id)
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?
+            .into_iter()
+            .filter_map(|s| Uuid::parse_str(&s).ok())
+            .collect();
+
+            let contact = row.into_contact(social_handles, tags, projects, groups);
+            duplicates.entry(phone).or_insert_with(Vec::new).push(contact);
+        }
+
+        // Filter to only include phone numbers with 2+ contacts
+        duplicates.retain(|_, contacts| contacts.len() > 1);
+
+        Ok(duplicates)
+    }
+
+    /// Merge contact data from merge_id into keep_id, then delete merge_id
+    /// Returns statistics about what was merged
+    pub async fn merge_contacts(&self, keep_id: Uuid, merge_id: Uuid) -> DomainResult<MergeStatistics> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        let mut stats = MergeStatistics::default();
+
+        // Get both contacts to merge their data
+        let keep_contact = self.get_by_id(keep_id).await?;
+        let merge_contact = self.get_by_id(merge_id).await?;
+
+        // 1. Merge notes (append)
+        let merged_notes = if let Some(keep_notes) = &keep_contact.notes {
+            if let Some(merge_notes) = &merge_contact.notes {
+                if !merge_notes.is_empty() {
+                    Some(format!("{}\n\n--- Merged from duplicate contact ---\n{}", keep_notes, merge_notes))
+                } else {
+                    Some(keep_notes.clone())
+                }
+            } else {
+                Some(keep_notes.clone())
+            }
+        } else {
+            merge_contact.notes.clone()
+        };
+
+        sqlx::query("UPDATE contacts SET notes = ? WHERE id = ?")
+            .bind(&merged_notes)
+            .bind(keep_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        // 2. Merge social_handles (deduplicate by platform)
+        let merge_handles = sqlx::query_as::<_, SocialHandleRow>(
+            "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?",
+        )
+        .bind(merge_id.to_string())
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        for handle in merge_handles {
+            // Only add if keep_contact doesn't already have this platform
+            let exists = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM social_handles WHERE contact_id = ? AND platform = ?",
+            )
+            .bind(keep_id.to_string())
+            .bind(&handle.platform)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+            if exists == 0 {
+                sqlx::query(
+                    "INSERT INTO social_handles (contact_id, platform, handle, url) VALUES (?, ?, ?, ?)"
+                )
+                .bind(keep_id.to_string())
+                .bind(&handle.platform)
+                .bind(&handle.handle)
+                .bind(&handle.url)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
+                stats.social_handles_merged += 1;
+            }
+        }
+
+        // 3. Merge tags (union)
+        let merge_tags = sqlx::query_scalar::<_, String>(
+            "SELECT tag_id FROM contact_tags WHERE contact_id = ?",
+        )
+        .bind(merge_id.to_string())
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        for tag_id in merge_tags {
+            // Use INSERT OR IGNORE to avoid duplicates
+            let result = sqlx::query(
+                "INSERT OR IGNORE INTO contact_tags (contact_id, tag_id) VALUES (?, ?)"
+            )
+            .bind(keep_id.to_string())
+            .bind(&tag_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+            if result.rows_affected() > 0 {
+                stats.tags_merged += 1;
+            }
+        }
+
+        // 4. Merge projects (union)
+        let merge_projects = sqlx::query_scalar::<_, String>(
+            "SELECT project_id FROM project_contacts WHERE contact_id = ?",
+        )
+        .bind(merge_id.to_string())
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        for project_id in merge_projects {
+            let result = sqlx::query(
+                "INSERT OR IGNORE INTO project_contacts (project_id, contact_id) VALUES (?, ?)"
+            )
+            .bind(&project_id)
+            .bind(keep_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+            if result.rows_affected() > 0 {
+                stats.projects_merged += 1;
+            }
+        }
+
+        // 5. Merge groups (union)
+        let merge_groups = sqlx::query_scalar::<_, String>(
+            "SELECT group_id FROM contact_groups WHERE contact_id = ?",
+        )
+        .bind(merge_id.to_string())
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        for group_id in merge_groups {
+            let result = sqlx::query(
+                "INSERT OR IGNORE INTO contact_groups (group_id, contact_id) VALUES (?, ?)"
+            )
+            .bind(&group_id)
+            .bind(keep_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+            if result.rows_affected() > 0 {
+                stats.groups_merged += 1;
+            }
+        }
+
+        // 6. Re-link sms_history
+        let sms_result = sqlx::query(
+            "UPDATE sms_history SET contact_id = ? WHERE contact_id = ?"
+        )
+        .bind(keep_id.to_string())
+        .bind(merge_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        stats.sms_messages_relinked = sms_result.rows_affected() as usize;
+
+        // 7. Re-link communication_attempts
+        let comm_result = sqlx::query(
+            "UPDATE communication_attempts SET contact_id = ? WHERE contact_id = ?"
+        )
+        .bind(keep_id.to_string())
+        .bind(merge_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        stats.communications_relinked = comm_result.rows_affected() as usize;
+
+        // 8. Re-link notes table entries
+        let notes_result = sqlx::query(
+            "UPDATE notes SET contact_id = ? WHERE contact_id = ?"
+        )
+        .bind(keep_id.to_string())
+        .bind(merge_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        stats.notes_relinked = notes_result.rows_affected() as usize;
+
+        // 9. Re-link ai_suggestions
+        let ai_result = sqlx::query(
+            "UPDATE ai_suggestions SET contact_id = ? WHERE contact_id = ?"
+        )
+        .bind(keep_id.to_string())
+        .bind(merge_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        stats.ai_suggestions_relinked = ai_result.rows_affected() as usize;
+
+        // 10. Re-link event_contacts
+        let events_result = sqlx::query(
+            "UPDATE OR IGNORE event_contacts SET contact_id = ? WHERE contact_id = ?"
+        )
+        .bind(keep_id.to_string())
+        .bind(merge_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        stats.events_relinked = events_result.rows_affected() as usize;
+
+        // 11. Delete the duplicate contact (CASCADE will handle social_handles, contact_tags, etc.)
+        sqlx::query("DELETE FROM contacts WHERE id = ?")
+            .bind(merge_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        tx.commit()
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        Ok(stats)
+    }
 }
 
 #[derive(sqlx::FromRow)]
@@ -433,4 +724,17 @@ impl From<SocialHandleRow> for SocialHandle {
             url: row.url,
         }
     }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct MergeStatistics {
+    pub social_handles_merged: usize,
+    pub tags_merged: usize,
+    pub projects_merged: usize,
+    pub groups_merged: usize,
+    pub sms_messages_relinked: usize,
+    pub communications_relinked: usize,
+    pub notes_relinked: usize,
+    pub ai_suggestions_relinked: usize,
+    pub events_relinked: usize,
 }

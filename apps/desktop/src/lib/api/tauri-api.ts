@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { sendNotification } from '@tauri-apps/plugin-notification';
-import type { Contact, Group, Project, CalendarEvent, Note, CommunicationAttempt, Communication, Attachment } from './types';
+import type { Contact, Group, Project, CalendarEvent, Note, CommunicationAttempt, Communication, Attachment, ImportAnalysis, SmartImportPreview } from './types';
 
 export class TauriApiClient {
   // Contacts
@@ -47,6 +47,14 @@ export class TauriApiClient {
 
   async deleteGroup(id: string): Promise<void> {
     return invoke('delete_group', { id });
+  }
+
+  async addGroupMember(groupId: string, contactId: string): Promise<void> {
+    return invoke('add_group_member', { groupId, contactId });
+  }
+
+  async removeGroupMember(groupId: string, contactId: string): Promise<void> {
+    return invoke('remove_group_member', { groupId, contactId });
   }
 
   // Projects
@@ -164,6 +172,54 @@ export class TauriApiClient {
     return 0;
   }
 
+  // SMS Import - with proper contact matching and message storage
+  async importSmsFile(filePath: string): Promise<{
+    contacts_created: number;
+    contacts_found: number;
+    messages_imported: number;
+    total_phone_numbers: number;
+    failed: number;
+  }> {
+    return invoke('import_sms_file', { filePath });
+  }
+
+  async checkIsSmsFile(filePath: string): Promise<boolean> {
+    return invoke('check_is_sms_file', { filePath });
+  }
+
+  // Smart Import - AI-powered format detection and mapping
+  async analyzeImportFile(filePath: string): Promise<ImportAnalysis> {
+    return invoke('analyze_import_file', { filePath });
+  }
+
+  async previewImport(filePath: string, fieldMappings: Record<string, string>): Promise<SmartImportPreview> {
+    return invoke('preview_import', { filePath, fieldMappings });
+  }
+
+  async executeImport(filePath: string, fieldMappings: Record<string, string>): Promise<number> {
+    return invoke('execute_import', { filePath, fieldMappings });
+  }
+
+  async smartImportDialog(): Promise<number | null> {
+    const selected = await open({
+      multiple: false,
+      filters: [
+        { name: 'All Supported', extensions: ['csv', 'json', 'xml', 'html', 'htm', 'txt'] },
+        { name: 'CSV', extensions: ['csv'] },
+        { name: 'JSON', extensions: ['json'] },
+        { name: 'XML', extensions: ['xml'] },
+        { name: 'HTML', extensions: ['html', 'htm'] },
+        { name: 'Text', extensions: ['txt'] }
+      ]
+    });
+
+    if (selected && typeof selected === 'string') {
+      // This will be handled by the import wizard UI
+      return null;
+    }
+    return null;
+  }
+
   // Dashboard
   async getDashboard(): Promise<any> {
     return invoke('get_dashboard');
@@ -213,6 +269,15 @@ export class TauriApiClient {
       filters: filters || []
     });
     return selected;
+  }
+
+  // Deduplication
+  async findDuplicateContacts(): Promise<any[]> {
+    return invoke('find_duplicate_contacts');
+  }
+
+  async mergeContacts(keepId: string, mergeId: string): Promise<any> {
+    return invoke('merge_contacts_cmd', { keepId, mergeId });
   }
 
   // Notification Helper

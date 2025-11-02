@@ -1,0 +1,41 @@
+{
+  "contacts": [
+    {
+      "name": {
+        "first": "John",
+        "last": "Doe"
+      },
+      "contact_info": {
+        "email": "john.doe@example.com",
+        "phone": "555-0101"
+      },
+      "work": {
+        "company": "Acme Corporation",
+        "position": "Software Engineer"
+      },
+      "location": {
+        "city": "Springfield",
+        "state": "IL"
+      }
+    },
+    {
+      "name": {
+        "first": "Jane",
+        "last": "Smith"
+      },
+      "contact_info": {
+        "email": "jane.smith@example.com",
+        "phone": "555-0102"
+      },
+      "work": {
+        "company": "Tech Solutions Inc",
+        "position": "Product Manager"
+      }
+    }
+  ],
+  "metadata": {
+    "export_date": "2024-11-02",
+    "source": "CRM System",
+    "version": "1.0"
+  }
+}

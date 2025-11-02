@@ -85,7 +85,7 @@ pub async fn import_command(
     Ok(())
 }
 
-pub async fn list_command(limit: i64) -> Result<()> {
+pub async fn list_command(limit: i64, only_named: bool) -> Result<()> {
     let config = AuthConfig::load()?;
 
     if config.is_authenticated() {
@@ -98,7 +98,13 @@ pub async fn list_command(limit: i64) -> Result<()> {
             .await?;
 
         if response.status().is_success() {
-            let contacts: Vec<Contact> = response.json().await?;
+            let mut contacts: Vec<Contact> = response.json().await?;
+
+            // Apply client-side filtering
+            if only_named {
+                contacts.retain(|c| !c.first_name.is_empty() || c.last_name.is_some());
+            }
+
             println!("Contacts (from sync service):");
             for contact in contacts {
                 println!(
@@ -117,7 +123,12 @@ pub async fn list_command(limit: i64) -> Result<()> {
         let store = LocalStore::new("sqlite:./data/contacts.db").await?;
         let repo = ContactRepository::new(store.pool());
 
-        let contacts = repo.list(limit, 0).await.map_err(|e| anyhow::anyhow!(e))?;
+        let mut contacts = repo.list(limit, 0).await.map_err(|e| anyhow::anyhow!(e))?;
+
+        // Apply filtering
+        if only_named {
+            contacts.retain(|c| !c.first_name.is_empty() || c.last_name.is_some());
+        }
 
         println!("Contacts (local):");
         for contact in contacts {
@@ -466,6 +477,140 @@ pub async fn status_command() -> Result<()> {
         println!("API URL: {}", config.api_url);
     } else {
         println!("Not logged in");
+    }
+
+    Ok(())
+}
+
+pub async fn merge_duplicates_command(dry_run: bool, phone: Option<String>) -> Result<()> {
+    use std::io::{self, Write};
+
+    let store = LocalStore::new("sqlite:./data/contacts.db").await?;
+    let contact_repo = ContactRepository::new(store.pool());
+
+    println!("Scanning for duplicate contacts by phone number...\n");
+
+    let duplicates = contact_repo.find_duplicates_by_phone().await?;
+
+    if duplicates.is_empty() {
+        println!("No duplicate contacts found!");
+        return Ok(());
+    }
+
+    // Filter by phone if specified
+    let filtered_duplicates: Vec<_> = if let Some(filter_phone) = &phone {
+        duplicates
+            .into_iter()
+            .filter(|(p, _)| p == filter_phone)
+            .collect()
+    } else {
+        duplicates.into_iter().collect()
+    };
+
+    if filtered_duplicates.is_empty() {
+        println!("No duplicate contacts found for phone: {}", phone.unwrap());
+        return Ok(());
+    }
+
+    println!("Found {} phone numbers with duplicates:\n", filtered_duplicates.len());
+
+    let mut total_merges = 0;
+    let mut total_duplicates_removed = 0;
+
+    for (phone_num, contacts) in filtered_duplicates {
+        println!("Phone: {}", phone_num);
+        println!("  {} duplicate contacts found:", contacts.len());
+
+        for (idx, contact) in contacts.iter().enumerate() {
+            let name = format!("{} {}",
+                contact.first_name,
+                contact.last_name.as_deref().unwrap_or("")
+            ).trim().to_string();
+
+            println!("    {}. {} (ID: {})", idx + 1, name, contact.id);
+            if let Some(email) = &contact.email {
+                println!("       Email: {}", email);
+            }
+            if contact.notes.is_some() {
+                println!("       Has notes: Yes");
+            }
+            if !contact.tags.is_empty() {
+                println!("       Tags: {}", contact.tags.len());
+            }
+            if !contact.projects.is_empty() {
+                println!("       Projects: {}", contact.projects.len());
+            }
+        }
+
+        if dry_run {
+            println!("  [DRY RUN] Would merge {} duplicates into the oldest contact\n", contacts.len() - 1);
+            total_duplicates_removed += contacts.len() - 1;
+        } else {
+            // Ask user which contact to keep (default: oldest = first one)
+            print!("  Which contact to keep? [1-{}] (default: 1 - oldest): ", contacts.len());
+            io::stdout().flush()?;
+
+            let mut input = String::new();
+            io::stdin().read_line(&mut input)?;
+            let input = input.trim();
+
+            let keep_idx = if input.is_empty() {
+                0
+            } else {
+                match input.parse::<usize>() {
+                    Ok(idx) if idx > 0 && idx <= contacts.len() => idx - 1,
+                    _ => {
+                        println!("  Invalid selection, skipping this group\n");
+                        continue;
+                    }
+                }
+            };
+
+            let keep_contact = &contacts[keep_idx];
+            println!("  Keeping: {} (ID: {})",
+                format!("{} {}", keep_contact.first_name, keep_contact.last_name.as_deref().unwrap_or("")).trim(),
+                keep_contact.id
+            );
+
+            // Merge all other contacts into the kept one
+            for (idx, contact) in contacts.iter().enumerate() {
+                if idx != keep_idx {
+                    print!("  Merging {} into kept contact... ",
+                        format!("{} {}", contact.first_name, contact.last_name.as_deref().unwrap_or("")).trim()
+                    );
+                    io::stdout().flush()?;
+
+                    match contact_repo.merge_contacts(keep_contact.id, contact.id).await {
+                        Ok(stats) => {
+                            println!("Done!");
+                            println!("    SMS messages: {}", stats.sms_messages_relinked);
+                            println!("    Communications: {}", stats.communications_relinked);
+                            println!("    Notes: {}", stats.notes_relinked);
+                            println!("    Social handles: {}", stats.social_handles_merged);
+                            println!("    Tags: {}", stats.tags_merged);
+                            println!("    Projects: {}", stats.projects_merged);
+                            println!("    Groups: {}", stats.groups_merged);
+                            total_merges += 1;
+                            total_duplicates_removed += 1;
+                        }
+                        Err(e) => {
+                            println!("Failed: {}", e);
+                        }
+                    }
+                }
+            }
+            println!();
+        }
+    }
+
+    if dry_run {
+        println!("\n[DRY RUN] Summary:");
+        println!("  Would remove {} duplicate contacts", total_duplicates_removed);
+        println!("\nRun without --dry-run to actually perform the merges");
+    } else {
+        println!("\nMerge complete!");
+        println!("  Performed {} merge operations", total_merges);
+        println!("  Removed {} duplicate contacts", total_duplicates_removed);
     }
 
     Ok(())

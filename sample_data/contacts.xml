@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<contacts>
+    <contact>
+        <first_name>John</first_name>
+        <last_name>Doe</last_name>
+        <email>john.doe@example.com</email>
+        <phone>555-0101</phone>
+        <organization>Acme Corporation</organization>
+        <title>Software Engineer</title>
+        <address>
+            <street>123 Main St</street>
+            <city>Springfield</city>
+            <state>IL</state>
+            <zip>62701</zip>
+        </address>
+        <notes>Met at tech conference 2024</notes>
+    </contact>
+    <contact>
+        <first_name>Jane</first_name>
+        <last_name>Smith</last_name>
+        <email>jane.smith@example.com</email>
+        <phone>555-0102</phone>
+        <organization>Tech Solutions Inc</organization>
+        <title>Product Manager</title>
+        <address>
+            <city>Chicago</city>
+            <state>IL</state>
+        </address>
+    </contact>
+    <contact>
+        <first_name>Bob</first_name>
+        <last_name>Johnson</last_name>
+        <email>bob.johnson@example.com</email>
+        <phone>555-0103</phone>
+        <organization>Startup Ventures</organization>
+        <title>CTO</title>
+    </contact>
+</contacts>

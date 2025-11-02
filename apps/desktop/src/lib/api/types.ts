@@ -251,6 +251,23 @@ export interface WorkerMetrics {
 	updated_at: string;
 }
 
+// Smart Import types
+export interface ImportAnalysis {
+	detected_format: string;
+	confidence: number;
+	detected_fields: string[];
+	suggested_mappings: Record<string, string>;
+	structure_notes: string;
+	warnings: string[];
+}
+
+export interface SmartImportPreview {
+	total_records: number;
+	sample_records: Record<string, string>[];
+	field_mappings: Record<string, string>;
+}
+
+// Legacy import types
 export interface ImportPreview {
 	headers: string[];
 	rows: string[][];

@@ -67,6 +67,7 @@
 				<option value="size">Sort by Size</option>
 				<option value="date">Sort by Date</option>
 			</select>
+			<a href="/groups/new" class="btn btn-primary">+ Create Group</a>
 		</div>
 	</div>
 

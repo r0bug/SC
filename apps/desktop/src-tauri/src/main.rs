@@ -92,6 +92,8 @@ fn main() {
             create_group,
             update_group,
             delete_group,
+            add_group_member,
+            remove_group_member,
             get_projects,
             get_project,
             create_project,
@@ -109,6 +111,10 @@ fn main() {
             get_communications,
             queue_communication,
             import_csv,
+            import_sms_file,
+            analyze_import_file,
+            preview_import,
+            execute_import,
             get_dashboard,
             get_settings,
             update_settings,
@@ -119,6 +125,9 @@ fn main() {
             download_attachment,
             delete_attachment,
             open_data_directory,
+            find_duplicate_contacts,
+            merge_contacts_cmd,
+            check_is_sms_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

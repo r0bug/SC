@@ -3,10 +3,13 @@
 	import { tauriApi } from '$lib/api/tauri-api';
 	import type { Contact } from '$lib/api/types';
 
+	let allContacts: Contact[] = [];
 	let contacts: Contact[] = [];
 	let loading = true;
 	let searchQuery = '';
 	let searchError = '';
+	let onlyWithNames = false;
+	let searchTimeout: number | undefined;
 
 	onMount(async () => {
 		await loadContacts();
@@ -15,7 +18,8 @@
 	async function loadContacts() {
 		try {
 			loading = true;
-			contacts = await tauriApi.getContacts(100, 0);
+			allContacts = await tauriApi.getContacts(100000, 0); // Load all contacts
+			applyFilters();
 		} catch (error) {
 			console.error('Failed to load contacts:', error);
 		} finally {
@@ -23,24 +27,46 @@
 		}
 	}
 
-	async function handleSearch() {
-		searchError = '';
+	function applyFilters() {
+		let filtered = [...allContacts];
 
-		if (!searchQuery.trim()) {
-			await loadContacts();
-			return;
+		// Filter by search query
+		if (searchQuery.trim()) {
+			const query = searchQuery.toLowerCase().trim();
+			filtered = filtered.filter(c => {
+				const name = getDisplayName(c).toLowerCase();
+				const email = (c.email || '').toLowerCase();
+				const phone = (c.phone || '').toLowerCase();
+				const org = (c.organization || '').toLowerCase();
+				return name.includes(query) || email.includes(query) ||
+				       phone.includes(query) || org.includes(query);
+			});
 		}
 
-		try {
-			loading = true;
-			contacts = await tauriApi.searchContacts(searchQuery);
-			searchError = '';
-		} catch (error: any) {
-			console.error('Search failed:', error);
-			searchError = error.message || 'Failed to search contacts. Please try again.';
-		} finally {
-			loading = false;
+		// Filter by has name
+		if (onlyWithNames) {
+			filtered = filtered.filter(c =>
+				(c.first_name && c.first_name.trim()) ||
+				(c.last_name && c.last_name.trim())
+			);
 		}
+
+		contacts = filtered;
+	}
+
+	function handleSearchInput() {
+		// Debounce search to prevent race conditions
+		if (searchTimeout) {
+			clearTimeout(searchTimeout);
+		}
+		searchTimeout = window.setTimeout(() => {
+			applyFilters();
+		}, 300);
+	}
+
+	function toggleNameFilter() {
+		onlyWithNames = !onlyWithNames;
+		applyFilters();
 	}
 
 	async function deleteContact(id: string) {
@@ -76,13 +102,23 @@
 	</div>
 
 	<div class="filters card">
-		<input
-			type="text"
-			placeholder="Search contacts..."
-			bind:value={searchQuery}
-			on:input={handleSearch}
-			class="search-input"
-		/>
+		<div class="search-row">
+			<input
+				type="text"
+				placeholder="Search contacts..."
+				bind:value={searchQuery}
+				on:input={handleSearchInput}
+				class="search-input"
+			/>
+			<label class="filter-checkbox">
+				<input
+					type="checkbox"
+					bind:checked={onlyWithNames}
+					on:change={toggleNameFilter}
+				/>
+				<span>Only show contacts with names</span>
+			</label>
+		</div>
 		{#if searchError}
 			<div class="error-message">{searchError}</div>
 		{/if}
@@ -186,8 +222,16 @@
 		padding: 1.5rem;
 	}
 
+	.search-row {
+		display: flex;
+		gap: 1rem;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
 	.search-input {
-		width: 100%;
+		flex: 1;
+		min-width: 300px;
 		padding: 0.75rem 1rem;
 		border: 1px solid var(--gray-300);
 		border-radius: 6px;
@@ -198,6 +242,26 @@
 		outline: none;
 		border-color: var(--primary);
 		box-shadow: 0 0 0 3px var(--primary-light);
+	}
+
+	.filter-checkbox {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+		user-select: none;
+		white-space: nowrap;
+	}
+
+	.filter-checkbox input[type="checkbox"] {
+		cursor: pointer;
+		width: 1.125rem;
+		height: 1.125rem;
+	}
+
+	.filter-checkbox span {
+		font-size: 0.9rem;
+		color: var(--gray-700);
 	}
 
 	.error-message {

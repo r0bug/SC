@@ -18,6 +18,9 @@ pub enum ImportFormat {
     Csv,
     Vcard,
     Json,
+    Xml,
+    Html,
+    Text,
     Excel,
     Sms,
     Email,
@@ -25,6 +28,7 @@ pub enum ImportFormat {
     Twitter,
     Facebook,
     Instagram,
+    Unknown, // For AI-detected formats that need user confirmation
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -46,6 +46,8 @@ enum Commands {
     List {
         #[arg(short, long, default_value = "50")]
         limit: i64,
+        #[arg(long)]
+        only_named: bool,
     },
     Search {
         query: String,
@@ -208,6 +210,13 @@ enum Commands {
         #[arg(short, long, default_value = "50")]
         limit: i64,
     },
+    // Contact merge command
+    MergeDuplicates {
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        phone: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -258,8 +267,8 @@ async fn main() -> Result<()> {
                 commands::import_command(csv, vcard, sms).await?;
             }
         }
-        Commands::List { limit } => {
-            commands::list_command(limit).await?;
+        Commands::List { limit, only_named } => {
+            commands::list_command(limit, only_named).await?;
         }
         Commands::Search { query } => {
             commands::search_command(&query).await?;
@@ -438,6 +447,10 @@ async fn main() -> Result<()> {
         }
         Commands::InsightList { entity_type, limit } => {
             commands::insight_list_command(entity_type, limit).await?;
+        }
+        // Contact merge command
+        Commands::MergeDuplicates { dry_run, phone } => {
+            commands::merge_duplicates_command(dry_run, phone).await?;
         }
     }
 
