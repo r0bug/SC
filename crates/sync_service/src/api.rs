@@ -9,8 +9,43 @@ use axum::{
 };
 use core_domain::*;
 use local_store::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+// Request DTOs for creating entities
+#[derive(Debug, Deserialize)]
+pub struct CreateContactRequest {
+    pub first_name: String,
+    pub last_name: Option<String>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub organization: Option<String>,
+    pub title: Option<String>,
+    pub notes: Option<String>,
+    pub social_handles: Option<Vec<SocialHandle>>,
+    pub tags: Option<Vec<Uuid>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTagRequest {
+    pub name: String,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateProjectRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateNoteRequest {
+    pub contact_id: Option<Uuid>,
+    pub project_id: Option<Uuid>,
+    pub title: String,
+    pub content: String,
+}
 
 #[derive(Deserialize)]
 pub struct ListQuery {
@@ -48,10 +83,31 @@ pub async fn list_contacts(
 }
 
 pub async fn create_contact(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
-    Json(contact): Json<Contact>,
+    Json(req): Json<CreateContactRequest>,
 ) -> Result<(StatusCode, Json<Contact>), StatusCode> {
+    let contact = Contact {
+        id: Uuid::new_v4(),
+        first_name: req.first_name,
+        last_name: req.last_name,
+        email: req.email,
+        phone: req.phone,
+        organization: req.organization,
+        title: req.title,
+        notes: req.notes,
+        social_handles: req.social_handles.unwrap_or_default(),
+        tags: req.tags.unwrap_or_default(),
+        projects: Vec::new(),
+        groups: Vec::new(),
+        metadata: serde_json::json!({}),
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        created_by: user.id,
+        version: 1,
+        last_synced_at: None,
+    };
+
     let repo = ContactRepository::new(state.store.pool());
     repo.create(&contact)
         .await
@@ -62,7 +118,7 @@ pub async fn create_contact(
         .ws_broadcaster
         .broadcast(crate::websocket::BroadcastEvent::ContactCreated {
             id: contact.id,
-            user_id: contact.created_by,
+            user_id: user.id,
         })
         .await;
 
@@ -125,8 +181,15 @@ pub async fn list_tags(
 pub async fn create_tag(
     AuthUser(_user): AuthUser,
     State(state): State<AppState>,
-    Json(tag): Json<Tag>,
+    Json(req): Json<CreateTagRequest>,
 ) -> Result<(StatusCode, Json<Tag>), StatusCode> {
+    let tag = Tag {
+        id: Uuid::new_v4(),
+        name: req.name,
+        color: req.color,
+        created_at: chrono::Utc::now(),
+    };
+
     let repo = TagRepository::new(state.store.pool());
     repo.create(&tag)
         .await
@@ -147,10 +210,34 @@ pub async fn list_projects(
 }
 
 pub async fn create_project(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
-    Json(project): Json<Project>,
+    Json(req): Json<CreateProjectRequest>,
 ) -> Result<(StatusCode, Json<Project>), StatusCode> {
+    // Parse status from string
+    let status = match req.status.as_deref() {
+        Some("active") | Some("Active") => ProjectStatus::Active,
+        Some("completed") | Some("Completed") => ProjectStatus::Completed,
+        Some("archived") | Some("Archived") => ProjectStatus::Archived,
+        Some("on_hold") | Some("OnHold") | Some("on hold") => ProjectStatus::OnHold,
+        _ => ProjectStatus::Active, // Default to Active
+    };
+
+    let project = Project {
+        id: Uuid::new_v4(),
+        name: req.name,
+        description: req.description,
+        status,
+        contacts: Vec::new(),
+        tags: Vec::new(),
+        attachment_ids: Vec::new(),
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        created_by: user.id,
+        version: 1,
+        last_synced_at: None,
+    };
+
     let repo = ProjectRepository::new(state.store.pool());
     repo.create(&project)
         .await
@@ -197,10 +284,24 @@ pub async fn delete_project(
 }
 
 pub async fn create_note(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
-    Json(note): Json<Note>,
+    Json(req): Json<CreateNoteRequest>,
 ) -> Result<(StatusCode, Json<Note>), StatusCode> {
+    let note = Note {
+        id: Uuid::new_v4(),
+        contact_id: req.contact_id,
+        project_id: req.project_id,
+        title: req.title,
+        content: req.content,
+        attachment_ids: Vec::new(),
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        created_by: user.id,
+        version: 1,
+        last_synced_at: None,
+    };
+
     let repo = NoteRepository::new(state.store.pool());
     repo.create(&note)
         .await
