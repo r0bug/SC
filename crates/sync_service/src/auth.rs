@@ -133,9 +133,13 @@ impl AuthService {
             .await
             .map_err(|_| AuthError::InvalidCredentials)?;
 
-        // Verify password
-        verify(req.password.as_bytes(), &user.password_hash)
+        // Verify password - must check the boolean return value!
+        let password_matches = verify(req.password.as_bytes(), &user.password_hash)
             .map_err(|_| AuthError::InvalidCredentials)?;
+
+        if !password_matches {
+            return Err(AuthError::InvalidCredentials);
+        }
 
         // Check if user is active
         if !user.active {
