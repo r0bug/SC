@@ -1,6 +1,6 @@
-use crate::auth::{AuthUser, LoginRequest, SignupRequest};
+use crate::auth::{AuthError, AuthUser, LoginRequest, SignupRequest};
 use crate::state::AppState;
-use axum::{extract::State, response::IntoResponse, Json};
+use axum::{extract::State, http::HeaderMap, response::IntoResponse, Json};
 
 /// POST /api/auth/signup
 pub async fn signup(
@@ -25,16 +25,25 @@ pub async fn login(
 }
 
 /// POST /api/auth/refresh
+/// NOTE: We need the original JWT token, not just the user, to refresh it
 pub async fn refresh(
     State(app_state): State<AppState>,
-    AuthUser(user): AuthUser,
+    headers: HeaderMap,
+    AuthUser(_user): AuthUser, // Still validate auth, but don't use the user
 ) -> impl IntoResponse {
-    match app_state
-        .auth_service
-        .refresh_token(&user.id.to_string())
-        .await
-    {
-        Ok(token) => Ok(Json(serde_json::json!({ "token": token }))),
+    // Extract the token from Authorization header
+    let auth_header = headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok())
+        .ok_or(AuthError::InvalidToken)?;
+
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or(AuthError::InvalidToken)?;
+
+    // Refresh the token (validates and generates new one)
+    match app_state.auth_service.refresh_token(token).await {
+        Ok(new_token) => Ok(Json(serde_json::json!({ "token": new_token }))),
         Err(err) => Err(err),
     }
 }
