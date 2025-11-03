@@ -6,6 +6,8 @@ use axum::{
     Json,
 };
 use chrono::Utc;
+use core_domain::CommunicationStatus as DomainCommunicationStatus;
+use local_store::repositories::CommunicationRepository;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -25,6 +27,23 @@ pub enum CommunicationStatus {
     Bounced,
 }
 
+impl CommunicationStatus {
+    fn to_domain(&self) -> DomainCommunicationStatus {
+        match self {
+            CommunicationStatus::Queued => DomainCommunicationStatus::Pending,
+            CommunicationStatus::Processing => DomainCommunicationStatus::Retrying,
+            CommunicationStatus::Sent => DomainCommunicationStatus::Sent,
+            CommunicationStatus::Delivered => DomainCommunicationStatus::Sent,
+            CommunicationStatus::Failed => DomainCommunicationStatus::Failed {
+                reason: "Worker reported failure".to_string(),
+            },
+            CommunicationStatus::Bounced => DomainCommunicationStatus::Failed {
+                reason: "Message bounced".to_string(),
+            },
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct StatusResponse {
     pub message: String,
@@ -34,13 +53,10 @@ pub struct StatusResponse {
 /// POST /api/communication/:id/status
 /// Worker callback endpoint to update communication status
 pub async fn update_communication_status(
-    State(_app_state): State<AppState>,
+    State(app_state): State<AppState>,
     Path(communication_id): Path<Uuid>,
     Json(update): Json<CommunicationStatusUpdate>,
 ) -> Result<Json<StatusResponse>, (StatusCode, &'static str)> {
-    // Here we would normally update the communication status in the database
-    // For now, just acknowledge the update
-
     tracing::info!(
         "Communication {} status updated to {:?}",
         communication_id,
@@ -51,6 +67,18 @@ pub async fn update_communication_status(
         tracing::info!("Status message: {}", message);
     }
 
+    // Persist the status update to the database
+    let repo = CommunicationRepository::new(app_state.store.pool());
+    let domain_status = update.status.to_domain();
+    let attempted_at = Some(Utc::now());
+
+    repo.update_status(communication_id, domain_status, attempted_at)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update communication status: {:?}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to update status")
+        })?;
+
     Ok(Json(StatusResponse {
         message: format!("Status updated to {:?}", update.status),
         communication_id,
@@ -60,22 +88,38 @@ pub async fn update_communication_status(
 /// POST /api/communication/batch-status
 /// Worker callback endpoint to update multiple communication statuses at once
 pub async fn batch_update_communication_status(
-    State(_app_state): State<AppState>,
+    State(app_state): State<AppState>,
     Json(updates): Json<Vec<BatchStatusUpdate>>,
 ) -> Result<Json<BatchStatusResponse>, (StatusCode, &'static str)> {
     let count = updates.len();
+    let repo = CommunicationRepository::new(app_state.store.pool());
+    let attempted_at = Some(Utc::now());
 
+    let mut processed = 0;
     for update in updates {
         tracing::info!(
             "Batch update: Communication {} status -> {:?}",
             update.communication_id,
             update.status
         );
+
+        // Persist each status update to the database
+        let domain_status = update.status.to_domain();
+        match repo.update_status(update.communication_id, domain_status, attempted_at).await {
+            Ok(_) => processed += 1,
+            Err(e) => {
+                tracing::error!(
+                    "Failed to update communication {} status: {:?}",
+                    update.communication_id,
+                    e
+                );
+            }
+        }
     }
 
     Ok(Json(BatchStatusResponse {
-        message: format!("Updated {} communication statuses", count),
-        processed: count,
+        message: format!("Updated {} of {} communication statuses", processed, count),
+        processed,
     }))
 }
 
