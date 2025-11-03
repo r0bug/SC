@@ -593,6 +593,30 @@ impl<'a> ContactRepository<'a> {
         .map_err(|e| DomainError::Internal(e.to_string()))?;
         stats.sms_messages_relinked = sms_result.rows_affected() as usize;
 
+        // 6b. Deduplicate SMS messages for the kept contact
+        // Find and delete duplicate SMS messages based on phone_number, message_date, message_type, and body
+        // Keep the one with the lowest id (earliest import)
+        let dedupe_result = sqlx::query(
+            "DELETE FROM sms_history
+             WHERE id IN (
+                 SELECT id FROM (
+                     SELECT id,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY phone_number, message_date, message_type, body
+                                ORDER BY id
+                            ) as rn
+                     FROM sms_history
+                     WHERE contact_id = ?
+                 )
+                 WHERE rn > 1
+             )"
+        )
+        .bind(keep_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        stats.sms_duplicates_removed = dedupe_result.rows_affected() as usize;
+
         // 7. Re-link communication_attempts
         let comm_result = sqlx::query(
             "UPDATE communication_attempts SET contact_id = ? WHERE contact_id = ?"
@@ -733,6 +757,7 @@ pub struct MergeStatistics {
     pub projects_merged: usize,
     pub groups_merged: usize,
     pub sms_messages_relinked: usize,
+    pub sms_duplicates_removed: usize,
     pub communications_relinked: usize,
     pub notes_relinked: usize,
     pub ai_suggestions_relinked: usize,
