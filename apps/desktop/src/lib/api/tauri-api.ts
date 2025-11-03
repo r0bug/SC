@@ -3,6 +3,18 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { sendNotification } from '@tauri-apps/plugin-notification';
 import type { Contact, Group, Project, CalendarEvent, Note, CommunicationAttempt, Communication, Attachment, ImportAnalysis, SmartImportPreview } from './types';
 
+// Utility function to generate UUID
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// System user ID for desktop app
+const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
+
 export class TauriApiClient {
   // Contacts
   async getContacts(limit: number = 100, offset: number = 0): Promise<Contact[]> {
@@ -10,14 +22,35 @@ export class TauriApiClient {
   }
 
   async getContact(id: string): Promise<Contact> {
-    const contacts = await this.getContacts(1000, 0);
+    const contacts = await this.getContacts(10000, 0);
     const contact = contacts.find(c => c.id === id);
     if (!contact) throw new Error('Contact not found');
     return contact;
   }
 
   async createContact(contact: Partial<Contact>): Promise<Contact> {
-    return invoke('create_contact', { contact });
+    const now = new Date().toISOString();
+    const fullContact: Contact = {
+      id: generateUUID(),
+      first_name: contact.first_name || '',
+      last_name: contact.last_name || null,
+      email: contact.email || null,
+      phone: contact.phone || null,
+      organization: contact.organization || null,
+      title: contact.title || null,
+      notes: contact.notes || null,
+      social_handles: contact.social_handles || [],
+      tags: contact.tags || [],
+      projects: contact.projects || [],
+      groups: contact.groups || [],
+      created_at: now,
+      updated_at: now,
+      created_by: SYSTEM_USER_ID,
+      version: 1,
+      last_synced_at: null,
+      metadata: contact.metadata || {}
+    };
+    return invoke('create_contact', { contact: fullContact });
   }
 
   async updateContact(id: string, updates: Partial<Contact>): Promise<Contact> {
@@ -37,8 +70,25 @@ export class TauriApiClient {
     return invoke('get_groups');
   }
 
+  async getGroup(id: string): Promise<Group> {
+    const groups = await this.getGroups();
+    const group = groups.find(g => g.id === id);
+    if (!group) throw new Error('Group not found');
+    return group;
+  }
+
   async createGroup(group: Partial<Group>): Promise<Group> {
-    return invoke('create_group', { group });
+    const now = new Date().toISOString();
+    const fullGroup: Group = {
+      id: generateUUID(),
+      name: group.name || '',
+      description: group.description || null,
+      contact_ids: group.contact_ids || [],
+      created_at: now,
+      updated_at: now,
+      created_by: SYSTEM_USER_ID
+    };
+    return invoke('create_group', { group: fullGroup });
   }
 
   async updateGroup(id: string, group: Partial<Group>): Promise<Group> {
@@ -67,7 +117,21 @@ export class TauriApiClient {
   }
 
   async createProject(project: Partial<Project>): Promise<Project> {
-    return invoke('create_project', { project });
+    const now = new Date().toISOString();
+    const fullProject: Project = {
+      id: generateUUID(),
+      name: project.name || '',
+      description: project.description || null,
+      status: project.status || 'Planning',
+      contact_ids: project.contact_ids || [],
+      start_date: project.start_date || null,
+      end_date: project.end_date || null,
+      created_at: now,
+      updated_at: now,
+      created_by: SYSTEM_USER_ID,
+      metadata: project.metadata || {}
+    };
+    return invoke('create_project', { project: fullProject });
   }
 
   async updateProject(id: string, project: Partial<Project>): Promise<Project> {
@@ -91,8 +155,30 @@ export class TauriApiClient {
     return invoke('get_calendar_events', { start, end });
   }
 
+  async getEvent(id: string): Promise<CalendarEvent> {
+    const events = await this.getCalendarEvents();
+    const event = events.find(e => e.id === id);
+    if (!event) throw new Error('Event not found');
+    return event;
+  }
+
   async createEvent(event: Partial<CalendarEvent>): Promise<CalendarEvent> {
-    return invoke('create_event', { event });
+    const now = new Date().toISOString();
+    const fullEvent: CalendarEvent = {
+      id: generateUUID(),
+      title: event.title || '',
+      description: event.description || null,
+      location: event.location || null,
+      start_time: event.start_time || now,
+      end_time: event.end_time || null,
+      all_day: event.all_day || false,
+      recurrence_rule: event.recurrence_rule || null,
+      attendees: event.attendees || [],
+      created_at: now,
+      updated_at: now,
+      created_by: SYSTEM_USER_ID
+    };
+    return invoke('create_event', { event: fullEvent });
   }
 
   async updateEvent(id: string, event: Partial<CalendarEvent>): Promise<CalendarEvent> {
@@ -109,7 +195,17 @@ export class TauriApiClient {
   }
 
   async createNote(note: Partial<Note>): Promise<Note> {
-    return invoke('create_note', { note });
+    const now = new Date().toISOString();
+    const fullNote: Note = {
+      id: generateUUID(),
+      entity_type: note.entity_type || 'Contact',
+      entity_id: note.entity_id || '',
+      content: note.content || '',
+      created_at: now,
+      updated_at: now,
+      created_by: SYSTEM_USER_ID
+    };
+    return invoke('create_note', { note: fullNote });
   }
 
   // Communications
