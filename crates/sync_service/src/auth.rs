@@ -15,7 +15,20 @@ use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
 use uuid::Uuid;
 
-const JWT_SECRET: &[u8] = b"your-secret-key-change-in-production";
+fn get_jwt_secret() -> &'static [u8] {
+    // Read JWT secret from environment variable at runtime
+    // Falls back to a default for development ONLY - this should be set in production
+    static JWT_SECRET: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
+
+    JWT_SECRET.get_or_init(|| {
+        std::env::var("JWT_SECRET")
+            .unwrap_or_else(|_| {
+                tracing::warn!("JWT_SECRET not set! Using insecure default. Set JWT_SECRET environment variable in production!");
+                "your-secret-key-change-in-production".to_string()
+            })
+            .into_bytes()
+    }).as_slice()
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -198,7 +211,7 @@ fn generate_jwt(user_id: &Uuid) -> Result<String, AuthError> {
     encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret(JWT_SECRET),
+        &EncodingKey::from_secret(get_jwt_secret()),
     )
     .map_err(|_| AuthError::InternalError)
 }
@@ -206,7 +219,7 @@ fn generate_jwt(user_id: &Uuid) -> Result<String, AuthError> {
 fn validate_jwt(token: &str) -> Result<Uuid, AuthError> {
     let token_data: TokenData<Claims> = decode(
         token,
-        &DecodingKey::from_secret(JWT_SECRET),
+        &DecodingKey::from_secret(get_jwt_secret()),
         &Validation::default(),
     )
     .map_err(|_| AuthError::InvalidToken)?;
