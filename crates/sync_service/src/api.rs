@@ -1,3 +1,4 @@
+use crate::auth::AuthUser;
 use crate::state::AppState;
 use crate::validation::{self};
 use ai_middleware::SuggestionEngine;
@@ -24,6 +25,7 @@ fn default_limit() -> i64 {
 }
 
 pub async fn list_contacts(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Query(params): Query<ListQuery>,
 ) -> Result<Json<Vec<Contact>>, (StatusCode, Json<serde_json::Value>)> {
@@ -46,6 +48,7 @@ pub async fn list_contacts(
 }
 
 pub async fn create_contact(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Json(contact): Json<Contact>,
 ) -> Result<(StatusCode, Json<Contact>), StatusCode> {
@@ -67,6 +70,7 @@ pub async fn create_contact(
 }
 
 pub async fn get_contact(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Contact>, StatusCode> {
@@ -84,6 +88,7 @@ pub struct SearchQuery {
 }
 
 pub async fn search_contacts(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Json(search): Json<SearchQuery>,
 ) -> Result<Json<Vec<Contact>>, (StatusCode, Json<serde_json::Value>)> {
@@ -105,7 +110,10 @@ pub async fn search_contacts(
     Ok(Json(contacts))
 }
 
-pub async fn list_tags(State(state): State<AppState>) -> Result<Json<Vec<Tag>>, StatusCode> {
+pub async fn list_tags(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<Tag>>, StatusCode> {
     let repo = TagRepository::new(state.store.pool());
     let tags = repo
         .list()
@@ -115,6 +123,7 @@ pub async fn list_tags(State(state): State<AppState>) -> Result<Json<Vec<Tag>>, 
 }
 
 pub async fn create_tag(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Json(tag): Json<Tag>,
 ) -> Result<(StatusCode, Json<Tag>), StatusCode> {
@@ -126,6 +135,7 @@ pub async fn create_tag(
 }
 
 pub async fn list_projects(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Project>>, StatusCode> {
     let repo = ProjectRepository::new(state.store.pool());
@@ -137,6 +147,7 @@ pub async fn list_projects(
 }
 
 pub async fn create_project(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Json(project): Json<Project>,
 ) -> Result<(StatusCode, Json<Project>), StatusCode> {
@@ -148,6 +159,7 @@ pub async fn create_project(
 }
 
 pub async fn create_note(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Json(note): Json<Note>,
 ) -> Result<(StatusCode, Json<Note>), StatusCode> {
@@ -159,6 +171,7 @@ pub async fn create_note(
 }
 
 pub async fn list_notes_by_contact(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<Note>>, StatusCode> {
@@ -171,6 +184,7 @@ pub async fn list_notes_by_contact(
 }
 
 pub async fn queue_communication(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Json(attempt): Json<CommunicationAttempt>,
 ) -> Result<(StatusCode, Json<CommunicationAttempt>), StatusCode> {
@@ -182,6 +196,7 @@ pub async fn queue_communication(
 }
 
 pub async fn create_share(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Json(invite): Json<ShareInvite>,
 ) -> Result<(StatusCode, Json<ShareInvite>), StatusCode> {
@@ -193,6 +208,7 @@ pub async fn create_share(
 }
 
 pub async fn get_suggestions(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Path(contact_id): Path<Uuid>,
 ) -> Result<Json<Vec<AiSuggestion>>, StatusCode> {
