@@ -81,6 +81,53 @@ impl<'a> CommunicationRepository<'a> {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
+    pub async fn list_all_attempts(&self, limit: i64, offset: i64) -> DomainResult<Vec<CommunicationAttempt>> {
+        let rows = sqlx::query_as::<_, CommAttemptRow>(
+            "SELECT id, contact_id, method, subject, message, status, scheduled_at, attempted_at, retry_count, created_at
+             FROM communication_attempts
+             ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        )
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(self.pool)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        Ok(rows.into_iter().map(|r| r.into()).collect())
+    }
+
+    pub async fn list_by_contact(&self, contact_id: Uuid) -> DomainResult<Vec<CommunicationAttempt>> {
+        let rows = sqlx::query_as::<_, CommAttemptRow>(
+            "SELECT id, contact_id, method, subject, message, status, scheduled_at, attempted_at, retry_count, created_at
+             FROM communication_attempts
+             WHERE contact_id = ?
+             ORDER BY created_at DESC"
+        )
+        .bind(contact_id.to_string())
+        .fetch_all(self.pool)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        Ok(rows.into_iter().map(|r| r.into()).collect())
+    }
+
+    pub async fn cancel(&self, id: Uuid) -> DomainResult<()> {
+        // Update status to cancelled (using Failed variant with cancellation reason)
+        let status = CommunicationStatus::Failed {
+            reason: "Cancelled by user".to_string(),
+        };
+        let status_str = serde_json::to_string(&status).unwrap();
+
+        sqlx::query("UPDATE communication_attempts SET status = ? WHERE id = ?")
+            .bind(status_str)
+            .bind(id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        Ok(())
+    }
+
     // Historical Communication methods
     pub async fn create_communication(&self, communication: &Communication) -> DomainResult<()> {
         let communication_type = match &communication.communication_type {

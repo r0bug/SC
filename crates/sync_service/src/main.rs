@@ -305,6 +305,14 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/notes/contact/:id", get(api::list_notes_by_contact))
         .route("/api/communication", post(api::queue_communication))
+        .route(
+            "/api/communications",
+            get(api::list_communication_attempts).post(api::queue_communication),
+        )
+        .route(
+            "/api/communications/:id/cancel",
+            post(api::cancel_communication),
+        )
         .route("/api/share", post(api::create_share))
         .route("/api/ai/suggestions/:contact_id", get(api::get_suggestions))
         .route("/ws", get(ws::ws_handler))

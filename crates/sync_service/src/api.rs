@@ -339,3 +339,63 @@ pub async fn delete_note(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(StatusCode::NO_CONTENT)
 }
+
+#[derive(Deserialize)]
+pub struct CommunicationListQuery {
+    pub contact_id: Option<Uuid>,
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
+pub async fn list_communication_attempts(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Query(params): Query<CommunicationListQuery>,
+) -> Result<Json<Vec<CommunicationAttempt>>, (StatusCode, Json<serde_json::Value>)> {
+    // Validate pagination
+    validation::validate_pagination(params.limit, params.offset).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": e.0})),
+        )
+    })?;
+
+    let repo = CommunicationRepository::new(state.store.pool());
+    let attempts = if let Some(contact_id) = params.contact_id {
+        repo.list_by_contact(contact_id)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "Internal server error"})),
+                )
+            })?
+    } else {
+        repo.list_all_attempts(params.limit, params.offset)
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": "Internal server error"})),
+                )
+            })?
+    };
+    Ok(Json(attempts))
+}
+
+pub async fn cancel_communication(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
+    let repo = CommunicationRepository::new(state.store.pool());
+    repo.cancel(id).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Failed to cancel communication"})),
+        )
+    })?;
+    Ok(StatusCode::NO_CONTENT)
+}
