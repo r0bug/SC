@@ -17,6 +17,11 @@ pub struct CreateGroupRequest {
     pub contact_ids: Vec<Uuid>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AddMemberRequest {
+    pub contact_id: Uuid,
+}
+
 #[derive(Debug, Serialize)]
 pub struct GroupResponse {
     pub group: Group,
@@ -171,7 +176,7 @@ pub async fn list_groups(
     Ok(Json(groups))
 }
 
-/// POST /api/groups/:id/members/:contact_id
+/// POST /api/groups/:id/members/:contact_id (path parameter version)
 pub async fn add_member(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -189,6 +194,31 @@ pub async fn add_member(
 
     let repo = GroupRepository::new(&app_state.pool);
     repo.add_member(group_id, contact_id)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to add member"))?;
+
+    Ok(Json(serde_json::json!({ "message": "Member added" })))
+}
+
+/// POST /api/groups/:id/members (JSON body version for web client)
+pub async fn add_member_json(
+    State(app_state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(group_id): Path<Uuid>,
+    Json(request): Json<AddMemberRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, &'static str)> {
+    // Check permission
+    if !app_state
+        .acl_service
+        .can_write(&user.id, core_domain::ShareEntityType::Group, &group_id)
+        .await
+        .unwrap_or(false)
+    {
+        return Err((StatusCode::FORBIDDEN, "Access denied"));
+    }
+
+    let repo = GroupRepository::new(&app_state.pool);
+    repo.add_member(group_id, request.contact_id)
         .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to add member"))?;
 

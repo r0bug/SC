@@ -194,6 +194,10 @@ async fn main() -> anyhow::Result<()> {
             "/api/groups/:id/members/:contact_id",
             post(group_routes::add_member).delete(group_routes::remove_member),
         )
+        .route(
+            "/api/groups/:id/members",
+            post(group_routes::add_member_json),
+        )
         // Concept routes
         .route(
             "/api/concepts",
