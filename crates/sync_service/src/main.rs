@@ -29,7 +29,7 @@ use axum::{
     http::StatusCode,
     middleware,
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post, put},
     Router,
 };
 use local_store::LocalStore;
@@ -273,13 +273,26 @@ async fn main() -> anyhow::Result<()> {
             "/api/contacts",
             get(api::list_contacts).post(api::create_contact),
         )
-        .route("/api/contacts/:id", get(api::get_contact))
+        .route(
+            "/api/contacts/:id",
+            get(api::get_contact)
+                .put(api::update_contact)
+                .delete(api::delete_contact),
+        )
         .route("/api/tags", get(api::list_tags).post(api::create_tag))
+        .route(
+            "/api/tags/:id",
+            put(api::update_tag).delete(api::delete_tag),
+        )
         .route(
             "/api/projects",
             get(api::list_projects).post(api::create_project),
         )
         .route("/api/notes", post(api::create_note))
+        .route(
+            "/api/notes/:id",
+            put(api::update_note).delete(api::delete_note),
+        )
         .route("/api/notes/contact/:id", get(api::list_notes_by_contact))
         .route("/api/communication", post(api::queue_communication))
         .route("/api/share", post(api::create_share))

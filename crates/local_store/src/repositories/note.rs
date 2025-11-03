@@ -65,6 +65,31 @@ impl<'a> NoteRepository<'a> {
         }
         Ok(notes)
     }
+
+    pub async fn update(&self, note: &Note) -> DomainResult<()> {
+        sqlx::query(
+            "UPDATE notes SET contact_id = ?, project_id = ?, title = ?, content = ?, updated_at = ? WHERE id = ?"
+        )
+        .bind(note.contact_id.map(|id| id.to_string()))
+        .bind(note.project_id.map(|id| id.to_string()))
+        .bind(&note.title)
+        .bind(&note.content)
+        .bind(note.updated_at.to_rfc3339())
+        .bind(note.id.to_string())
+        .execute(self.pool)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
+    pub async fn delete(&self, id: Uuid) -> DomainResult<()> {
+        sqlx::query("DELETE FROM notes WHERE id = ?")
+            .bind(id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+        Ok(())
+    }
 }
 
 #[derive(sqlx::FromRow)]

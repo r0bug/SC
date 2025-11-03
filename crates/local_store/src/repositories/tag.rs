@@ -43,6 +43,34 @@ impl<'a> TagRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
         Ok(())
     }
+
+    pub async fn update(&self, tag: &Tag) -> DomainResult<()> {
+        sqlx::query("UPDATE tags SET name = ?, color = ? WHERE id = ?")
+            .bind(&tag.name)
+            .bind(&tag.color)
+            .bind(tag.id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
+    pub async fn delete(&self, id: Uuid) -> DomainResult<()> {
+        // First delete associations
+        sqlx::query("DELETE FROM contact_tags WHERE tag_id = ?")
+            .bind(id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        // Then delete the tag
+        sqlx::query("DELETE FROM tags WHERE id = ?")
+            .bind(id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+        Ok(())
+    }
 }
 
 #[derive(sqlx::FromRow)]

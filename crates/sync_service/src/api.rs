@@ -226,3 +226,78 @@ pub async fn get_suggestions(
 
     Ok(Json(suggestions))
 }
+
+pub async fn update_contact(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(contact): Json<Contact>,
+) -> Result<Json<Contact>, StatusCode> {
+    let repo = ContactRepository::new(state.store.pool());
+    repo.update(&contact)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(contact))
+}
+
+pub async fn delete_contact(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, StatusCode> {
+    let repo = ContactRepository::new(state.store.pool());
+    repo.delete(id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn update_tag(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(tag): Json<Tag>,
+) -> Result<Json<Tag>, StatusCode> {
+    let repo = TagRepository::new(state.store.pool());
+    repo.update(&tag)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(tag))
+}
+
+pub async fn delete_tag(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, StatusCode> {
+    let repo = TagRepository::new(state.store.pool());
+    repo.delete(id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn update_note(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(note): Json<Note>,
+) -> Result<Json<Note>, StatusCode> {
+    let repo = NoteRepository::new(state.store.pool());
+    repo.update(&note)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(note))
+}
+
+pub async fn delete_note(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, StatusCode> {
+    let repo = NoteRepository::new(state.store.pool());
+    repo.delete(id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(StatusCode::NO_CONTENT)
+}
