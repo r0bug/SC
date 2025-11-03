@@ -126,7 +126,8 @@ pub async fn preview_import(
     // Write to temp file
     let temp_dir = std::env::temp_dir();
     let temp_path = temp_dir.join(format!("import_{}", file_name));
-    std::fs::write(&temp_path, &file_data)
+    tokio::fs::write(&temp_path, &file_data)
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Find connector
@@ -165,7 +166,7 @@ pub async fn preview_import(
     };
 
     // Cleanup temp file
-    let _ = std::fs::remove_file(&temp_path);
+    let _ = tokio::fs::remove_file(&temp_path).await;
 
     Ok(Json(response))
 }
@@ -325,7 +326,7 @@ async fn process_import(
     // Write temp file
     let temp_dir = std::env::temp_dir();
     let temp_path = temp_dir.join(format!("import_{}_{}", job_id, file_name));
-    if let Err(e) = std::fs::write(&temp_path, &file_data) {
+    if let Err(e) = tokio::fs::write(&temp_path, &file_data).await {
         tracing::error!("Failed to write temp file: {}", e);
         update_status(JobStatus::Failed, "File write error".to_string()).await;
         return;
@@ -338,7 +339,7 @@ async fn process_import(
         Some(c) => c,
         None => {
             update_status(JobStatus::Failed, "No suitable connector found".to_string()).await;
-            let _ = std::fs::remove_file(&temp_path);
+            let _ = tokio::fs::remove_file(&temp_path).await;
             return;
         }
     };
@@ -350,7 +351,7 @@ async fn process_import(
         Err(e) => {
             tracing::error!("Parse error: {}", e);
             update_status(JobStatus::Failed, format!("Parse error: {}", e)).await;
-            let _ = std::fs::remove_file(&temp_path);
+            let _ = tokio::fs::remove_file(&temp_path).await;
             return;
         }
     };
@@ -414,7 +415,7 @@ async fn process_import(
     }
 
     // Cleanup
-    let _ = std::fs::remove_file(&temp_path);
+    let _ = tokio::fs::remove_file(&temp_path).await;
 }
 
 /// GET /api/import/history - Get import history from database
