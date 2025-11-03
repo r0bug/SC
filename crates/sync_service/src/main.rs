@@ -288,6 +288,12 @@ async fn main() -> anyhow::Result<()> {
             "/api/projects",
             get(api::list_projects).post(api::create_project),
         )
+        .route(
+            "/api/projects/:id",
+            get(api::get_project)
+                .put(api::update_project)
+                .delete(api::delete_project),
+        )
         .route("/api/notes", post(api::create_note))
         .route(
             "/api/notes/:id",

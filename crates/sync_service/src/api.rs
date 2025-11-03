@@ -158,6 +158,44 @@ pub async fn create_project(
     Ok((StatusCode::CREATED, Json(project)))
 }
 
+pub async fn get_project(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Project>, StatusCode> {
+    let repo = ProjectRepository::new(state.store.pool());
+    let project = repo
+        .get_by_id(id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    Ok(Json(project))
+}
+
+pub async fn update_project(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(project): Json<Project>,
+) -> Result<Json<Project>, StatusCode> {
+    let repo = ProjectRepository::new(state.store.pool());
+    repo.update(&project)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(project))
+}
+
+pub async fn delete_project(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, StatusCode> {
+    let repo = ProjectRepository::new(state.store.pool());
+    repo.delete(id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub async fn create_note(
     AuthUser(_user): AuthUser,
     State(state): State<AppState>,
