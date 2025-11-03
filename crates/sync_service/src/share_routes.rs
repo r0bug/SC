@@ -14,6 +14,7 @@ use uuid::Uuid;
 pub struct CreateShareRequest {
     pub entity_type: String,
     pub entity_id: Uuid,
+    #[serde(alias = "shared_with_email")]
     pub email: String,
     pub permissions: Vec<String>,
 }
@@ -30,11 +31,12 @@ pub async fn create_share(
     AuthUser(user): AuthUser,
     Json(req): Json<CreateShareRequest>,
 ) -> impl IntoResponse {
-    let entity_type = match req.entity_type.as_str() {
+    // Normalize entity_type to lowercase for case-insensitive matching
+    let entity_type = match req.entity_type.to_lowercase().as_str() {
         "contact" => ShareEntityType::Contact,
         "project" => ShareEntityType::Project,
         "note" => ShareEntityType::Note,
-        "calendar_event" => ShareEntityType::CalendarEvent,
+        "calendar_event" | "calendarevent" => ShareEntityType::CalendarEvent,
         "group" => ShareEntityType::Group,
         _ => return Err((StatusCode::BAD_REQUEST, "Invalid entity type")),
     };
@@ -49,11 +51,11 @@ pub async fn create_share(
         return Err((StatusCode::FORBIDDEN, "You cannot share this entity"));
     }
 
-    // Parse permissions
+    // Parse permissions (case-insensitive)
     let permissions: Vec<Permission> = req
         .permissions
         .iter()
-        .filter_map(|p| match p.as_str() {
+        .filter_map(|p| match p.to_lowercase().as_str() {
             "read" => Some(Permission::Read),
             "write" => Some(Permission::Write),
             "share" => Some(Permission::Share),
