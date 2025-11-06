@@ -17,16 +17,27 @@ use uuid::Uuid;
 
 fn get_jwt_secret() -> &'static [u8] {
     // Read JWT secret from environment variable at runtime
-    // Falls back to a default for development ONLY - this should be set in production
     static JWT_SECRET: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
 
     JWT_SECRET.get_or_init(|| {
-        std::env::var("JWT_SECRET")
-            .unwrap_or_else(|_| {
-                tracing::warn!("JWT_SECRET not set! Using insecure default. Set JWT_SECRET environment variable in production!");
-                "your-secret-key-change-in-production".to_string()
-            })
-            .into_bytes()
+        match std::env::var("JWT_SECRET") {
+            Ok(secret) => {
+                if secret.len() < 32 {
+                    tracing::warn!("JWT_SECRET is too short (< 32 chars). Use a longer secret for production!");
+                }
+                secret.into_bytes()
+            }
+            Err(_) => {
+                // Check if we're in production mode
+                if std::env::var("ENVIRONMENT").unwrap_or_default() == "production"
+                    || std::env::var("RUST_ENV").unwrap_or_default() == "production" {
+                    panic!("FATAL: JWT_SECRET environment variable is required in production! Set JWT_SECRET before starting the server.");
+                }
+
+                tracing::warn!("JWT_SECRET not set! Using insecure default for DEVELOPMENT ONLY. Set JWT_SECRET environment variable before deploying!");
+                "dev-insecure-secret-change-before-production".to_string().into_bytes()
+            }
+        }
     }).as_slice()
 }
 
