@@ -1,3 +1,4 @@
+use crate::auth::AuthUser;
 use crate::state::AppState;
 use crate::validation;
 use axum::{
@@ -33,6 +34,7 @@ pub struct ErrorResponse {
 /// Content-Type: multipart/form-data
 /// Fields: file, entity_type, entity_id
 pub async fn upload_attachment(
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<Json<UploadResponse>, (StatusCode, Json<ErrorResponse>)> {
@@ -41,7 +43,6 @@ pub async fn upload_attachment(
     let mut content_type: Option<String> = None;
     let mut entity_type: Option<String> = None;
     let mut entity_id: Option<Uuid> = None;
-    let mut uploaded_by: Option<Uuid> = None;
 
     // Parse multipart form
     while let Some(field) = multipart.next_field().await.map_err(|e| {
@@ -107,26 +108,6 @@ pub async fn upload_attachment(
                     )
                 })?);
             }
-            "uploaded_by" => {
-                let text = field.text().await.map_err(|e| {
-                    tracing::error!("Failed to read uploaded_by: {}", e);
-                    (
-                        StatusCode::BAD_REQUEST,
-                        Json(ErrorResponse {
-                            error: "Invalid uploaded_by".to_string(),
-                        }),
-                    )
-                })?;
-                uploaded_by = Some(Uuid::parse_str(&text).map_err(|e| {
-                    tracing::error!("Failed to parse uploaded_by UUID: {}", e);
-                    (
-                        StatusCode::BAD_REQUEST,
-                        Json(ErrorResponse {
-                            error: "Invalid uploaded_by format".to_string(),
-                        }),
-                    )
-                })?);
-            }
             _ => {
                 tracing::warn!("Unknown multipart field: {}", field_name);
             }
@@ -180,14 +161,8 @@ pub async fn upload_attachment(
         )
     })?;
 
-    let uploaded_by = uploaded_by.ok_or_else(|| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: "Missing uploaded_by".to_string(),
-            }),
-        )
-    })?;
+    // Use authenticated user ID instead of client-supplied uploaded_by
+    let uploaded_by = user.id;
 
     // Parse entity type
     let entity_type = match entity_type_str.as_str() {
@@ -291,6 +266,7 @@ pub async fn upload_attachment(
 /// List attachments for an entity
 /// GET /api/attachments?entity_type={type}&entity_id={id}
 pub async fn list_attachments(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Query(params): Query<ListAttachmentsQuery>,
 ) -> Result<Json<Vec<Attachment>>, (StatusCode, Json<ErrorResponse>)> {
@@ -330,6 +306,7 @@ pub async fn list_attachments(
 /// Download an attachment
 /// GET /api/attachments/{id}
 pub async fn download_attachment(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
@@ -407,6 +384,7 @@ pub async fn download_attachment(
 /// Delete an attachment
 /// DELETE /api/attachments/{id}
 pub async fn delete_attachment(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
