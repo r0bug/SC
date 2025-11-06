@@ -1,9 +1,27 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, http::{HeaderMap, StatusCode}, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::update_system::{UpdateChecker, UpdateConfig, UpdateInfo};
+
+/// Validate admin access via Authorization header (basic check for alpha)
+/// In production, this should use proper admin role checking
+fn validate_admin_access(headers: &HeaderMap) -> Result<(), (StatusCode, String)> {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
+
+    // Basic check - in production, validate JWT and check for admin role
+    if !auth_header.starts_with("Bearer ") {
+        return Err((StatusCode::UNAUTHORIZED, "Invalid Authorization format".to_string()));
+    }
+
+    // TODO: Validate JWT token and check for admin role
+    // For now, just check that a token is provided
+    Ok(())
+}
 
 #[derive(Clone)]
 pub struct UpdateState {
@@ -131,8 +149,12 @@ pub struct UpdateStatus {
 
 /// POST /api/system/updates/download - Download available update
 pub async fn download_update(
+    headers: HeaderMap,
     State(state): State<UpdateState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    // Validate admin access
+    validate_admin_access(&headers)?;
+
     let last_check = state.last_check.read().await;
 
     let info = last_check.as_ref().ok_or_else(|| {
@@ -179,8 +201,12 @@ pub async fn download_update(
 
 /// POST /api/system/updates/apply - Apply downloaded update (requires restart)
 pub async fn apply_update(
+    headers: HeaderMap,
     State(_state): State<UpdateState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
+    // Validate admin access
+    validate_admin_access(&headers)?;
+
     // This endpoint would typically trigger a graceful shutdown and restart
     // For safety, this should require elevated permissions or confirmation
 

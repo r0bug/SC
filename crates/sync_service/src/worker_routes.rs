@@ -1,7 +1,7 @@
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
@@ -10,6 +10,27 @@ use core_domain::CommunicationStatus as DomainCommunicationStatus;
 use local_store::repositories::CommunicationRepository;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// Validate worker secret from X-Worker-Secret header
+fn validate_worker_secret(headers: &HeaderMap) -> Result<(), (StatusCode, &'static str)> {
+    let expected_secret = std::env::var("WORKER_SECRET")
+        .unwrap_or_else(|_| {
+            tracing::warn!("WORKER_SECRET not set! Worker endpoints are insecure. Set WORKER_SECRET environment variable.");
+            "insecure-worker-secret-change-in-production".to_string()
+        });
+
+    let provided_secret = headers
+        .get("X-Worker-Secret")
+        .and_then(|v| v.to_str().ok())
+        .ok_or((StatusCode::UNAUTHORIZED, "Missing X-Worker-Secret header"))?;
+
+    if provided_secret != expected_secret {
+        tracing::warn!("Invalid worker secret provided");
+        return Err((StatusCode::UNAUTHORIZED, "Invalid worker secret"));
+    }
+
+    Ok(())
+}
 
 #[derive(Debug, Deserialize)]
 pub struct CommunicationStatusUpdate {
@@ -53,10 +74,14 @@ pub struct StatusResponse {
 /// POST /api/communication/:id/status
 /// Worker callback endpoint to update communication status
 pub async fn update_communication_status(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     Path(communication_id): Path<Uuid>,
     Json(update): Json<CommunicationStatusUpdate>,
 ) -> Result<Json<StatusResponse>, (StatusCode, &'static str)> {
+    // Validate worker secret
+    validate_worker_secret(&headers)?;
+
     tracing::info!(
         "Communication {} status updated to {:?}",
         communication_id,
@@ -88,9 +113,13 @@ pub async fn update_communication_status(
 /// POST /api/communication/batch-status
 /// Worker callback endpoint to update multiple communication statuses at once
 pub async fn batch_update_communication_status(
+    headers: HeaderMap,
     State(app_state): State<AppState>,
     Json(updates): Json<Vec<BatchStatusUpdate>>,
 ) -> Result<Json<BatchStatusResponse>, (StatusCode, &'static str)> {
+    // Validate worker secret
+    validate_worker_secret(&headers)?;
+
     let count = updates.len();
     let repo = CommunicationRepository::new(app_state.store.pool());
     let attempted_at = Some(Utc::now());
