@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Multipart, State},
+    extract::{Multipart, Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -13,6 +13,7 @@ use uuid::Uuid;
 use crate::android_import::{
     insert_calls, insert_mms, insert_sms, parse_calls_xml, parse_mms_xml, parse_sms_xml,
 };
+use crate::auth::AuthUser;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
@@ -26,6 +27,7 @@ pub struct AndroidImportResponse {
 
 /// POST /api/import/android-calls - Import calls from Android backup XML
 pub async fn import_android_calls(
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -69,11 +71,11 @@ pub async fn import_android_calls(
 
     let total_records = calls.len();
 
-    // TODO: Get actual user_id from authentication
-    let user_id = "system";
+    // Use authenticated user ID
+    let user_id = user.id.to_string();
 
     // Insert into database
-    let (imported, skipped) = insert_calls(&state.pool, calls, user_id, &file_name)
+    let (imported, skipped) = insert_calls(&state.pool, calls, &user_id, &file_name)
         .await
         .map_err(|e| {
             (
@@ -95,6 +97,7 @@ pub async fn import_android_calls(
 
 /// POST /api/import/android-sms - Import SMS from Android backup XML
 pub async fn import_android_sms(
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -142,8 +145,8 @@ pub async fn import_android_sms(
         })?;
 
         let total = messages.len();
-        let user_id = "system";
-        let (imp, skip) = insert_mms(&state.pool, messages, user_id, &file_name)
+        let user_id = user.id.to_string();
+        let (imp, skip) = insert_mms(&state.pool, messages, &user_id, &file_name)
             .await
             .map_err(|e| {
                 (
@@ -163,8 +166,8 @@ pub async fn import_android_sms(
         })?;
 
         let total = messages.len();
-        let user_id = "system";
-        let (imp, skip) = insert_sms(&state.pool, messages, user_id, &file_name)
+        let user_id = user.id.to_string();
+        let (imp, skip) = insert_sms(&state.pool, messages, &user_id, &file_name)
             .await
             .map_err(|e| {
                 (
@@ -192,8 +195,9 @@ pub async fn import_android_sms(
 
 /// GET /api/communications/history/:contact_id - Get communication history for a contact
 pub async fn get_contact_communications(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
-    axum::extract::Path(contact_id): axum::extract::Path<String>,
+    Path(contact_id): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let comm_repo = CommunicationRepository::new(&state.pool);
 
@@ -239,8 +243,9 @@ pub async fn get_contact_communications(
 
 /// GET /api/communications/search - Search communication history
 pub async fn search_communications(
+    AuthUser(_user): AuthUser,
     State(state): State<AppState>,
-    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let query = params.get("q").map(|s| s.as_str()).unwrap_or("");
     let limit: i64 = params
