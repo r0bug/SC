@@ -12,14 +12,25 @@ impl<'a> ProjectRepository<'a> {
     }
 
     pub async fn create(&self, project: &Project) -> DomainResult<()> {
+        let status_str = match project.status {
+            core_domain::ProjectStatus::Active => "Active",
+            core_domain::ProjectStatus::Completed => "Completed",
+            core_domain::ProjectStatus::Archived => "Archived",
+            core_domain::ProjectStatus::OnHold => "OnHold",
+        };
+
         sqlx::query(
-            "INSERT INTO projects (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+            "INSERT INTO projects (id, name, description, status, created_at, updated_at, created_by, version, last_synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(project.id.to_string())
         .bind(&project.name)
         .bind(&project.description)
+        .bind(status_str)
         .bind(project.created_at.to_rfc3339())
         .bind(project.updated_at.to_rfc3339())
+        .bind(project.created_by.to_string())
+        .bind(project.version)
+        .bind(project.last_synced_at.map(|dt| dt.to_rfc3339()))
         .execute(self.pool)
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;
