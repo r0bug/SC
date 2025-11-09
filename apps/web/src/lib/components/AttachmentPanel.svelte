@@ -7,8 +7,8 @@
 
 	export let entityType: AttachmentEntityType;
 	export let entityId: string;
-	export let uploadedBy: string;
 	export let showUpload = true;
+	// NOTE: uploadedBy is now derived from authenticated session on server
 
 	let attachments: Attachment[] = [];
 	let loading = true;
@@ -47,7 +47,6 @@
 			<AttachmentUpload
 				{entityType}
 				{entityId}
-				{uploadedBy}
 				on:uploaded={handleUploaded}
 			/>
 		</div>

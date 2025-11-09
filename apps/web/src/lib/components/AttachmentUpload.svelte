@@ -7,8 +7,8 @@
 
 	export let entityType: AttachmentEntityType;
 	export let entityId: string;
-	export let uploadedBy: string;
 	export let multiple: boolean = false;
+	// NOTE: uploadedBy is now derived from authenticated session on server
 
 	const dispatch = createEventDispatcher<{ uploaded: Attachment }>();
 
@@ -51,7 +51,7 @@
 				}
 			}, 200);
 
-			const attachment = await api.uploadAttachment(file, entityType, entityId, uploadedBy);
+			const attachment = await api.uploadAttachment(file, entityType, entityId);
 
 			clearInterval(progressInterval);
 			progress = 100;
