@@ -238,11 +238,10 @@ export class ApiClient {
 	}
 
 	// Notes
-	async getNotes(entityType?: string, entityId?: string): Promise<Note[]> {
-		const params = new URLSearchParams();
-		if (entityType) params.append('entity_type', entityType);
-		if (entityId) params.append('entity_id', entityId);
-		return this.request(`/notes?${params}`);
+	// NOTE: Backend only supports GET /notes/contact/:id, not GET /notes
+	// Use getNote(id) for individual notes or fetch by contact
+	async getContactNotes(contactId: string): Promise<Note[]> {
+		return this.request(`/notes/contact/${contactId}`);
 	}
 
 	async getNote(id: string): Promise<Note> {
@@ -275,8 +274,7 @@ export class ApiClient {
 	async uploadAttachment(
 		file: File,
 		entityType: string,
-		entityId: string,
-		uploadedBy: string
+		entityId: string
 	): Promise<Attachment> {
 		// Validate file size (50MB max)
 		const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -309,7 +307,7 @@ export class ApiClient {
 		formData.append('file', file);
 		formData.append('entity_type', entityType);
 		formData.append('entity_id', entityId);
-		formData.append('uploaded_by', uploadedBy);
+		// NOTE: uploaded_by is now derived from authenticated session on server
 
 		try {
 			const res = await fetch(`${this.baseUrl}/attachments/upload`, {
@@ -416,8 +414,13 @@ export class ApiClient {
 	}
 
 	// Shares
-	async getShares(): Promise<ShareInvite[]> {
-		return this.request('/shares');
+	// NOTE: Backend has /shares/sent and /shares/received, not /shares
+	async getSentShares(): Promise<ShareInvite[]> {
+		return this.request('/shares/sent');
+	}
+
+	async getReceivedShares(): Promise<ShareInvite[]> {
+		return this.request('/shares/received');
 	}
 
 	async createShare(
@@ -466,11 +469,11 @@ export class ApiClient {
 
 	// Search History
 	async getSearchHistory(): Promise<SearchHistory[]> {
-		return this.request('/search/history');
+		return this.request('/search-history');
 	}
 
 	async clearSearchHistory(): Promise<void> {
-		return this.request('/search/history', { method: 'DELETE' });
+		return this.request('/search-history', { method: 'DELETE' });
 	}
 
 	// Import - Real API integration

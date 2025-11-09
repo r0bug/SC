@@ -76,7 +76,7 @@
 			}
 
 			try {
-				const allEvents = await api.getCalendarEvents();
+				const allEvents = await api.getEvents();
 				events = allEvents.filter(e => e.participants?.includes(contactId));
 			} catch (e) {
 				console.warn('Failed to load events:', e);
@@ -205,13 +205,8 @@
 
 	async function handleDownloadAttachment(id: string, filename: string) {
 		try {
-			const blob = await api.downloadAttachment(id);
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = filename;
-			a.click();
-			URL.revokeObjectURL(url);
+			// downloadAttachment handles the download internally
+			await api.downloadAttachment(id, filename);
 		} catch (error: any) {
 			alert('Failed to download: ' + error.message);
 		}
