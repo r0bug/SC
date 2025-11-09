@@ -37,7 +37,7 @@
 			// Try to fetch the specific contact directly via API
 			const response = await fetch(`/api/contacts/${contactId}`, {
 				headers: {
-					'Authorization': `Bearer ${localStorage.getItem('token')}`
+					'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
 				}
 			});
 
