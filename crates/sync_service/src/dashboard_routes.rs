@@ -1,40 +1,40 @@
+use crate::auth::AuthUser;
+use crate::state::AppState;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
-use sqlx::{Pool, Sqlite};
-use std::sync::Arc;
-
-#[derive(Clone)]
-pub struct DashboardState {
-    pub pool: Arc<Pool<Sqlite>>,
-}
 
 /// GET /api/dashboard - Get dashboard summary
-pub async fn get_dashboard(State(state): State<DashboardState>) -> impl IntoResponse {
+pub async fn get_dashboard(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
     // Get counts from database
+    let pool = state.store.pool();
+
     let contacts_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM contacts")
-        .fetch_one(state.pool.as_ref())
+        .fetch_one(pool)
         .await
         .unwrap_or(0);
 
     let groups_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM groups")
-        .fetch_one(state.pool.as_ref())
+        .fetch_one(pool)
         .await
         .unwrap_or(0);
 
     let projects_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM projects")
-        .fetch_one(state.pool.as_ref())
+        .fetch_one(pool)
         .await
         .unwrap_or(0);
 
     let notes_count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM notes")
-        .fetch_one(state.pool.as_ref())
+        .fetch_one(pool)
         .await
         .unwrap_or(0);
 
     let recent_imports = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM import_logs WHERE started_at > datetime('now', '-7 days')",
     )
-    .fetch_one(state.pool.as_ref())
+    .fetch_one(pool)
     .await
     .unwrap_or(0);
 
@@ -56,6 +56,6 @@ pub async fn get_dashboard(State(state): State<DashboardState>) -> impl IntoResp
     (StatusCode::OK, Json(dashboard)).into_response()
 }
 
-pub fn dashboard_routes() -> axum::Router<DashboardState> {
+pub fn dashboard_routes() -> axum::Router<AppState> {
     axum::Router::new().route("/api/dashboard", axum::routing::get(get_dashboard))
 }

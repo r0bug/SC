@@ -68,9 +68,6 @@ async fn main() -> anyhow::Result<()> {
         jobs: Arc::new(tokio::sync::RwLock::new(Vec::new())),
     };
 
-    // Create dashboard state
-    let dashboard_state = dashboard_routes::DashboardState { pool: pool.clone() };
-
     // Create update system state
     let update_state = update_routes::UpdateState::new();
 
@@ -153,7 +150,7 @@ async fn main() -> anyhow::Result<()> {
         .with_state(import_state);
 
     // Dashboard routes (no rate limiting needed for simple dashboard)
-    let dashboard_router = dashboard_routes::dashboard_routes().with_state(dashboard_state);
+    let dashboard_router = dashboard_routes::dashboard_routes().with_state(app_state.clone());
 
     // Update system routes
     let update_router = update_routes::update_routes().with_state(update_state);
