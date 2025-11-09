@@ -42,6 +42,19 @@ impl<'a> NoteRepository<'a> {
         Ok(())
     }
 
+    pub async fn get_by_id(&self, id: Uuid) -> DomainResult<Note> {
+        let row = sqlx::query_as::<_, NoteRow>(
+            "SELECT id, contact_id, project_id, title, content, created_at, updated_at, created_by, version, last_synced_at FROM notes WHERE id = ?"
+        )
+        .bind(id.to_string())
+        .fetch_one(self.pool)
+        .await
+        .map_err(|e| DomainError::NotFound(format!("Note not found: {}", e)))?;
+
+        let attachment_ids = vec![]; // Attachments managed separately
+        Ok(row.into_note(attachment_ids))
+    }
+
     pub async fn list_by_contact(&self, contact_id: Uuid) -> DomainResult<Vec<Note>> {
         let rows = sqlx::query_as::<_, NoteRow>(
             "SELECT id, contact_id, project_id, title, content, created_at, updated_at, created_by, version, last_synced_at FROM notes WHERE contact_id = ? ORDER BY created_at DESC"

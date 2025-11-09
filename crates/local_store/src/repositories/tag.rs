@@ -23,6 +23,18 @@ impl<'a> TagRepository<'a> {
         Ok(())
     }
 
+    pub async fn get_by_id(&self, id: Uuid) -> DomainResult<Tag> {
+        let row = sqlx::query_as::<_, TagRow>(
+            "SELECT id, name, color, created_at FROM tags WHERE id = ?",
+        )
+        .bind(id.to_string())
+        .fetch_one(self.pool)
+        .await
+        .map_err(|e| DomainError::NotFound(format!("Tag not found: {}", e)))?;
+
+        Ok(row.into())
+    }
+
     pub async fn list(&self) -> DomainResult<Vec<Tag>> {
         let rows = sqlx::query_as::<_, TagRow>(
             "SELECT id, name, color, created_at FROM tags ORDER BY name",

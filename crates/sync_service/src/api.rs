@@ -47,6 +47,39 @@ pub struct CreateNoteRequest {
     pub content: String,
 }
 
+// Update DTOs - only fields that can be updated
+#[derive(Debug, Deserialize)]
+pub struct UpdateContactRequest {
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub organization: Option<String>,
+    pub title: Option<String>,
+    pub notes: Option<String>,
+    pub social_handles: Option<Vec<SocialHandle>>,
+    pub tags: Option<Vec<Uuid>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateTagRequest {
+    pub name: Option<String>,
+    pub color: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateProjectRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateNoteRequest {
+    pub title: Option<String>,
+    pub content: Option<String>,
+}
+
 #[derive(Deserialize)]
 pub struct ListQuery {
     #[serde(default = "default_limit")]
@@ -262,12 +295,40 @@ pub async fn update_project(
     AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(project): Json<Project>,
+    Json(updates): Json<UpdateProjectRequest>,
 ) -> Result<Json<Project>, StatusCode> {
     let repo = ProjectRepository::new(state.store.pool());
+
+    // Fetch existing project using PATH id (not body id) - security fix
+    let mut project = repo
+        .get_by_id(id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Apply partial updates
+    if let Some(name) = updates.name {
+        project.name = name;
+    }
+    if let Some(description) = updates.description {
+        project.description = Some(description);
+    }
+    if let Some(status) = updates.status {
+        // Parse status from string
+        project.status = match status.as_str() {
+            "active" | "Active" => ProjectStatus::Active,
+            "completed" | "Completed" => ProjectStatus::Completed,
+            "archived" | "Archived" => ProjectStatus::Archived,
+            "on_hold" | "OnHold" | "on hold" => ProjectStatus::OnHold,
+            _ => project.status, // Keep existing status if invalid
+        };
+    }
+
+    project.updated_at = chrono::Utc::now();
+
     repo.update(&project)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     Ok(Json(project))
 }
 
@@ -370,12 +431,51 @@ pub async fn update_contact(
     AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(contact): Json<Contact>,
+    Json(updates): Json<UpdateContactRequest>,
 ) -> Result<Json<Contact>, StatusCode> {
     let repo = ContactRepository::new(state.store.pool());
+
+    // Fetch existing contact using PATH id (not body id) - security fix
+    let mut contact = repo
+        .get_by_id(id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Apply partial updates
+    if let Some(first_name) = updates.first_name {
+        contact.first_name = first_name;
+    }
+    if let Some(last_name) = updates.last_name {
+        contact.last_name = Some(last_name);
+    }
+    if let Some(email) = updates.email {
+        contact.email = Some(email);
+    }
+    if let Some(phone) = updates.phone {
+        contact.phone = Some(phone);
+    }
+    if let Some(organization) = updates.organization {
+        contact.organization = Some(organization);
+    }
+    if let Some(title) = updates.title {
+        contact.title = Some(title);
+    }
+    if let Some(notes) = updates.notes {
+        contact.notes = Some(notes);
+    }
+    if let Some(social_handles) = updates.social_handles {
+        contact.social_handles = social_handles;
+    }
+    if let Some(tags) = updates.tags {
+        contact.tags = tags;
+    }
+
+    contact.updated_at = chrono::Utc::now();
+
     repo.update(&contact)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     Ok(Json(contact))
 }
 
@@ -395,12 +495,28 @@ pub async fn update_tag(
     AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(tag): Json<Tag>,
+    Json(updates): Json<UpdateTagRequest>,
 ) -> Result<Json<Tag>, StatusCode> {
     let repo = TagRepository::new(state.store.pool());
+
+    // Fetch existing tag using PATH id (not body id) - security fix
+    let mut tag = repo
+        .get_by_id(id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Apply partial updates
+    if let Some(name) = updates.name {
+        tag.name = name;
+    }
+    if let Some(color) = updates.color {
+        tag.color = Some(color);
+    }
+
     repo.update(&tag)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     Ok(Json(tag))
 }
 
@@ -420,12 +536,30 @@ pub async fn update_note(
     AuthUser(_user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-    Json(note): Json<Note>,
+    Json(updates): Json<UpdateNoteRequest>,
 ) -> Result<Json<Note>, StatusCode> {
     let repo = NoteRepository::new(state.store.pool());
+
+    // Fetch existing note using PATH id (not body id) - security fix
+    let mut note = repo
+        .get_by_id(id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Apply partial updates
+    if let Some(title) = updates.title {
+        note.title = title;
+    }
+    if let Some(content) = updates.content {
+        note.content = content;
+    }
+
+    note.updated_at = chrono::Utc::now();
+
     repo.update(&note)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     Ok(Json(note))
 }
 
