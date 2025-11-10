@@ -1,44 +1,8 @@
-use axum::{extract::State, http::{HeaderMap, StatusCode}, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
-use crate::update_system::{UpdateChecker, UpdateConfig, UpdateInfo};
-
-/// Validate admin access via Authorization header (basic check for alpha)
-/// In production, this should use proper admin role checking
-fn validate_admin_access(headers: &HeaderMap) -> Result<(), (StatusCode, String)> {
-    let auth_header = headers
-        .get("Authorization")
-        .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
-
-    // Basic check - in production, validate JWT and check for admin role
-    if !auth_header.starts_with("Bearer ") {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid Authorization format".to_string()));
-    }
-
-    // TODO: Validate JWT token and check for admin role
-    // For now, just check that a token is provided
-    Ok(())
-}
-
-#[derive(Clone)]
-pub struct UpdateState {
-    pub checker: Arc<UpdateChecker>,
-    pub config: Arc<RwLock<UpdateConfig>>,
-    pub last_check: Arc<RwLock<Option<UpdateInfo>>>,
-}
-
-impl UpdateState {
-    pub fn new() -> Self {
-        Self {
-            checker: Arc::new(UpdateChecker::default()),
-            config: Arc::new(RwLock::new(UpdateConfig::default())),
-            last_check: Arc::new(RwLock::new(None)),
-        }
-    }
-}
+use crate::auth::AuthUser;
+use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
 pub struct VersionResponse {
@@ -62,12 +26,13 @@ pub async fn get_version() -> impl IntoResponse {
 
 /// GET /api/system/updates/check - Check for available updates
 pub async fn check_updates(
-    State(state): State<UpdateState>,
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    match state.checker.check_for_updates().await {
+    match state.update_checker.check_for_updates().await {
         Ok(info) => {
             // Cache the result
-            let mut last_check = state.last_check.write().await;
+            let mut last_check = state.last_update_check.write().await;
             *last_check = Some(info.clone());
 
             Ok(Json(info))
@@ -84,9 +49,10 @@ pub async fn check_updates(
 
 /// GET /api/system/updates/info - Get cached update info
 pub async fn get_update_info(
-    State(state): State<UpdateState>,
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let last_check = state.last_check.read().await;
+    let last_check = state.last_update_check.read().await;
 
     match last_check.as_ref() {
         Some(info) => Ok(Json(info.clone())),
@@ -106,17 +72,21 @@ pub struct UpdateConfigRequest {
 }
 
 /// GET /api/system/updates/config - Get update configuration
-pub async fn get_update_config(State(state): State<UpdateState>) -> impl IntoResponse {
-    let config = state.config.read().await;
+pub async fn get_update_config(
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let config = state.update_config.read().await;
     Json(config.clone())
 }
 
 /// PUT /api/system/updates/config - Update configuration
 pub async fn update_config(
-    State(state): State<UpdateState>,
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
     Json(request): Json<UpdateConfigRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let mut config = state.config.write().await;
+    let mut config = state.update_config.write().await;
 
     if let Some(auto_check) = request.auto_check {
         config.auto_check = auto_check;
@@ -149,13 +119,11 @@ pub struct UpdateStatus {
 
 /// POST /api/system/updates/download - Download available update
 pub async fn download_update(
-    headers: HeaderMap,
-    State(state): State<UpdateState>,
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    // Validate admin access
-    validate_admin_access(&headers)?;
 
-    let last_check = state.last_check.read().await;
+    let last_check = state.last_update_check.read().await;
 
     let info = last_check.as_ref().ok_or_else(|| {
         (
@@ -180,7 +148,7 @@ pub async fn download_update(
     let download_path = temp_dir.join(format!("sagenscontact-update-{}", info.latest_version));
 
     // Download in background
-    let checker = state.checker.clone();
+    let checker = state.update_checker.clone();
     let url = download_url.clone();
     let path = download_path.clone();
 
@@ -201,11 +169,9 @@ pub async fn download_update(
 
 /// POST /api/system/updates/apply - Apply downloaded update (requires restart)
 pub async fn apply_update(
-    headers: HeaderMap,
-    State(_state): State<UpdateState>,
+    AuthUser(_user): AuthUser,
+    State(_state): State<AppState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    // Validate admin access
-    validate_admin_access(&headers)?;
 
     // This endpoint would typically trigger a graceful shutdown and restart
     // For safety, this should require elevated permissions or confirmation
@@ -218,7 +184,7 @@ pub async fn apply_update(
 }
 
 /// Router configuration
-pub fn update_routes() -> axum::Router<UpdateState> {
+pub fn update_routes() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/system/version", axum::routing::get(get_version))
         .route(

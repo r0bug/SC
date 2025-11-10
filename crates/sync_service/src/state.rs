@@ -1,5 +1,6 @@
 use crate::acl::AclService;
 use crate::auth::AuthService;
+use crate::update_system::{UpdateChecker, UpdateConfig, UpdateInfo};
 use crate::websocket::WebSocketBroadcaster;
 use ai_middleware::SegmindClient;
 use local_store::LocalStore;
@@ -62,6 +63,10 @@ pub struct AppState {
     pub pool: Arc<Pool<Sqlite>>,
     pub ws_broadcaster: Arc<WebSocketBroadcaster>,
     pub import_jobs: Arc<RwLock<Vec<ImportJob>>>,
+    // Update system state
+    pub update_checker: Arc<UpdateChecker>,
+    pub update_config: Arc<RwLock<UpdateConfig>>,
+    pub last_update_check: Arc<RwLock<Option<UpdateInfo>>>,
 }
 
 impl AppState {
@@ -73,6 +78,9 @@ impl AppState {
         pool: Arc<Pool<Sqlite>>,
         ws_broadcaster: Arc<WebSocketBroadcaster>,
         import_jobs: Arc<RwLock<Vec<ImportJob>>>,
+        update_checker: Arc<UpdateChecker>,
+        update_config: Arc<RwLock<UpdateConfig>>,
+        last_update_check: Arc<RwLock<Option<UpdateInfo>>>,
     ) -> Self {
         Self {
             store: Arc::new(store),
@@ -82,6 +90,9 @@ impl AppState {
             pool,
             ws_broadcaster,
             import_jobs,
+            update_checker,
+            update_config,
+            last_update_check,
         }
     }
 }

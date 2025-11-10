@@ -11,6 +11,7 @@ pub mod rate_limit;
 pub mod search_history_routes;
 pub mod security_headers;
 pub mod share_routes;
+pub mod update_system;
 pub mod state;
 pub mod validation;
 pub mod websocket;

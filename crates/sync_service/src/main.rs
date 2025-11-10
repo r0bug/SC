@@ -15,9 +15,9 @@ mod rate_limit;
 mod search_history_routes;
 mod security_headers;
 mod share_routes;
+mod update_system;
 mod state;
 mod update_routes;
-mod update_system;
 mod validation;
 mod websocket;
 mod worker_routes;
@@ -66,7 +66,9 @@ async fn main() -> anyhow::Result<()> {
     let import_jobs = Arc::new(tokio::sync::RwLock::new(Vec::new()));
 
     // Create update system state
-    let update_state = update_routes::UpdateState::new();
+    let update_checker = Arc::new(update_system::UpdateChecker::default());
+    let update_config = Arc::new(tokio::sync::RwLock::new(update_system::UpdateConfig::default()));
+    let last_update_check = Arc::new(tokio::sync::RwLock::new(None));
 
     let app_state = state::AppState::new(
         store,
@@ -76,6 +78,9 @@ async fn main() -> anyhow::Result<()> {
         pool,
         ws_broadcaster,
         import_jobs,
+        update_checker,
+        update_config,
+        last_update_check,
     );
 
     // Metrics endpoint handler
@@ -151,7 +156,7 @@ async fn main() -> anyhow::Result<()> {
     let dashboard_router = dashboard_routes::dashboard_routes().with_state(app_state.clone());
 
     // Update system routes
-    let update_router = update_routes::update_routes().with_state(update_state);
+    let update_router = update_routes::update_routes().with_state(app_state.clone());
 
     let app = Router::new()
         .route("/health", get(health_check))
