@@ -1,5 +1,5 @@
 use crate::auth::AuthUser;
-use crate::state::AppState;
+use crate::state::{AppState, ImportJob, ImportProgress, ImportResult, JobStatus};
 use axum::{
     extract::{Multipart, Path, Query, State},
     http::StatusCode,
@@ -11,53 +11,8 @@ use import_service::{
     DuplicateStrategy, MatchCriteria,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Row, Sqlite};
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use sqlx::{QueryBuilder, Row};
 use uuid::Uuid;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImportJob {
-    pub id: Uuid,
-    pub file_name: String,
-    pub connector_id: String,
-    pub status: JobStatus,
-    pub progress: ImportProgress,
-    pub result: Option<ImportResult>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum JobStatus {
-    Pending,
-    Validating,
-    Parsing,
-    Deduplicating,
-    Importing,
-    Completed,
-    Failed,
-    Cancelled,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImportProgress {
-    pub current: usize,
-    pub total: usize,
-    pub phase: String,
-    pub warnings: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImportResult {
-    pub imported: usize,
-    pub skipped: usize,
-    pub failed: usize,
-    pub duplicates_found: usize,
-    pub elapsed_seconds: f64,
-    pub log_id: Uuid,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct PreviewQuery {
@@ -425,25 +380,30 @@ pub async fn get_import_history(
     State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
-    let mut query = String::from("SELECT * FROM import_logs WHERE 1=1");
+    // Build parameterized query to prevent SQL injection
+    let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM import_logs WHERE 1=1");
 
-    // Apply filters
+    // Apply filters with parameterized values
     if let Some(status) = params.get("status") {
-        query.push_str(&format!(" AND status = '{}'", status));
+        query_builder.push(" AND status = ");
+        query_builder.push_bind(status);
     }
     if let Some(connector_id) = params.get("connector_id") {
-        query.push_str(&format!(" AND connector_id = '{}'", connector_id));
+        query_builder.push(" AND connector_id = ");
+        query_builder.push_bind(connector_id);
     }
     if let Some(start_date) = params.get("start_date") {
-        query.push_str(&format!(" AND started_at >= '{}'", start_date));
+        query_builder.push(" AND started_at >= ");
+        query_builder.push_bind(start_date);
     }
     if let Some(end_date) = params.get("end_date") {
-        query.push_str(&format!(" AND started_at <= '{}'", end_date));
+        query_builder.push(" AND started_at <= ");
+        query_builder.push_bind(end_date);
     }
 
-    query.push_str(" ORDER BY started_at DESC LIMIT 100");
+    query_builder.push(" ORDER BY started_at DESC LIMIT 100");
 
-    match sqlx::query(&query).fetch_all(state.pool.as_ref()).await {
+    match query_builder.build().fetch_all(state.pool.as_ref()).await {
         Ok(rows) => {
             let history: Vec<serde_json::Value> = rows.iter().map(|row| {
                 serde_json::json!({
