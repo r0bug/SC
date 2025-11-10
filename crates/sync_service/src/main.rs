@@ -315,7 +315,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/share", post(api::create_share))
         .route("/api/ai/suggestions/:contact_id", get(api::get_suggestions))
-        .route("/ws", get(ws::ws_handler))
+        // SECURITY FIX: Removed unauthenticated legacy WebSocket endpoint
+        // Clients should use the authenticated /ws/events endpoint instead
         .layer(DefaultBodyLimit::max(500 * 1024 * 1024)) // 500MB limit for file uploads
         .layer(middleware::from_fn(
             security_headers::security_headers_middleware,
