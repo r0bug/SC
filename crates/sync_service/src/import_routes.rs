@@ -1,3 +1,5 @@
+use crate::auth::AuthUser;
+use crate::state::AppState;
 use axum::{
     extract::{Multipart, Path, Query, State},
     http::StatusCode,
@@ -13,12 +15,6 @@ use sqlx::{Pool, Row, Sqlite};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
-
-#[derive(Clone)]
-pub struct ImportState {
-    pub pool: Arc<Pool<Sqlite>>,
-    pub jobs: Arc<RwLock<Vec<ImportJob>>>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportJob {
@@ -86,7 +82,7 @@ pub struct PreviewResponse {
 }
 
 /// GET /api/import/connectors - List all available connectors
-pub async fn list_connectors() -> impl IntoResponse {
+pub async fn list_connectors(AuthUser(_user): AuthUser) -> impl IntoResponse {
     let registry = create_default_registry();
     let connectors = registry.list_connectors();
     Json(connectors)
@@ -94,6 +90,7 @@ pub async fn list_connectors() -> impl IntoResponse {
 
 /// POST /api/import/preview - Upload file and get preview
 pub async fn preview_import(
+    AuthUser(_user): AuthUser,
     Query(params): Query<PreviewQuery>,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -173,7 +170,8 @@ pub async fn preview_import(
 
 /// POST /api/import/execute - Execute import with options
 pub async fn execute_import(
-    State(state): State<ImportState>,
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     // Extract file and config from multipart
@@ -243,7 +241,7 @@ pub async fn execute_import(
 
     // Add to job queue
     {
-        let mut jobs = state.jobs.write().await;
+        let mut jobs = state.import_jobs.write().await;
         jobs.push(job.clone());
     }
 
@@ -263,10 +261,11 @@ pub async fn execute_import(
 
 /// GET /api/import/jobs/:job_id - Get job status
 pub async fn get_job_status(
-    State(state): State<ImportState>,
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
     Path(job_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let jobs = state.jobs.read().await;
+    let jobs = state.import_jobs.read().await;
     let job = jobs
         .iter()
         .find(|j| j.id == job_id)
@@ -278,19 +277,21 @@ pub async fn get_job_status(
 
 /// GET /api/import/jobs - List all import jobs
 pub async fn list_jobs(
-    State(state): State<ImportState>,
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let jobs = state.jobs.read().await;
+    let jobs = state.import_jobs.read().await;
     let job_list: Vec<_> = jobs.iter().cloned().collect();
     Ok(Json(job_list))
 }
 
 /// POST /api/import/jobs/:job_id/cancel - Cancel an import job
 pub async fn cancel_job(
-    State(state): State<ImportState>,
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
     Path(job_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let mut jobs = state.jobs.write().await;
+    let mut jobs = state.import_jobs.write().await;
     if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
         job.status = JobStatus::Cancelled;
         job.updated_at = chrono::Utc::now();
@@ -302,7 +303,7 @@ pub async fn cancel_job(
 
 /// Background import processing
 async fn process_import(
-    state: ImportState,
+    state: AppState,
     job_id: Uuid,
     file_data: Vec<u8>,
     file_name: String,
@@ -314,7 +315,7 @@ async fn process_import(
     let update_status = |status: JobStatus, phase: String| {
         let state = state.clone();
         async move {
-            let mut jobs = state.jobs.write().await;
+            let mut jobs = state.import_jobs.write().await;
             if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
                 job.status = status;
                 job.progress.phase = phase;
@@ -398,7 +399,7 @@ async fn process_import(
 
     // Complete
     let elapsed = start_time.elapsed().as_secs_f64();
-    let mut jobs = state.jobs.write().await;
+    let mut jobs = state.import_jobs.write().await;
     if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
         job.status = JobStatus::Completed;
         job.progress.current = imported;
@@ -420,7 +421,8 @@ async fn process_import(
 
 /// GET /api/import/history - Get import history from database
 pub async fn get_import_history(
-    State(state): State<ImportState>,
+    AuthUser(_user): AuthUser,
+    State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
     let mut query = String::from("SELECT * FROM import_logs WHERE 1=1");
@@ -468,7 +470,7 @@ pub async fn get_import_history(
 }
 
 /// Router configuration
-pub fn import_routes() -> axum::Router<ImportState> {
+pub fn import_routes() -> axum::Router<AppState> {
     axum::Router::new()
         .route(
             "/api/import/connectors",

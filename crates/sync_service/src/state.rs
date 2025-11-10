@@ -1,10 +1,12 @@
 use crate::acl::AclService;
 use crate::auth::AuthService;
+use crate::import_routes::ImportJob;
 use crate::websocket::WebSocketBroadcaster;
 use ai_middleware::SegmindClient;
 use local_store::LocalStore;
 use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -14,6 +16,7 @@ pub struct AppState {
     pub acl_service: Arc<AclService>,
     pub pool: Arc<Pool<Sqlite>>,
     pub ws_broadcaster: Arc<WebSocketBroadcaster>,
+    pub import_jobs: Arc<RwLock<Vec<ImportJob>>>,
 }
 
 impl AppState {
@@ -24,6 +27,7 @@ impl AppState {
         acl_service: Arc<AclService>,
         pool: Arc<Pool<Sqlite>>,
         ws_broadcaster: Arc<WebSocketBroadcaster>,
+        import_jobs: Arc<RwLock<Vec<ImportJob>>>,
     ) -> Self {
         Self {
             store: Arc::new(store),
@@ -32,6 +36,7 @@ impl AppState {
             acl_service,
             pool,
             ws_broadcaster,
+            import_jobs,
         }
     }
 }

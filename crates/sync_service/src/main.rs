@@ -62,11 +62,8 @@ async fn main() -> anyhow::Result<()> {
     // Create WebSocket broadcaster
     let ws_broadcaster = Arc::new(websocket::WebSocketBroadcaster::new());
 
-    // Create import state before app_state (pool is moved into app_state)
-    let import_state = import_routes::ImportState {
-        pool: pool.clone(),
-        jobs: Arc::new(tokio::sync::RwLock::new(Vec::new())),
-    };
+    // Create import jobs (shared state for import routes)
+    let import_jobs = Arc::new(tokio::sync::RwLock::new(Vec::new()));
 
     // Create update system state
     let update_state = update_routes::UpdateState::new();
@@ -78,6 +75,7 @@ async fn main() -> anyhow::Result<()> {
         acl_service,
         pool,
         ws_broadcaster,
+        import_jobs,
     );
 
     // Metrics endpoint handler
@@ -147,7 +145,7 @@ async fn main() -> anyhow::Result<()> {
             let limiter = import_rate_limiter.clone();
             async move { limiter.middleware(req, next).await }
         }))
-        .with_state(import_state);
+        .with_state(app_state.clone());
 
     // Dashboard routes (no rate limiting needed for simple dashboard)
     let dashboard_router = dashboard_routes::dashboard_routes().with_state(app_state.clone());
