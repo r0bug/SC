@@ -172,11 +172,12 @@ impl<'a> ContactRepository<'a> {
         Ok(row.into_contact(social_handles, tags, projects, groups))
     }
 
-    pub async fn list(&self, limit: i64, offset: i64) -> DomainResult<Vec<Contact>> {
+    pub async fn list(&self, limit: i64, offset: i64, user_id: Uuid) -> DomainResult<Vec<Contact>> {
         let rows = sqlx::query_as::<_, ContactRow>(
             "SELECT id, first_name, last_name, email, phone, organization, title, notes, metadata, created_at, updated_at, created_by, version, last_synced_at
-             FROM contacts ORDER BY last_name, first_name LIMIT ? OFFSET ?"
+             FROM contacts WHERE created_by = ? ORDER BY last_name, first_name LIMIT ? OFFSET ?"
         )
+        .bind(user_id.to_string())
         .bind(limit)
         .bind(offset)
         .fetch_all(self.pool)
@@ -294,14 +295,15 @@ impl<'a> ContactRepository<'a> {
         Ok(())
     }
 
-    pub async fn search(&self, query: &str) -> DomainResult<Vec<Contact>> {
+    pub async fn search(&self, query: &str, user_id: Uuid) -> DomainResult<Vec<Contact>> {
         let search_pattern = format!("%{}%", query);
         let rows = sqlx::query_as::<_, ContactRow>(
             "SELECT id, first_name, last_name, email, phone, organization, title, notes, metadata, created_at, updated_at, created_by, version, last_synced_at
              FROM contacts
-             WHERE first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ? OR organization LIKE ?
+             WHERE created_by = ? AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ? OR organization LIKE ?)
              ORDER BY last_name, first_name"
         )
+        .bind(user_id.to_string())
         .bind(&search_pattern)
         .bind(&search_pattern)
         .bind(&search_pattern)

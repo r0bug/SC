@@ -37,10 +37,11 @@ impl<'a> ProjectRepository<'a> {
         Ok(())
     }
 
-    pub async fn list(&self) -> DomainResult<Vec<Project>> {
+    pub async fn list(&self, user_id: Uuid) -> DomainResult<Vec<Project>> {
         let rows = sqlx::query_as::<_, ProjectRow>(
-            "SELECT id, name, description, status, created_at, updated_at, created_by, version, last_synced_at FROM projects ORDER BY name"
+            "SELECT id, name, description, status, created_at, updated_at, created_by, version, last_synced_at FROM projects WHERE created_by = ? ORDER BY name"
         )
+        .bind(user_id.to_string())
         .fetch_all(self.pool)
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;

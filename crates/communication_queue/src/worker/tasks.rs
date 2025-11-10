@@ -228,7 +228,7 @@ impl SuggestionTask {
         }
 
         // Analyze contact patterns for suggestions
-        let contacts = contact_repo.list(10, 0).await?;
+        let contacts = contact_repo.list(10, 0, user_id).await?;
 
         for contact in contacts {
             // Check if contact has missing information

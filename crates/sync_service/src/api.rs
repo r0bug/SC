@@ -93,7 +93,7 @@ fn default_limit() -> i64 {
 }
 
 pub async fn list_contacts(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Query(params): Query<ListQuery>,
 ) -> Result<Json<Vec<Contact>>, (StatusCode, Json<serde_json::Value>)> {
@@ -106,7 +106,8 @@ pub async fn list_contacts(
     })?;
 
     let repo = ContactRepository::new(state.store.pool());
-    let contacts = repo.list(params.limit, params.offset).await.map_err(|_| {
+    // Filter by user ownership
+    let contacts = repo.list(params.limit, params.offset, user.id).await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": "Internal server error"})),
@@ -159,7 +160,7 @@ pub async fn create_contact(
 }
 
 pub async fn get_contact(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Contact>, StatusCode> {
@@ -168,6 +169,12 @@ pub async fn get_contact(
         .get_by_id(id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Ownership check: Verify the contact belongs to the requesting user
+    if contact.created_by != user.id {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     Ok(Json(contact))
 }
 
@@ -177,7 +184,7 @@ pub struct SearchQuery {
 }
 
 pub async fn search_contacts(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Json(search): Json<SearchQuery>,
 ) -> Result<Json<Vec<Contact>>, (StatusCode, Json<serde_json::Value>)> {
@@ -190,7 +197,8 @@ pub async fn search_contacts(
     })?;
 
     let repo = ContactRepository::new(state.store.pool());
-    let contacts = repo.search(&search.query).await.map_err(|_| {
+    // Filter by user ownership
+    let contacts = repo.search(&search.query, user.id).await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": "Internal server error"})),
@@ -231,12 +239,13 @@ pub async fn create_tag(
 }
 
 pub async fn list_projects(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Project>>, StatusCode> {
     let repo = ProjectRepository::new(state.store.pool());
+    // Filter by user ownership
     let projects = repo
-        .list()
+        .list(user.id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(projects))
@@ -279,7 +288,7 @@ pub async fn create_project(
 }
 
 pub async fn get_project(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Project>, StatusCode> {
@@ -288,11 +297,17 @@ pub async fn get_project(
         .get_by_id(id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Ownership check: Verify the project belongs to the requesting user
+    if project.created_by != user.id {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     Ok(Json(project))
 }
 
 pub async fn update_project(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(updates): Json<UpdateProjectRequest>,
@@ -304,6 +319,11 @@ pub async fn update_project(
         .get_by_id(id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Ownership check: Verify the project belongs to the requesting user
+    if project.created_by != user.id {
+        return Err(StatusCode::FORBIDDEN);
+    }
 
     // Apply partial updates
     if let Some(name) = updates.name {
@@ -333,11 +353,23 @@ pub async fn update_project(
 }
 
 pub async fn delete_project(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
     let repo = ProjectRepository::new(state.store.pool());
+
+    // Fetch existing project to verify ownership before deletion
+    let project = repo
+        .get_by_id(id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Ownership check: Verify the project belongs to the requesting user
+    if project.created_by != user.id {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     repo.delete(id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -428,7 +460,7 @@ pub async fn get_suggestions(
 }
 
 pub async fn update_contact(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     Json(updates): Json<UpdateContactRequest>,
@@ -440,6 +472,11 @@ pub async fn update_contact(
         .get_by_id(id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Ownership check: Verify the contact belongs to the requesting user
+    if contact.created_by != user.id {
+        return Err(StatusCode::FORBIDDEN);
+    }
 
     // Apply partial updates
     if let Some(first_name) = updates.first_name {
@@ -480,11 +517,23 @@ pub async fn update_contact(
 }
 
 pub async fn delete_contact(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
     let repo = ContactRepository::new(state.store.pool());
+
+    // Fetch existing contact to verify ownership before deletion
+    let contact = repo
+        .get_by_id(id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    // Ownership check: Verify the contact belongs to the requesting user
+    if contact.created_by != user.id {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     repo.delete(id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

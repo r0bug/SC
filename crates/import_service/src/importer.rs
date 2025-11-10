@@ -39,6 +39,7 @@ impl ImportService {
         file_path: &Path,
         config_id: Option<Uuid>,
         dry_run: bool,
+        user_id: Uuid,
     ) -> Result<ImportResult, ImportError> {
         // Load or create config
         let config = if let Some(id) = config_id {
@@ -115,7 +116,7 @@ impl ImportService {
 
             // Check if contact exists (for update vs insert)
             let existing = contact_repo
-                .search(&contact.email.as_deref().unwrap_or(""))
+                .search(&contact.email.as_deref().unwrap_or(""), user_id)
                 .await
                 .ok()
                 .and_then(|results| results.into_iter().next());
