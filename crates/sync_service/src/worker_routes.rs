@@ -13,23 +13,39 @@ use uuid::Uuid;
 
 /// Validate worker secret from X-Worker-Secret header
 fn validate_worker_secret(headers: &HeaderMap) -> Result<(), (StatusCode, &'static str)> {
+    // SECURITY: Require WORKER_SECRET - no fallback to insecure default
     let expected_secret = std::env::var("WORKER_SECRET")
-        .unwrap_or_else(|_| {
-            tracing::warn!("WORKER_SECRET not set! Worker endpoints are insecure. Set WORKER_SECRET environment variable.");
-            "insecure-worker-secret-change-in-production".to_string()
-        });
+        .map_err(|_| {
+            tracing::error!("WORKER_SECRET environment variable not set! Worker endpoints are disabled for security.");
+            (StatusCode::SERVICE_UNAVAILABLE, "Worker authentication not configured")
+        })?;
+
+    // Enforce minimum length for security
+    if expected_secret.len() < 32 {
+        tracing::error!("WORKER_SECRET must be at least 32 characters long for security");
+        return Err((StatusCode::SERVICE_UNAVAILABLE, "Worker authentication not properly configured"));
+    }
 
     let provided_secret = headers
         .get("X-Worker-Secret")
         .and_then(|v| v.to_str().ok())
         .ok_or((StatusCode::UNAUTHORIZED, "Missing X-Worker-Secret header"))?;
 
-    if provided_secret != expected_secret {
+    // Use constant-time comparison to prevent timing attacks
+    if !constant_time_compare(provided_secret.as_bytes(), expected_secret.as_bytes()) {
         tracing::warn!("Invalid worker secret provided");
         return Err((StatusCode::UNAUTHORIZED, "Invalid worker secret"));
     }
 
     Ok(())
+}
+
+/// Constant-time string comparison to prevent timing attacks
+fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 #[derive(Debug, Deserialize)]
@@ -166,19 +182,28 @@ pub struct BatchStatusResponse {
 
 /// POST /api/worker/health
 /// Health check endpoint for worker services
-pub async fn worker_health_check() -> impl IntoResponse {
-    Json(serde_json::json!({
+pub async fn worker_health_check(
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, (StatusCode, &'static str)> {
+    // Require worker authentication even for health checks
+    validate_worker_secret(&headers)?;
+
+    Ok(Json(serde_json::json!({
         "status": "ok",
         "timestamp": Utc::now(),
-    }))
+    })))
 }
 
 /// POST /api/worker/register
 /// Register a worker with the sync service
 pub async fn register_worker(
+    headers: HeaderMap,
     State(_app_state): State<AppState>,
     Json(registration): Json<WorkerRegistration>,
 ) -> Result<Json<WorkerRegistrationResponse>, (StatusCode, &'static str)> {
+    // Require worker authentication to prevent unauthorized worker registration
+    validate_worker_secret(&headers)?;
+
     tracing::info!("Worker registered: {}", registration.worker_id);
 
     Ok(Json(WorkerRegistrationResponse {
