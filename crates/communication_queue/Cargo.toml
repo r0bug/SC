@@ -28,3 +28,4 @@ axum.workspace = true
 sqlx.workspace = true
 reqwest.workspace = true
 async-trait = "0.1"
+base64 = "0.22"

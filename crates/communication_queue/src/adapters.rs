@@ -1,6 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use tracing::{info, warn};
+use base64::{Engine as _, engine::general_purpose};
+use serde::Serialize;
 
 // Trait definitions
 #[async_trait]
@@ -76,6 +78,84 @@ impl SmsAdapterTrait for MockSmsAdapter {
 
         info!("[MOCK] SMS sent successfully (deterministic mock)");
         Ok(())
+    }
+}
+
+/// Twilio SMS adapter - real SMS sending via Twilio REST API
+pub struct TwilioSmsAdapter {
+    account_sid: String,
+    auth_token: String,
+    from_number: String,
+    client: reqwest::Client,
+}
+
+impl TwilioSmsAdapter {
+    pub fn new(account_sid: String, auth_token: String, from_number: String) -> Self {
+        Self {
+            account_sid,
+            auth_token,
+            from_number,
+            client: reqwest::Client::new(),
+        }
+    }
+
+    /// Create from environment variables
+    pub fn from_env() -> Result<Self> {
+        let account_sid = std::env::var("TWILIO_ACCOUNT_SID")
+            .map_err(|_| anyhow::anyhow!("TWILIO_ACCOUNT_SID not set"))?;
+        let auth_token = std::env::var("TWILIO_AUTH_TOKEN")
+            .map_err(|_| anyhow::anyhow!("TWILIO_AUTH_TOKEN not set"))?;
+        let from_number = std::env::var("TWILIO_PHONE_NUMBER")
+            .map_err(|_| anyhow::anyhow!("TWILIO_PHONE_NUMBER not set"))?;
+
+        Ok(Self::new(account_sid, auth_token, from_number))
+    }
+
+    fn build_auth_header(&self) -> String {
+        let credentials = format!("{}:{}", self.account_sid, self.auth_token);
+        let encoded = general_purpose::STANDARD.encode(credentials.as_bytes());
+        format!("Basic {}", encoded)
+    }
+}
+
+#[async_trait]
+impl SmsAdapterTrait for TwilioSmsAdapter {
+    async fn send_sms(&self, to: &str, message: &str) -> Result<()> {
+        info!("[TWILIO] Sending SMS to {} from {}", to, self.from_number);
+
+        // Twilio API endpoint
+        let url = format!(
+            "https://api.twilio.com/2010-04-01/Accounts/{}/Messages.json",
+            self.account_sid
+        );
+
+        // Prepare form data
+        let params = [
+            ("To", to),
+            ("From", &self.from_number),
+            ("Body", message),
+        ];
+
+        // Make request
+        let response = self.client
+            .post(&url)
+            .header("Authorization", self.build_auth_header())
+            .form(&params)
+            .send()
+            .await?;
+
+        let status = response.status();
+        let body = response.text().await?;
+
+        if status.is_success() {
+            info!("[TWILIO] SMS sent successfully to {}", to);
+            info!("[TWILIO] Response: {}", body);
+            Ok(())
+        } else {
+            warn!("[TWILIO] Failed to send SMS. Status: {}", status);
+            warn!("[TWILIO] Error response: {}", body);
+            anyhow::bail!("Twilio API error: {} - {}", status, body)
+        }
     }
 }
 

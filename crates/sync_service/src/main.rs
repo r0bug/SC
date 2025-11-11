@@ -15,6 +15,7 @@ mod rate_limit;
 mod search_history_routes;
 mod security_headers;
 mod share_routes;
+mod twilio_routes;
 mod update_system;
 mod state;
 mod update_routes;
@@ -253,6 +254,15 @@ async fn main() -> anyhow::Result<()> {
             post(worker_routes::worker_health_check),
         )
         .route("/api/worker/register", post(worker_routes::register_worker))
+        // Twilio webhook routes (no auth - Twilio validates via their own methods)
+        .route(
+            "/api/webhooks/twilio/sms",
+            post(twilio_routes::receive_sms),
+        )
+        .route(
+            "/api/webhooks/twilio/sms/test",
+            get(twilio_routes::test_webhook),
+        )
         // WebSocket route
         .route("/ws/events", get(websocket::websocket_handler))
         // Android backup import routes

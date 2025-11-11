@@ -1,6 +1,6 @@
 use crate::adapters::{
     EmailAdapterTrait, MockEmailAdapter, MockSmsAdapter, MockSocialAdapter, SmsAdapterTrait,
-    SocialAdapterTrait,
+    SocialAdapterTrait, TwilioSmsAdapter,
 };
 use anyhow::Result;
 use chrono::{Duration, Utc};
@@ -140,6 +140,18 @@ impl Default for EnhancedCommunicationQueue {
 
 impl EnhancedCommunicationQueue {
     pub fn new() -> Self {
+        // Try to create Twilio adapter from environment, fall back to mock
+        let sms_adapter: Box<dyn SmsAdapterTrait> = match TwilioSmsAdapter::from_env() {
+            Ok(twilio) => {
+                tracing::info!("✅ Using Twilio SMS adapter (real SMS sending enabled)");
+                Box::new(twilio)
+            }
+            Err(_) => {
+                tracing::info!("ℹ️ Using Mock SMS adapter (set TWILIO_* env vars for real SMS)");
+                Box::new(MockSmsAdapter::new())
+            }
+        };
+
         let mut rate_configs = HashMap::new();
         rate_configs.insert(
             "email".to_string(),
@@ -171,13 +183,19 @@ impl EnhancedCommunicationQueue {
 
         Self {
             email_adapter: Box::new(MockEmailAdapter::new()),
-            sms_adapter: Box::new(MockSmsAdapter::new()),
+            sms_adapter,
             social_adapter: Box::new(MockSocialAdapter::new()),
             rate_limiter: RateLimiter::new(),
             rate_configs,
             backoff_config: BackoffConfig::default(),
             batch_size: 10,
         }
+    }
+
+    /// Create with explicit SMS adapter (useful for testing or custom configuration)
+    pub fn with_sms_adapter(mut self, adapter: Box<dyn SmsAdapterTrait>) -> Self {
+        self.sms_adapter = adapter;
+        self
     }
 
     pub fn with_batch_size(mut self, size: usize) -> Self {
