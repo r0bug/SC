@@ -13,6 +13,18 @@ use std::path::PathBuf;
 use tracing::info;
 use uuid::Uuid;
 
+/// Get the user ID for CLI operations
+/// If authenticated, use the logged-in user ID, otherwise use a nil UUID for local operations
+fn get_user_id() -> Result<Uuid> {
+    let config = AuthConfig::load()?;
+    if let Some(user_id_str) = config.user_id {
+        Uuid::parse_str(&user_id_str).map_err(|e| anyhow::anyhow!("Invalid user ID: {}", e))
+    } else {
+        // Use nil UUID for local/unauthenticated operations
+        Ok(Uuid::nil())
+    }
+}
+
 pub async fn import_command(
     csv: Option<String>,
     vcard: Option<String>,
@@ -52,7 +64,8 @@ pub async fn import_command(
         if let Some(csv_path) = csv {
             info!("Importing from CSV: {}", csv_path);
             let path = PathBuf::from(csv_path);
-            let result = import_service.import_file(&path, None, false).await?;
+            let user_id = get_user_id()?;
+            let result = import_service.import_file(&path, None, false, user_id).await?;
 
             if result.success {
                 if let Some(summary) = result.summary {
@@ -72,7 +85,8 @@ pub async fn import_command(
         if let Some(vcard_path) = vcard {
             info!("Importing from vCard: {}", vcard_path);
             let path = PathBuf::from(vcard_path);
-            let _result = import_service.import_file(&path, None, false).await?;
+            let user_id = get_user_id()?;
+            let _result = import_service.import_file(&path, None, false, user_id).await?;
             println!("vCard import completed");
         }
 
@@ -122,8 +136,9 @@ pub async fn list_command(limit: i64, only_named: bool) -> Result<()> {
         // Use local store
         let store = LocalStore::new("sqlite:./data/contacts.db").await?;
         let repo = ContactRepository::new(store.pool());
+        let user_id = get_user_id()?;
 
-        let mut contacts = repo.list(limit, 0).await.map_err(|e| anyhow::anyhow!(e))?;
+        let mut contacts = repo.list(limit, 0, user_id).await.map_err(|e| anyhow::anyhow!(e))?;
 
         // Apply filtering
         if only_named {
@@ -148,8 +163,9 @@ pub async fn list_command(limit: i64, only_named: bool) -> Result<()> {
 pub async fn search_command(query: &str) -> Result<()> {
     let store = LocalStore::new("sqlite:./data/contacts.db").await?;
     let repo = ContactRepository::new(store.pool());
+    let user_id = get_user_id()?;
 
-    let contacts = repo.search(query).await.map_err(|e| anyhow::anyhow!(e))?;
+    let contacts = repo.search(query, user_id).await.map_err(|e| anyhow::anyhow!(e))?;
 
     println!("Found {} contacts:", contacts.len());
     for contact in contacts {
@@ -612,6 +628,161 @@ pub async fn merge_duplicates_command(dry_run: bool, phone: Option<String>) -> R
         println!("  Performed {} merge operations", total_merges);
         println!("  Removed {} duplicate contacts", total_duplicates_removed);
     }
+
+    Ok(())
+}
+
+pub async fn backup_command(output: Option<String>) -> Result<()> {
+    use std::process::Command;
+
+    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+    let backup_dir = PathBuf::from("./data/backups");
+
+    // Create backup directory if it doesn't exist
+    fs::create_dir_all(&backup_dir)?;
+
+    let backup_file = if let Some(output_path) = output {
+        PathBuf::from(output_path)
+    } else {
+        backup_dir.join(format!("backup_{}.tar.gz", timestamp))
+    };
+
+    println!("Creating backup...");
+    println!("  Target: {}", backup_file.display());
+
+    // Determine database location
+    let db_file = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "sqlite:./data/contacts.db".to_string())
+        .trim_start_matches("sqlite:")
+        .to_string();
+
+    println!("  Database: {}", db_file);
+
+    // Check if database file exists
+    if !PathBuf::from(&db_file).exists() {
+        anyhow::bail!("Database file not found: {}", db_file);
+    }
+
+    // Build list of files to backup
+    let mut files_to_backup = vec![db_file.clone()];
+
+    // Add attachments directory if it exists
+    if PathBuf::from("data/attachments").exists() {
+        files_to_backup.push("data/attachments".to_string());
+    }
+
+    // Add .env if it exists
+    if PathBuf::from(".env").exists() {
+        files_to_backup.push(".env".to_string());
+    }
+
+    // Create tar.gz backup using system tar command
+    let mut tar_cmd = Command::new("tar");
+    tar_cmd.arg("-czf").arg(&backup_file);
+    for file in &files_to_backup {
+        tar_cmd.arg(file);
+    }
+
+    let output = tar_cmd.output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Backup failed: {}", stderr);
+    }
+
+    // Get backup file size
+    let metadata = fs::metadata(&backup_file)?;
+    let size_kb = metadata.len() / 1024;
+
+    println!("✓ Backup created successfully!");
+    println!("  Location: {}", backup_file.display());
+    println!("  Size: {} KB", size_kb);
+
+    // Clean up old backups (keep last 10)
+    let mut backups: Vec<_> = fs::read_dir(&backup_dir)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            entry.file_name()
+                .to_string_lossy()
+                .starts_with("backup_")
+                && entry.file_name().to_string_lossy().ends_with(".tar.gz")
+        })
+        .collect();
+
+    if backups.len() > 10 {
+        backups.sort_by_key(|entry| entry.metadata().ok()?.modified().ok());
+        let to_remove = backups.len() - 10;
+        for entry in backups.iter().take(to_remove) {
+            if let Err(e) = fs::remove_file(entry.path()) {
+                eprintln!("Warning: Failed to remove old backup: {}", e);
+            }
+        }
+        println!("✓ Cleaned up {} old backup(s)", to_remove);
+    }
+
+    Ok(())
+}
+
+pub async fn restore_command(backup_file: String, force: bool) -> Result<()> {
+    use std::io::{self, Write};
+    use std::process::Command;
+
+    let backup_path = PathBuf::from(&backup_file);
+
+    // Check if backup file exists
+    if !backup_path.exists() {
+        anyhow::bail!("Backup file not found: {}", backup_file);
+    }
+
+    println!("⚠ WARNING: This will overwrite your current data!");
+    println!("  Backup file: {}", backup_path.display());
+
+    if !force {
+        print!("Continue? (yes/no): ");
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input)?;
+
+        if input.trim().to_lowercase() != "yes" {
+            println!("Restore cancelled.");
+            return Ok(());
+        }
+    }
+
+    println!("\nRestoring from backup...");
+
+    // Stop any running services (best effort)
+    let _ = Command::new("pkill")
+        .arg("-f")
+        .arg("sync_service")
+        .output();
+    let _ = Command::new("pkill")
+        .arg("-f")
+        .arg("worker")
+        .output();
+
+    println!("✓ Stopped running services");
+
+    // Wait a moment for processes to terminate
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+    // Extract backup
+    let mut tar_cmd = Command::new("tar");
+    tar_cmd
+        .arg("-xzf")
+        .arg(&backup_path)
+        .current_dir(".");
+
+    let output = tar_cmd.output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Restore failed: {}", stderr);
+    }
+
+    println!("✓ Restore complete!");
+    println!("\nYou can now restart services with: ./start.sh");
 
     Ok(())
 }

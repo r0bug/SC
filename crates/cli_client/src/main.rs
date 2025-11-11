@@ -217,6 +217,16 @@ enum Commands {
         #[arg(long)]
         phone: Option<String>,
     },
+    // Backup and restore commands
+    Backup {
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+    Restore {
+        backup_file: String,
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[tokio::main]
@@ -451,6 +461,13 @@ async fn main() -> Result<()> {
         // Contact merge command
         Commands::MergeDuplicates { dry_run, phone } => {
             commands::merge_duplicates_command(dry_run, phone).await?;
+        }
+        // Backup and restore commands
+        Commands::Backup { output } => {
+            commands::backup_command(output).await?;
+        }
+        Commands::Restore { backup_file, force } => {
+            commands::restore_command(backup_file, force).await?;
         }
     }
 
