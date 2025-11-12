@@ -1,7 +1,7 @@
 use anyhow::Result;
 use communication_queue::{
-    CommunicationTask, HealthServer, MetricsStore, NagReminderTask, SuggestionTask,
-    WorkerSupervisor,
+    CommunicationTask, EmailMonitor, HealthServer, ImapConfig, MetricsStore, NagReminderTask,
+    SuggestionTask, WorkerSupervisor,
 };
 use local_store::LocalStore;
 use std::sync::Arc;
@@ -34,6 +34,15 @@ async fn main() -> Result<()> {
     // Create supervisor
     let supervisor = Arc::new(WorkerSupervisor::new());
     info!("👨‍💼 Worker supervisor created");
+
+    // Start email monitor if IMAP is configured
+    if let Ok(imap_config) = ImapConfig::from_env() {
+        let email_monitor = Arc::new(EmailMonitor::new(imap_config, Arc::new(store.pool().clone())));
+        email_monitor.start().await;
+        info!("📧 Email monitor started");
+    } else {
+        info!("ℹ️  Email monitor disabled (set IMAP_* env vars to enable)");
+    }
 
     // Spawn communication processing task
     let comm_store = Arc::clone(&store);
@@ -145,10 +154,12 @@ async fn main() -> Result<()> {
         }
     });
 
-    info!("✅ Worker fully initialized with {} tasks", 3);
+    let task_count = 3; // communication, nag, suggestion
+    info!("✅ Worker fully initialized with {} tasks + email monitor", task_count);
     info!("📋 Tasks will run continuously with automatic restart on failure");
     info!("🏥 Health check available at http://localhost:9090/health/worker");
-    info!("⚠️  NOTE: All email/SMS sends are MOCKED in this alpha release");
+    info!("ℹ️  Email: Set SMTP_* env vars for real sending, IMAP_* for receiving");
+    info!("ℹ️  SMS: Set TWILIO_* env vars for real SMS (otherwise mocked)");
 
     // Keep the main task alive
     loop {

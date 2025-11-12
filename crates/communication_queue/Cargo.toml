@@ -29,3 +29,11 @@ sqlx.workspace = true
 reqwest.workspace = true
 async-trait = "0.1"
 base64 = "0.22"
+
+# Email support
+async-imap = "0.9"
+async-native-tls = "0.5"
+lettre = { version = "0.11", features = ["tokio1", "tokio1-native-tls"] }
+mail-parser = "0.9"
+tokio-util = { version = "0.7", features = ["compat"] }
+futures = "0.3"

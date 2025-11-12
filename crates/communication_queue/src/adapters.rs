@@ -2,7 +2,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tracing::{info, warn};
 use base64::{Engine as _, engine::general_purpose};
-use serde::Serialize;
 
 // Trait definitions
 #[async_trait]
@@ -155,6 +154,112 @@ impl SmsAdapterTrait for TwilioSmsAdapter {
             warn!("[TWILIO] Failed to send SMS. Status: {}", status);
             warn!("[TWILIO] Error response: {}", body);
             anyhow::bail!("Twilio API error: {} - {}", status, body)
+        }
+    }
+}
+
+/// SMTP Email adapter - real email sending via SMTP
+pub struct SmtpEmailAdapter {
+    smtp_server: String,
+    smtp_port: u16,
+    smtp_username: String,
+    smtp_password: String,
+    from_address: String,
+    from_name: String,
+}
+
+impl SmtpEmailAdapter {
+    pub fn new(
+        smtp_server: String,
+        smtp_port: u16,
+        smtp_username: String,
+        smtp_password: String,
+        from_address: String,
+        from_name: String,
+    ) -> Self {
+        Self {
+            smtp_server,
+            smtp_port,
+            smtp_username,
+            smtp_password,
+            from_address,
+            from_name,
+        }
+    }
+
+    /// Create from environment variables
+    pub fn from_env() -> Result<Self> {
+        let smtp_server = std::env::var("SMTP_SERVER")
+            .map_err(|_| anyhow::anyhow!("SMTP_SERVER not set"))?;
+        let smtp_port = std::env::var("SMTP_PORT")
+            .unwrap_or_else(|_| "587".to_string())
+            .parse()
+            .map_err(|_| anyhow::anyhow!("Invalid SMTP_PORT"))?;
+        let smtp_username = std::env::var("SMTP_USERNAME")
+            .map_err(|_| anyhow::anyhow!("SMTP_USERNAME not set"))?;
+        let smtp_password = std::env::var("SMTP_PASSWORD")
+            .map_err(|_| anyhow::anyhow!("SMTP_PASSWORD not set"))?;
+        let from_address = std::env::var("SMTP_FROM_ADDRESS")
+            .map_err(|_| anyhow::anyhow!("SMTP_FROM_ADDRESS not set"))?;
+        let from_name = std::env::var("SMTP_FROM_NAME")
+            .unwrap_or_else(|_| "SagensContact".to_string());
+
+        Ok(Self::new(
+            smtp_server,
+            smtp_port,
+            smtp_username,
+            smtp_password,
+            from_address,
+            from_name,
+        ))
+    }
+}
+
+#[async_trait]
+impl EmailAdapterTrait for SmtpEmailAdapter {
+    async fn send_email(&self, to: &str, subject: &str, body: &str) -> Result<()> {
+        use lettre::{
+            message::header::ContentType, transport::smtp::authentication::Credentials, Message,
+            SmtpTransport, Transport,
+        };
+
+        info!("[SMTP] Sending email to {}", to);
+        info!("[SMTP] Subject: {}", subject);
+
+        // Build email message
+        let email = Message::builder()
+            .from(
+                format!("{} <{}>", self.from_name, self.from_address)
+                    .parse()
+                    .map_err(|e| anyhow::anyhow!("Invalid from address: {}", e))?,
+            )
+            .to(to
+                .parse()
+                .map_err(|e| anyhow::anyhow!("Invalid to address: {}", e))?)
+            .subject(subject)
+            .header(ContentType::TEXT_PLAIN)
+            .body(body.to_string())
+            .map_err(|e| anyhow::anyhow!("Failed to build email: {}", e))?;
+
+        // Create SMTP client
+        let creds = Credentials::new(self.smtp_username.clone(), self.smtp_password.clone());
+
+        let mailer = SmtpTransport::starttls_relay(&self.smtp_server)
+            .map_err(|e| anyhow::anyhow!("Failed to connect to SMTP server: {}", e))?
+            .port(self.smtp_port)
+            .credentials(creds)
+            .build();
+
+        // Send email
+        match mailer.send(&email) {
+            Ok(_) => {
+                info!("[SMTP] Email sent successfully to {}", to);
+                Ok(())
+            }
+            Err(e) => {
+                warn!("[SMTP] Failed to send email: {}", e);
+                anyhow::bail!("SMTP send error: {}", e)
+            }
         }
     }
 }

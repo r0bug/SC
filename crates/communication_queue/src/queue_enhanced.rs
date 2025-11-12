@@ -1,6 +1,6 @@
 use crate::adapters::{
     EmailAdapterTrait, MockEmailAdapter, MockSmsAdapter, MockSocialAdapter, SmsAdapterTrait,
-    SocialAdapterTrait, TwilioSmsAdapter,
+    SmtpEmailAdapter, SocialAdapterTrait, TwilioSmsAdapter,
 };
 use anyhow::Result;
 use chrono::{Duration, Utc};
@@ -140,6 +140,18 @@ impl Default for EnhancedCommunicationQueue {
 
 impl EnhancedCommunicationQueue {
     pub fn new() -> Self {
+        // Try to create SMTP adapter from environment, fall back to mock
+        let email_adapter: Box<dyn EmailAdapterTrait> = match SmtpEmailAdapter::from_env() {
+            Ok(smtp) => {
+                tracing::info!("✅ Using SMTP email adapter (real email sending enabled)");
+                Box::new(smtp)
+            }
+            Err(_) => {
+                tracing::info!("ℹ️ Using Mock email adapter (set SMTP_* env vars for real email)");
+                Box::new(MockEmailAdapter::new())
+            }
+        };
+
         // Try to create Twilio adapter from environment, fall back to mock
         let sms_adapter: Box<dyn SmsAdapterTrait> = match TwilioSmsAdapter::from_env() {
             Ok(twilio) => {
@@ -182,7 +194,7 @@ impl EnhancedCommunicationQueue {
         );
 
         Self {
-            email_adapter: Box::new(MockEmailAdapter::new()),
+            email_adapter,
             sms_adapter,
             social_adapter: Box::new(MockSocialAdapter::new()),
             rate_limiter: RateLimiter::new(),
