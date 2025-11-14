@@ -28,14 +28,20 @@ fn get_jwt_secret() -> &'static [u8] {
                 secret.into_bytes()
             }
             Err(_) => {
-                // Check if we're in production mode
-                if std::env::var("ENVIRONMENT").unwrap_or_default() == "production"
-                    || std::env::var("RUST_ENV").unwrap_or_default() == "production" {
-                    panic!("FATAL: JWT_SECRET environment variable is required in production! Set JWT_SECRET before starting the server.");
-                }
-
-                tracing::warn!("JWT_SECRET not set! Using insecure default for DEVELOPMENT ONLY. Set JWT_SECRET environment variable before deploying!");
-                "dev-insecure-secret-change-before-production".to_string().into_bytes()
+                panic!(
+                    "FATAL: JWT_SECRET environment variable is required!\n\
+                     \n\
+                     Generate a secure secret with:\n\
+                     \topenssl rand -base64 32\n\
+                     \n\
+                     Then set the environment variable:\n\
+                     \texport JWT_SECRET=\"<generated-secret>\"\n\
+                     \n\
+                     Or add to .env file:\n\
+                     \tJWT_SECRET=<generated-secret>\n\
+                     \n\
+                     NEVER use default/hardcoded secrets!"
+                );
             }
         }
     }).as_slice()
