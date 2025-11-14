@@ -94,11 +94,12 @@ pub fn validate_email(email: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Validate a password
+/// Validate a password with strong security requirements
 pub fn validate_password(password: &str) -> Result<(), ValidationError> {
-    if password.len() < 8 {
+    // Length requirements
+    if password.len() < 12 {
         return Err(ValidationError(
-            "Password must be at least 8 characters".to_string(),
+            "Password must be at least 12 characters for security".to_string(),
         ));
     }
     if password.len() > 128 {
@@ -106,6 +107,50 @@ pub fn validate_password(password: &str) -> Result<(), ValidationError> {
             "Password too long (max 128 characters)".to_string(),
         ));
     }
+
+    // Character class requirements
+    let has_lowercase = password.chars().any(|c| c.is_lowercase());
+    let has_uppercase = password.chars().any(|c| c.is_uppercase());
+    let has_digit = password.chars().any(|c| c.is_numeric());
+    let has_special = password.chars().any(|c| !c.is_alphanumeric());
+
+    if !has_lowercase {
+        return Err(ValidationError(
+            "Password must contain at least one lowercase letter".to_string(),
+        ));
+    }
+    if !has_uppercase {
+        return Err(ValidationError(
+            "Password must contain at least one uppercase letter".to_string(),
+        ));
+    }
+    if !has_digit {
+        return Err(ValidationError(
+            "Password must contain at least one digit".to_string(),
+        ));
+    }
+    if !has_special {
+        return Err(ValidationError(
+            "Password must contain at least one special character (!@#$%^&*, etc.)".to_string(),
+        ));
+    }
+
+    // Common password check (case-insensitive)
+    const COMMON_PASSWORDS: &[&str] = &[
+        "password123", "password1!", "qwerty123", "admin123", "welcome123",
+        "letmein123", "passw0rd!", "12345678", "password1", "abc123456",
+        "qwerty12345", "Password123!", "Welcome123!", "Admin123!",
+    ];
+
+    let password_lower = password.to_lowercase();
+    for common in COMMON_PASSWORDS {
+        if password_lower.contains(&common.to_lowercase()) {
+            return Err(ValidationError(
+                "Password is too common. Please choose a stronger, more unique password".to_string(),
+            ));
+        }
+    }
+
     Ok(())
 }
 
