@@ -27,7 +27,7 @@ mod ws;
 use ai_middleware::SegmindClient;
 use axum::{
     extract::DefaultBodyLimit,
-    http::StatusCode,
+    http::{Method, HeaderValue, StatusCode},
     middleware,
     response::{IntoResponse, Response},
     routing::{delete, get, post, put},
@@ -331,7 +331,31 @@ async fn main() -> anyhow::Result<()> {
         .layer(middleware::from_fn(
             security_headers::security_headers_middleware,
         ))
-        .layer(CorsLayer::permissive())
+        .layer({
+            // Configure CORS with specific allowed origins (not permissive)
+            let allowed_origins = std::env::var("ALLOWED_ORIGINS")
+                .unwrap_or_else(|_| "http://localhost:3001,http://localhost:5173,http://localhost:3000".to_string());
+
+            let origins: Vec<HeaderValue> = allowed_origins
+                .split(',')
+                .filter_map(|s| s.trim().parse().ok())
+                .collect();
+
+            CorsLayer::new()
+                .allow_origin(origins)
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::DELETE,
+                    Method::OPTIONS,
+                ])
+                .allow_headers([
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::CONTENT_TYPE,
+                ])
+                .allow_credentials(true)
+        })
         .layer(TraceLayer::new_for_http())
         .with_state(app_state);
 
