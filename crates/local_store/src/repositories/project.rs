@@ -19,6 +19,11 @@ impl<'a> ProjectRepository<'a> {
             core_domain::ProjectStatus::OnHold => "OnHold",
         };
 
+        // Start transaction to ensure atomicity
+        let mut tx = self.pool.begin().await
+            .map_err(|e| DomainError::Internal(format!("Failed to start transaction: {}", e)))?;
+
+        // Insert main project record
         sqlx::query(
             "INSERT INTO projects (id, name, description, status, created_at, updated_at, created_by, version, last_synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
@@ -31,9 +36,38 @@ impl<'a> ProjectRepository<'a> {
         .bind(project.created_by.to_string())
         .bind(project.version)
         .bind(project.last_synced_at.map(|dt| dt.to_rfc3339()))
-        .execute(self.pool)
+        .execute(&mut *tx)
         .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        .map_err(|e| DomainError::Internal(format!("Failed to insert project: {}", e)))?;
+
+        // Insert project contacts
+        for contact_id in &project.contacts {
+            sqlx::query(
+                "INSERT INTO project_contacts (project_id, contact_id) VALUES (?, ?)"
+            )
+            .bind(project.id.to_string())
+            .bind(contact_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Internal(format!("Failed to insert project contact: {}", e)))?;
+        }
+
+        // Insert project tags
+        for tag_id in &project.tags {
+            sqlx::query(
+                "INSERT INTO project_tags (project_id, tag_id) VALUES (?, ?)"
+            )
+            .bind(project.id.to_string())
+            .bind(tag_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DomainError::Internal(format!("Failed to insert project tag: {}", e)))?;
+        }
+
+        // Commit transaction
+        tx.commit().await
+            .map_err(|e| DomainError::Internal(format!("Failed to commit transaction: {}", e)))?;
+
         Ok(())
     }
 
