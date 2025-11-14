@@ -1,7 +1,7 @@
-use crate::{auth::AuthUser, state::AppState, validation};
+use crate::{audit, auth::AuthUser, state::AppState, validation};
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use core_domain::Concept;
@@ -27,6 +27,7 @@ pub struct ConceptResponse {
 pub async fn create_concept(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Json(req): Json<CreateConceptRequest>,
 ) -> Result<Json<ConceptResponse>, (StatusCode, String)> {
     // Validate inputs
@@ -69,6 +70,14 @@ pub async fn create_concept(
         )
     })?;
 
+    // Audit log: concept created
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_concept_create(concept.id, user.id, ip, user_agent)
+        .await;
+
     Ok(Json(ConceptResponse { concept }))
 }
 
@@ -91,6 +100,7 @@ pub async fn get_concept(
 pub async fn update_concept(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(req): Json<CreateConceptRequest>,
 ) -> Result<Json<ConceptResponse>, (StatusCode, &'static str)> {
@@ -104,6 +114,15 @@ pub async fn update_concept(
     if concept.created_by != user.id {
         return Err((StatusCode::FORBIDDEN, "Access denied"));
     }
+
+    // Track changes for audit log
+    let changes = serde_json::json!({
+        "name": req.name,
+        "description": req.description,
+        "related_contacts": req.related_contacts,
+        "related_projects": req.related_projects,
+        "tags": req.tags
+    });
 
     concept.name = req.name;
     concept.description = req.description;
@@ -119,6 +138,14 @@ pub async fn update_concept(
         )
     })?;
 
+    // Audit log: concept updated
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_concept_update(id, user.id, changes, ip, user_agent)
+        .await;
+
     Ok(Json(ConceptResponse { concept }))
 }
 
@@ -126,6 +153,7 @@ pub async fn update_concept(
 pub async fn delete_concept(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, &'static str)> {
     let repo = ConceptRepository::new(&app_state.pool);
@@ -145,6 +173,14 @@ pub async fn delete_concept(
             "Failed to delete concept",
         )
     })?;
+
+    // Audit log: concept deleted
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_concept_delete(id, user.id, ip, user_agent)
+        .await;
 
     Ok(Json(serde_json::json!({ "message": "Concept deleted" })))
 }

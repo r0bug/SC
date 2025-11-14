@@ -228,6 +228,7 @@ pub enum ShareEntityType {
     Note,
     CalendarEvent,
     Group,
+    Concept,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

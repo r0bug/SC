@@ -337,6 +337,65 @@ impl AuditService {
         .await
     }
 
+    /// Log concept operations
+    pub async fn log_concept_create(
+        &self,
+        concept_id: Uuid,
+        user_id: Uuid,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> DomainResult<()> {
+        self.log_operation(
+            ShareEntityType::Concept,
+            concept_id,
+            AuditAction::Create,
+            user_id,
+            serde_json::json!({"action": "concept_created"}),
+            ip,
+            user_agent,
+        )
+        .await
+    }
+
+    pub async fn log_concept_update(
+        &self,
+        concept_id: Uuid,
+        user_id: Uuid,
+        changes: serde_json::Value,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> DomainResult<()> {
+        self.log_operation(
+            ShareEntityType::Concept,
+            concept_id,
+            AuditAction::Update,
+            user_id,
+            changes,
+            ip,
+            user_agent,
+        )
+        .await
+    }
+
+    pub async fn log_concept_delete(
+        &self,
+        concept_id: Uuid,
+        user_id: Uuid,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> DomainResult<()> {
+        self.log_operation(
+            ShareEntityType::Concept,
+            concept_id,
+            AuditAction::Delete,
+            user_id,
+            serde_json::json!({"action": "concept_deleted"}),
+            ip,
+            user_agent,
+        )
+        .await
+    }
+
     /// Log authentication events (login, logout, failed attempts)
     /// Uses Contact entity type as placeholder since auth events don't fit entity model
     pub async fn log_login(

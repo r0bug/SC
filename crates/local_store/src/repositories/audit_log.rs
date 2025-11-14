@@ -18,6 +18,7 @@ impl<'a> AuditLogRepository<'a> {
             ShareEntityType::Note => "Note",
             ShareEntityType::CalendarEvent => "CalendarEvent",
             ShareEntityType::Group => "Group",
+            ShareEntityType::Concept => "Concept",
         };
 
         let action_str = match log.action {
@@ -77,6 +78,7 @@ impl<'a> AuditLogRepository<'a> {
             ShareEntityType::Note => "Note",
             ShareEntityType::CalendarEvent => "CalendarEvent",
             ShareEntityType::Group => "Group",
+            ShareEntityType::Concept => "Concept",
         };
 
         let rows = sqlx::query_as::<_, AuditLogRow>(
@@ -146,6 +148,7 @@ impl From<AuditLogRow> for AuditLog {
             "Note" => ShareEntityType::Note,
             "CalendarEvent" => ShareEntityType::CalendarEvent,
             "Group" => ShareEntityType::Group,
+            "Concept" => ShareEntityType::Concept,
             _ => ShareEntityType::Contact,
         };
 

@@ -20,6 +20,7 @@ impl<'a> ConflictResolutionRepository<'a> {
             ShareEntityType::Note => "Note",
             ShareEntityType::CalendarEvent => "CalendarEvent",
             ShareEntityType::Group => "Group",
+            ShareEntityType::Concept => "Concept",
         };
 
         let strategy_str = match resolution.resolution_strategy {
@@ -97,6 +98,7 @@ impl<'a> ConflictResolutionRepository<'a> {
             ShareEntityType::Note => "Note",
             ShareEntityType::CalendarEvent => "CalendarEvent",
             ShareEntityType::Group => "Group",
+            ShareEntityType::Concept => "Concept",
         };
 
         let rows = sqlx::query_as::<_, ConflictResolutionRow>(
@@ -185,6 +187,7 @@ impl From<ConflictResolutionRow> for ConflictResolution {
             "Note" => ShareEntityType::Note,
             "CalendarEvent" => ShareEntityType::CalendarEvent,
             "Group" => ShareEntityType::Group,
+            "Concept" => ShareEntityType::Concept,
             _ => ShareEntityType::Contact,
         };
 
