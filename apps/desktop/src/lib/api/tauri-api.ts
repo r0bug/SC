@@ -122,14 +122,15 @@ export class TauriApiClient {
       id: generateUUID(),
       name: project.name || '',
       description: project.description || null,
-      status: project.status || 'Planning',
-      contact_ids: project.contact_ids || [],
-      start_date: project.start_date || null,
-      end_date: project.end_date || null,
+      status: project.status || 'Active',
+      contacts: project.contacts || [],
+      tags: project.tags || [],
+      attachment_ids: project.attachment_ids || [],
       created_at: now,
       updated_at: now,
       created_by: SYSTEM_USER_ID,
-      metadata: project.metadata || {}
+      version: 1,
+      last_synced_at: null
     };
     return invoke('create_project', { project: fullProject });
   }

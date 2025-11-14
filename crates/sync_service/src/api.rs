@@ -281,9 +281,10 @@ pub async fn create_project(
     };
 
     let repo = ProjectRepository::new(state.store.pool());
-    repo.create(&project)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    repo.create(&project).await.map_err(|e| {
+        tracing::error!("Failed to create project: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     Ok((StatusCode::CREATED, Json(project)))
 }
 

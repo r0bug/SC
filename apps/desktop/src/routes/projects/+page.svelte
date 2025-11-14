@@ -106,6 +106,7 @@
 				<option value="size">Sort by Size</option>
 				<option value="date">Sort by Date</option>
 			</select>
+			<a href="/projects/new" class="btn btn-primary">+ Create Project</a>
 		</div>
 	</div>
 
