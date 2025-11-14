@@ -1,7 +1,7 @@
-use crate::{auth::AuthUser, state::AppState, validation};
+use crate::{audit, auth::AuthUser, state::AppState, validation};
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
@@ -34,6 +34,7 @@ pub struct EventQueryParams {
 pub async fn create_event(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Json(req): Json<CreateEventRequest>,
 ) -> Result<Json<CalendarEvent>, (StatusCode, String)> {
     // Validate inputs
@@ -103,6 +104,14 @@ pub async fn create_event(
             )
         })?;
 
+    // Audit log: event created
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_event_create(event.id, user.id, ip, user_agent)
+        .await;
+
     Ok(Json(event))
 }
 
@@ -135,6 +144,7 @@ pub async fn get_event(
 pub async fn update_event(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(req): Json<CreateEventRequest>,
 ) -> impl IntoResponse {
@@ -154,6 +164,16 @@ pub async fn update_event(
         .await
         .map_err(|_| (StatusCode::NOT_FOUND, "Event not found"))?;
 
+    // Track changes for audit log
+    let changes = serde_json::json!({
+        "title": req.title,
+        "description": req.description,
+        "start_time": req.start_time,
+        "end_time": req.end_time,
+        "all_day": req.all_day,
+        "location": req.location
+    });
+
     event.title = req.title;
     event.description = req.description;
     event.start_time = req.start_time;
@@ -170,6 +190,14 @@ pub async fn update_event(
         .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to update event"))?;
 
+    // Audit log: event updated
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_event_update(id, user.id, changes, ip, user_agent)
+        .await;
+
     Ok(Json(event))
 }
 
@@ -177,6 +205,7 @@ pub async fn update_event(
 pub async fn delete_event(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     // Check permission
@@ -193,6 +222,14 @@ pub async fn delete_event(
     repo.delete(id)
         .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to delete event"))?;
+
+    // Audit log: event deleted
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_event_delete(id, user.id, ip, user_agent)
+        .await;
 
     Ok(Json(serde_json::json!({ "message": "Event deleted" })))
 }

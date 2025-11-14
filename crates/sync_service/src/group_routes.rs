@@ -1,7 +1,7 @@
-use crate::{auth::AuthUser, state::AppState, validation};
+use crate::{audit, auth::AuthUser, state::AppState, validation};
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
@@ -31,6 +31,7 @@ pub struct GroupResponse {
 pub async fn create_group(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Json(req): Json<CreateGroupRequest>,
 ) -> Result<Json<GroupResponse>, (StatusCode, String)> {
     // Validate inputs
@@ -72,6 +73,14 @@ pub async fn create_group(
             )
         })?;
 
+    // Audit log: group created
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_group_create(group.id, user.id, ip, user_agent)
+        .await;
+
     Ok(Json(GroupResponse { group }))
 }
 
@@ -104,6 +113,7 @@ pub async fn get_group(
 pub async fn update_group(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(req): Json<CreateGroupRequest>,
 ) -> impl IntoResponse {
@@ -123,6 +133,13 @@ pub async fn update_group(
         .await
         .map_err(|_| (StatusCode::NOT_FOUND, "Group not found"))?;
 
+    // Track changes for audit log
+    let changes = serde_json::json!({
+        "name": req.name,
+        "description": req.description,
+        "contact_ids": req.contact_ids
+    });
+
     group.name = req.name;
     group.description = req.description;
     group.contact_ids = req.contact_ids;
@@ -132,6 +149,14 @@ pub async fn update_group(
         .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to update group"))?;
 
+    // Audit log: group updated
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_group_update(id, user.id, changes, ip, user_agent)
+        .await;
+
     Ok(Json(GroupResponse { group }))
 }
 
@@ -139,6 +164,7 @@ pub async fn update_group(
 pub async fn delete_group(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     // Check permission
@@ -155,6 +181,14 @@ pub async fn delete_group(
     repo.delete(id)
         .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to delete group"))?;
+
+    // Audit log: group deleted
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_group_delete(id, user.id, ip, user_agent)
+        .await;
 
     Ok(Json(serde_json::json!({ "message": "Group deleted" })))
 }

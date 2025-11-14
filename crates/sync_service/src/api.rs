@@ -431,6 +431,7 @@ pub async fn delete_project(
 pub async fn create_note(
     AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<CreateNoteRequest>,
 ) -> Result<(StatusCode, Json<Note>), StatusCode> {
     let note = Note {
@@ -451,6 +452,15 @@ pub async fn create_note(
     repo.create(&note)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Audit log: note created
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = state
+        .audit_service
+        .log_note_create(note.id, user.id, ip, user_agent)
+        .await;
+
     Ok((StatusCode::CREATED, Json(note)))
 }
 
@@ -671,8 +681,9 @@ pub async fn delete_tag(
 }
 
 pub async fn update_note(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(updates): Json<UpdateNoteRequest>,
 ) -> Result<Json<Note>, StatusCode> {
@@ -684,11 +695,16 @@ pub async fn update_note(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
+    // Track changes for audit log
+    let mut changes = serde_json::Map::new();
+
     // Apply partial updates
     if let Some(title) = updates.title {
+        changes.insert("title".to_string(), serde_json::json!(title));
         note.title = title;
     }
     if let Some(content) = updates.content {
+        changes.insert("content".to_string(), serde_json::json!(content));
         note.content = content;
     }
 
@@ -698,18 +714,42 @@ pub async fn update_note(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // Audit log: note updated
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = state
+        .audit_service
+        .log_note_update(
+            note.id,
+            user.id,
+            serde_json::Value::Object(changes),
+            ip,
+            user_agent,
+        )
+        .await;
+
     Ok(Json(note))
 }
 
 pub async fn delete_note(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
     let repo = NoteRepository::new(state.store.pool());
     repo.delete(id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Audit log: note deleted
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = state
+        .audit_service
+        .log_note_delete(id, user.id, ip, user_agent)
+        .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
