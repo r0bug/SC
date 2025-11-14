@@ -3,6 +3,7 @@ mod android_import;
 mod android_import_routes;
 mod api;
 mod attachment_routes;
+mod audit;
 mod auth;
 mod auth_routes;
 mod calendar_routes;
@@ -56,9 +57,10 @@ async fn main() -> anyhow::Result<()> {
     // Create shared pool
     let pool = Arc::new(store.pool().clone());
 
-    // Create auth and ACL services
+    // Create auth, ACL, and audit services
     let auth_service = Arc::new(auth::AuthService::new(pool.clone()));
     let acl_service = Arc::new(acl::AclService::new(pool.clone()));
+    let audit_service = Arc::new(audit::AuditService::new(pool.clone()));
 
     // Create WebSocket broadcaster
     let ws_broadcaster = Arc::new(websocket::WebSocketBroadcaster::new());
@@ -76,6 +78,7 @@ async fn main() -> anyhow::Result<()> {
         ai_client,
         auth_service,
         acl_service,
+        audit_service,
         pool,
         ws_broadcaster,
         import_jobs,

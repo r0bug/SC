@@ -1,4 +1,5 @@
 use crate::acl::AclService;
+use crate::audit::AuditService;
 use crate::auth::AuthService;
 use crate::update_system::{UpdateChecker, UpdateConfig, UpdateInfo};
 use crate::websocket::WebSocketBroadcaster;
@@ -60,6 +61,7 @@ pub struct AppState {
     pub ai_client: Arc<SegmindClient>,
     pub auth_service: Arc<AuthService>,
     pub acl_service: Arc<AclService>,
+    pub audit_service: Arc<AuditService>,
     pub pool: Arc<Pool<Sqlite>>,
     pub ws_broadcaster: Arc<WebSocketBroadcaster>,
     pub import_jobs: Arc<RwLock<Vec<ImportJob>>>,
@@ -75,6 +77,7 @@ impl AppState {
         ai_client: SegmindClient,
         auth_service: Arc<AuthService>,
         acl_service: Arc<AclService>,
+        audit_service: Arc<AuditService>,
         pool: Arc<Pool<Sqlite>>,
         ws_broadcaster: Arc<WebSocketBroadcaster>,
         import_jobs: Arc<RwLock<Vec<ImportJob>>>,
@@ -87,6 +90,7 @@ impl AppState {
             ai_client: Arc::new(ai_client),
             auth_service,
             acl_service,
+            audit_service,
             pool,
             ws_broadcaster,
             import_jobs,

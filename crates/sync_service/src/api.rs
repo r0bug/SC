@@ -1,10 +1,11 @@
+use crate::audit;
 use crate::auth::AuthUser;
 use crate::state::AppState;
 use crate::validation::{self};
 use ai_middleware::SuggestionEngine;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
 use core_domain::*;
@@ -119,6 +120,7 @@ pub async fn list_contacts(
 pub async fn create_contact(
     AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<CreateContactRequest>,
 ) -> Result<(StatusCode, Json<Contact>), StatusCode> {
     let contact = Contact {
@@ -146,6 +148,14 @@ pub async fn create_contact(
     repo.create(&contact)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Audit log: contact created
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = state
+        .audit_service
+        .log_contact_create(contact.id, user.id, ip, user_agent)
+        .await;
 
     // Broadcast WebSocket event
     state
@@ -254,6 +264,7 @@ pub async fn list_projects(
 pub async fn create_project(
     AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(req): Json<CreateProjectRequest>,
 ) -> Result<(StatusCode, Json<Project>), StatusCode> {
     // Parse status from string
@@ -285,6 +296,15 @@ pub async fn create_project(
         tracing::error!("Failed to create project: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
+
+    // Audit log: project created
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = state
+        .audit_service
+        .log_project_create(project.id, user.id, ip, user_agent)
+        .await;
+
     Ok((StatusCode::CREATED, Json(project)))
 }
 
@@ -310,6 +330,7 @@ pub async fn get_project(
 pub async fn update_project(
     AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(updates): Json<UpdateProjectRequest>,
 ) -> Result<Json<Project>, StatusCode> {
@@ -326,14 +347,20 @@ pub async fn update_project(
         return Err(StatusCode::FORBIDDEN);
     }
 
+    // Track changes for audit log
+    let mut changes = serde_json::Map::new();
+
     // Apply partial updates
     if let Some(name) = updates.name {
+        changes.insert("name".to_string(), serde_json::json!(name));
         project.name = name;
     }
     if let Some(description) = updates.description {
+        changes.insert("description".to_string(), serde_json::json!(description));
         project.description = Some(description);
     }
     if let Some(status) = updates.status {
+        changes.insert("status".to_string(), serde_json::json!(status));
         // Parse status from string
         project.status = match status.as_str() {
             "active" | "Active" => ProjectStatus::Active,
@@ -350,12 +377,27 @@ pub async fn update_project(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // Audit log: project updated
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = state
+        .audit_service
+        .log_project_update(
+            project.id,
+            user.id,
+            serde_json::Value::Object(changes),
+            ip,
+            user_agent,
+        )
+        .await;
+
     Ok(Json(project))
 }
 
 pub async fn delete_project(
     AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
     let repo = ProjectRepository::new(state.store.pool());
@@ -374,6 +416,15 @@ pub async fn delete_project(
     repo.delete(id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Audit log: project deleted
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = state
+        .audit_service
+        .log_project_delete(id, user.id, ip, user_agent)
+        .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -463,6 +514,7 @@ pub async fn get_suggestions(
 pub async fn update_contact(
     AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(updates): Json<UpdateContactRequest>,
 ) -> Result<Json<Contact>, StatusCode> {
@@ -479,32 +531,44 @@ pub async fn update_contact(
         return Err(StatusCode::FORBIDDEN);
     }
 
+    // Track changes for audit log
+    let mut changes = serde_json::Map::new();
+
     // Apply partial updates
     if let Some(first_name) = updates.first_name {
+        changes.insert("first_name".to_string(), serde_json::json!(first_name));
         contact.first_name = first_name;
     }
     if let Some(last_name) = updates.last_name {
+        changes.insert("last_name".to_string(), serde_json::json!(last_name));
         contact.last_name = Some(last_name);
     }
     if let Some(email) = updates.email {
+        changes.insert("email".to_string(), serde_json::json!(email));
         contact.email = Some(email);
     }
     if let Some(phone) = updates.phone {
+        changes.insert("phone".to_string(), serde_json::json!(phone));
         contact.phone = Some(phone);
     }
     if let Some(organization) = updates.organization {
+        changes.insert("organization".to_string(), serde_json::json!(organization));
         contact.organization = Some(organization);
     }
     if let Some(title) = updates.title {
+        changes.insert("title".to_string(), serde_json::json!(title));
         contact.title = Some(title);
     }
     if let Some(notes) = updates.notes {
+        changes.insert("notes".to_string(), serde_json::json!(notes));
         contact.notes = Some(notes);
     }
     if let Some(social_handles) = updates.social_handles {
+        changes.insert("social_handles".to_string(), serde_json::json!(social_handles));
         contact.social_handles = social_handles;
     }
     if let Some(tags) = updates.tags {
+        changes.insert("tags".to_string(), serde_json::json!(tags));
         contact.tags = tags;
     }
 
@@ -514,12 +578,27 @@ pub async fn update_contact(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // Audit log: contact updated
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = state
+        .audit_service
+        .log_contact_update(
+            contact.id,
+            user.id,
+            serde_json::Value::Object(changes),
+            ip,
+            user_agent,
+        )
+        .await;
+
     Ok(Json(contact))
 }
 
 pub async fn delete_contact(
     AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
     let repo = ContactRepository::new(state.store.pool());
@@ -538,6 +617,15 @@ pub async fn delete_contact(
     repo.delete(id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Audit log: contact deleted
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = state
+        .audit_service
+        .log_contact_delete(id, user.id, ip, user_agent)
+        .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
