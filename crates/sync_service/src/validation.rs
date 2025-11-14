@@ -282,6 +282,65 @@ pub fn validate_file_size(size: usize, max_size: usize) -> Result<(), Validation
     Ok(())
 }
 
+/// Allowed file extensions for uploads (security whitelist)
+const ALLOWED_EXTENSIONS: &[&str] = &[
+    // Images
+    "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico",
+    // Documents
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "rtf", "odt", "ods", "odp",
+    // Archives
+    "zip", "tar", "gz", "7z", "rar",
+    // Data
+    "csv", "json", "xml", "yaml", "yml",
+    // Media
+    "mp3", "mp4", "wav", "avi", "mkv", "mov", "flac",
+    // Code (for development use cases)
+    "rs", "toml", "js", "ts", "py", "go", "java", "c", "cpp", "h",
+];
+
+/// Validate file type based on extension and MIME type
+pub fn validate_file_type(filename: &str, content_type: &str) -> Result<(), ValidationError> {
+    // Extract file extension
+    let extension = std::path::Path::new(filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .ok_or_else(|| ValidationError("File has no extension".to_string()))?
+        .to_lowercase();
+
+    // Check if extension is allowed
+    if !ALLOWED_EXTENSIONS.contains(&extension.as_str()) {
+        return Err(ValidationError(format!(
+            "File type '.{}' is not allowed. Allowed types: {}",
+            extension,
+            ALLOWED_EXTENSIONS.join(", ")
+        )));
+    }
+
+    // Validate MIME type matches extension (basic check)
+    let mime_valid = match extension.as_str() {
+        "jpg" | "jpeg" => content_type.starts_with("image/jpeg"),
+        "png" => content_type.starts_with("image/png"),
+        "gif" => content_type.starts_with("image/gif"),
+        "pdf" => content_type.starts_with("application/pdf"),
+        "zip" => content_type.starts_with("application/zip") || content_type.starts_with("application/x-zip"),
+        "json" => content_type.starts_with("application/json"),
+        "xml" => content_type.starts_with("application/xml") || content_type.starts_with("text/xml"),
+        "txt" | "md" => content_type.starts_with("text/plain") || content_type.starts_with("text/markdown"),
+        "csv" => content_type.starts_with("text/csv") || content_type.starts_with("application/csv"),
+        // For other types, accept application/octet-stream or allow pass-through
+        _ => content_type.starts_with("application/octet-stream") || !content_type.is_empty(),
+    };
+
+    if !mime_valid {
+        return Err(ValidationError(format!(
+            "MIME type '{}' does not match file extension '.{}'",
+            content_type, extension
+        )));
+    }
+
+    Ok(())
+}
+
 /// Validate a tag
 pub fn validate_tag(tag: &str) -> Result<(), ValidationError> {
     if tag.is_empty() {
