@@ -16,11 +16,12 @@ mod rate_limit;
 mod search_history_routes;
 mod security_headers;
 mod share_routes;
-mod twilio_routes;
-mod update_system;
 mod state;
+mod twilio_routes;
 mod update_routes;
+mod update_system;
 mod validation;
+mod virus_scanner;
 mod websocket;
 mod worker_routes;
 mod ws;
@@ -28,7 +29,7 @@ mod ws;
 use ai_middleware::SegmindClient;
 use axum::{
     extract::DefaultBodyLimit,
-    http::{Method, HeaderValue, StatusCode},
+    http::{HeaderValue, Method, StatusCode},
     middleware,
     response::{IntoResponse, Response},
     routing::{delete, get, post, put},
@@ -70,8 +71,27 @@ async fn main() -> anyhow::Result<()> {
 
     // Create update system state
     let update_checker = Arc::new(update_system::UpdateChecker::default());
-    let update_config = Arc::new(tokio::sync::RwLock::new(update_system::UpdateConfig::default()));
+    let update_config = Arc::new(tokio::sync::RwLock::new(
+        update_system::UpdateConfig::default(),
+    ));
     let last_update_check = Arc::new(tokio::sync::RwLock::new(None));
+
+    // Create virus scanner
+    let scanner_enabled = std::env::var("VIRUS_SCANNER_ENABLED")
+        .unwrap_or_else(|_| "true".to_string())
+        .parse::<bool>()
+        .unwrap_or(true);
+    let scanner_socket = std::env::var("CLAMAV_SOCKET_PATH")
+        .unwrap_or_else(|_| "/var/run/clamav/clamd.ctl".to_string());
+    let scanner_timeout = std::env::var("VIRUS_SCANNER_TIMEOUT")
+        .unwrap_or_else(|_| "30".to_string())
+        .parse::<u64>()
+        .unwrap_or(30);
+    let virus_scanner = Arc::new(virus_scanner::VirusScanner::new(
+        scanner_enabled,
+        scanner_socket,
+        scanner_timeout,
+    ));
 
     let app_state = state::AppState::new(
         store,
@@ -79,6 +99,7 @@ async fn main() -> anyhow::Result<()> {
         auth_service,
         acl_service,
         audit_service,
+        virus_scanner,
         pool,
         ws_broadcaster,
         import_jobs,
@@ -258,10 +279,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/api/worker/register", post(worker_routes::register_worker))
         // Twilio webhook routes (no auth - Twilio validates via their own methods)
-        .route(
-            "/api/webhooks/twilio/sms",
-            post(twilio_routes::receive_sms),
-        )
+        .route("/api/webhooks/twilio/sms", post(twilio_routes::receive_sms))
         .route(
             "/api/webhooks/twilio/sms/test",
             get(twilio_routes::test_webhook),
@@ -336,8 +354,9 @@ async fn main() -> anyhow::Result<()> {
         ))
         .layer({
             // Configure CORS with specific allowed origins (not permissive)
-            let allowed_origins = std::env::var("ALLOWED_ORIGINS")
-                .unwrap_or_else(|_| "http://localhost:3001,http://localhost:5173,http://localhost:3000".to_string());
+            let allowed_origins = std::env::var("ALLOWED_ORIGINS").unwrap_or_else(|_| {
+                "http://localhost:3001,http://localhost:5173,http://localhost:3000".to_string()
+            });
 
             let origins: Vec<HeaderValue> = allowed_origins
                 .split(',')

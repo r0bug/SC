@@ -2,6 +2,7 @@ use crate::acl::AclService;
 use crate::audit::AuditService;
 use crate::auth::AuthService;
 use crate::update_system::{UpdateChecker, UpdateConfig, UpdateInfo};
+use crate::virus_scanner::VirusScanner;
 use crate::websocket::WebSocketBroadcaster;
 use ai_middleware::SegmindClient;
 use local_store::LocalStore;
@@ -62,6 +63,7 @@ pub struct AppState {
     pub auth_service: Arc<AuthService>,
     pub acl_service: Arc<AclService>,
     pub audit_service: Arc<AuditService>,
+    pub virus_scanner: Arc<VirusScanner>,
     pub pool: Arc<Pool<Sqlite>>,
     pub ws_broadcaster: Arc<WebSocketBroadcaster>,
     pub import_jobs: Arc<RwLock<Vec<ImportJob>>>,
@@ -78,6 +80,7 @@ impl AppState {
         auth_service: Arc<AuthService>,
         acl_service: Arc<AclService>,
         audit_service: Arc<AuditService>,
+        virus_scanner: Arc<VirusScanner>,
         pool: Arc<Pool<Sqlite>>,
         ws_broadcaster: Arc<WebSocketBroadcaster>,
         import_jobs: Arc<RwLock<Vec<ImportJob>>>,
@@ -91,6 +94,7 @@ impl AppState {
             auth_service,
             acl_service,
             audit_service,
+            virus_scanner,
             pool,
             ws_broadcaster,
             import_jobs,

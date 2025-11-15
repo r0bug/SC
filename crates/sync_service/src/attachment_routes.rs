@@ -1,14 +1,15 @@
+use crate::audit;
 use crate::auth::AuthUser;
 use crate::state::AppState;
 use crate::validation;
 use axum::{
     body::Body,
     extract::{Multipart, Path, Query, State},
-    http::{header, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     response::Response,
     Json,
 };
-use core_domain::{Attachment, AttachmentEntityType};
+use core_domain::{Attachment, AttachmentEntityType, ShareEntityType};
 use local_store::AttachmentRepository;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -29,6 +30,18 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
+/// Helper function to convert AttachmentEntityType to ShareEntityType for audit logging
+fn attachment_entity_to_share_entity(entity_type: AttachmentEntityType) -> ShareEntityType {
+    match entity_type {
+        AttachmentEntityType::Contact => ShareEntityType::Contact,
+        AttachmentEntityType::Project => ShareEntityType::Project,
+        AttachmentEntityType::Note => ShareEntityType::Note,
+        AttachmentEntityType::CalendarEvent => ShareEntityType::CalendarEvent,
+        // Map Communication to Contact as a workaround (Communication not in ShareEntityType)
+        AttachmentEntityType::Communication => ShareEntityType::Contact,
+    }
+}
+
 /// Upload a new attachment
 /// POST /api/attachments/upload
 /// Content-Type: multipart/form-data
@@ -36,6 +49,7 @@ pub struct ErrorResponse {
 pub async fn upload_attachment(
     AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<UploadResponse>, (StatusCode, Json<ErrorResponse>)> {
     let mut file_data: Option<Vec<u8>> = None;
@@ -133,15 +147,14 @@ pub async fn upload_attachment(
         )
     })?;
 
-    // Validate filename
-    validation::validate_filename(&filename)
-        .map_err(|e| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e.0 })))?;
-
-    // Validate file size
-    validation::validate_file_size(file_data.len(), validation::MAX_ATTACHMENT_SIZE)
-        .map_err(|e| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e.0 })))?;
-
     let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
+
+    // Comprehensive file upload validation (size, extension, MIME type, path safety)
+    validation::validate_file_upload(&filename, &content_type, file_data.len())
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: e.0 })))?;
+
+    // Sanitize filename to prevent special character issues
+    let safe_filename = validation::sanitize_filename(&filename);
 
     let entity_type_str = entity_type.ok_or_else(|| {
         (
@@ -221,10 +234,40 @@ pub async fn upload_attachment(
             )
         })?;
 
-    // Create attachment record
+    // Scan file for viruses
+    let scan_result = state
+        .virus_scanner
+        .scan_file(&storage_path)
+        .await
+        .map_err(|e| {
+            tracing::error!("Virus scan error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: format!("Virus scan error: {}", e),
+                }),
+            )
+        })?;
+
+    let (scan_status, scan_details) = match scan_result {
+        crate::virus_scanner::ScanResult::Clean => (core_domain::ScanStatus::Clean, None),
+        crate::virus_scanner::ScanResult::Infected(virus_name) => {
+            // Delete infected file immediately
+            let _ = tokio::fs::remove_file(&storage_path).await;
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse {
+                    error: format!("File infected with: {}", virus_name),
+                }),
+            ));
+        }
+        crate::virus_scanner::ScanResult::Error(msg) => (core_domain::ScanStatus::Error, Some(msg)),
+    };
+
+    // Create attachment record with sanitized filename
     let attachment = Attachment {
         id: Uuid::new_v4(),
-        filename,
+        filename: safe_filename,
         content_type,
         size_bytes: file_data.len() as i64,
         storage_path: storage_path.to_string_lossy().to_string(),
@@ -234,8 +277,8 @@ pub async fn upload_attachment(
         uploaded_by,
         checksum,
         encrypted: false,
-        scan_status: core_domain::ScanStatus::Pending,
-        scan_details: None,
+        scan_status,
+        scan_details,
         metadata: serde_json::json!({}),
         created_at: chrono::Utc::now(),
     };
@@ -253,6 +296,30 @@ pub async fn upload_attachment(
             }),
         )
     })?;
+
+    // Audit log: attachment uploaded
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let changes = serde_json::json!({
+        "filename": attachment.filename,
+        "content_type": attachment.content_type,
+        "size_bytes": attachment.size_bytes,
+        "entity_type": entity_type_str,
+        "entity_id": entity_id
+    });
+    let share_entity_type = attachment_entity_to_share_entity(attachment.entity_type);
+    let _ = state
+        .audit_service
+        .log_operation(
+            share_entity_type,
+            attachment.entity_id,
+            core_domain::AuditAction::Create,
+            user.id,
+            changes,
+            ip,
+            user_agent,
+        )
+        .await;
 
     tracing::info!(
         "Uploaded attachment: {} ({} bytes)",
@@ -306,8 +373,9 @@ pub async fn list_attachments(
 /// Download an attachment
 /// GET /api/attachments/{id}
 pub async fn download_attachment(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let repo = AttachmentRepository::new(state.store.pool());
@@ -368,10 +436,31 @@ pub async fn download_attachment(
         ));
     }
 
+    // Audit log: attachment downloaded (read access)
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let changes = serde_json::json!({
+        "filename": attachment.filename,
+        "action": "download"
+    });
+    let share_entity_type = attachment_entity_to_share_entity(attachment.entity_type);
+    let _ = state
+        .audit_service
+        .log_operation(
+            share_entity_type,
+            attachment.entity_id,
+            core_domain::AuditAction::Read,
+            user.id,
+            changes,
+            ip,
+            user_agent,
+        )
+        .await;
+
     // Return file with appropriate headers
     Ok(Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, attachment.content_type)
+        .header(header::CONTENT_TYPE, attachment.content_type.clone())
         .header(
             header::CONTENT_DISPOSITION,
             format!("attachment; filename=\"{}\"", attachment.filename),
@@ -384,8 +473,9 @@ pub async fn download_attachment(
 /// Delete an attachment
 /// DELETE /api/attachments/{id}
 pub async fn delete_attachment(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
+    headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     let repo = AttachmentRepository::new(state.store.pool());
@@ -400,6 +490,11 @@ pub async fn delete_attachment(
             }),
         )
     })?;
+
+    // Save attachment info for audit log before deletion
+    let attachment_filename = attachment.filename.clone();
+    let attachment_entity_type = attachment.entity_type;
+    let attachment_entity_id = attachment.entity_id;
 
     // Delete file from storage
     if let Err(e) = tokio::fs::remove_file(&attachment.storage_path).await {
@@ -417,6 +512,27 @@ pub async fn delete_attachment(
             }),
         )
     })?;
+
+    // Audit log: attachment deleted
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let changes = serde_json::json!({
+        "filename": attachment_filename,
+        "deleted": true
+    });
+    let share_entity_type = attachment_entity_to_share_entity(attachment_entity_type);
+    let _ = state
+        .audit_service
+        .log_operation(
+            share_entity_type,
+            attachment_entity_id,
+            core_domain::AuditAction::Delete,
+            user.id,
+            changes,
+            ip,
+            user_agent,
+        )
+        .await;
 
     tracing::info!("Deleted attachment: {}", id);
 
