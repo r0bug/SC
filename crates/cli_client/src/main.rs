@@ -6,6 +6,7 @@ mod import_large;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use secure_vault::load_from_env_and_export;
 
 #[derive(Parser)]
 #[command(name = "sagenscontact")]
@@ -232,6 +233,11 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
+
+    if let Err(err) = load_from_env_and_export() {
+        eprintln!("Failed to load secure vault: {}", err);
+        std::process::exit(1);
+    }
 
     let cli = Cli::parse();
 

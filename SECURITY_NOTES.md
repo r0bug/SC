@@ -6,7 +6,7 @@ This alpha release has the following security limitations:
 
 ### 1. Plaintext Credential Storage
 
-**Issue:** All credentials stored in `config/credentials.toml` in plaintext.
+**Issue:** Legacy setups still rely on `config/credentials.toml` in plaintext, but an encrypted vault is now available.
 
 **Risk:** Anyone with filesystem access can read API keys, database passwords, SMTP credentials, etc.
 
@@ -17,9 +17,8 @@ This alpha release has the following security limitations:
 - Environment variables for containerized deployments
 
 **Current Workaround:**
-- Use dummy/placeholder credentials only
-- Never store production API keys
-- Set file permissions: `chmod 600 config/credentials.toml`
+- Prefer the encrypted vault (`secure_vault` + `config/credentials.env`) with `SAGENSCONTACT_VAULT_FILE` and `SAGENSCONTACT_VAULT_KEY` set.
+- Only fall back to plaintext TOML for local development and guard the file with `chmod 600` if you must keep it around.
 
 ### 2. No Authentication/Authorization
 
@@ -94,11 +93,11 @@ This alpha release has the following security limitations:
 - Add comprehensive input validation with validator crate
 - Sanitize HTML content in notes
 - Validate file upload extensions and MIME types
-- Add virus scanning for attachments
+- Stream every upload through ClamAV (INSTREAM) and block infected files
 
 **Current Workaround:**
-- Trust input sources (alpha is single-user)
-- Avoid uploading untrusted files
+- ClamAV integration is live; set `VIRUS_SCANNER_ENABLED=true` and point `CLAMAV_SOCKET_PATH` at your `clamd` socket to enforce scanning.
+- For purely local testing, you can toggle `VIRUS_SCANNER_ENABLED=false` to fall back to the mock scanner.
 
 ### 7. No Audit Logging
 

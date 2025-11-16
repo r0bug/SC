@@ -2,20 +2,48 @@
 
 ## Setup
 
+### Encrypted Vault (Recommended)
+
+1. Copy `credentials.env.example` to `credentials.env` and populate it with your real secrets in `KEY=value` format.
+2. Run the vault utility to encrypt the file:
+
+   ```bash
+   cargo run -p secure_vault --features cli --bin vault_tool -- \
+     encrypt --input config/credentials.env --output config/credentials.vault \
+     --key "choose-a-strong-master-key"
+   ```
+
+3. Set the following environment variables for every process (sync service, worker, CLI, desktop app):
+
+   ```bash
+   export SAGENSCONTACT_VAULT_FILE="/path/to/config/credentials.vault"
+   export SAGENSCONTACT_VAULT_KEY="choose-a-strong-master-key"
+   ```
+
+4. Start the application. The vault loader injects the decrypted values into the process environment before any configuration is read.
+
+Need to audit the contents? Run:
+
+```bash
+cargo run -p secure_vault --features cli --bin vault_tool -- \
+  decrypt --input config/credentials.vault --key "master-key"
+```
+
+### Legacy Plaintext Mode
+
 1. Copy `credentials.toml.example` to `credentials.toml`
-2. Replace placeholder values with actual credentials (for production use)
+2. Replace placeholder values with actual credentials (development/test only)
 
 ## Alpha Version Notice
 
 ⚠️ **IMPORTANT**: This alpha version uses placeholder credentials stored in plain text files.
 These are NOT SECURE and should only be used for development and testing.
 
-### Current Limitations
+### Current Capabilities
 
-- Credentials stored in plain TOML files
-- No encryption at rest
-- No secure credential vault integration
-- File-based authentication only
+- Encrypted credential vault with PBKDF2 + AES-GCM using `secure_vault`
+- Plaintext TOML configuration for compatibility (development only)
+- Environment variable overrides for CI/CD
 
 ### Future Roadmap (Beta+)
 

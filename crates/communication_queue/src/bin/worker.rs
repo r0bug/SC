@@ -4,6 +4,7 @@ use communication_queue::{
     SuggestionTask, WorkerSupervisor,
 };
 use local_store::LocalStore;
+use secure_vault::load_from_env_and_export;
 use std::sync::Arc;
 use tracing::{error, info};
 
@@ -12,6 +13,11 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     info!("🚀 SagensContact Worker starting...");
+
+    if let Err(err) = load_from_env_and_export() {
+        error!("Failed to load secure vault: {}", err);
+        return Err(err.into());
+    }
 
     // Database setup
     let database_url =
@@ -37,7 +43,10 @@ async fn main() -> Result<()> {
 
     // Start email monitor if IMAP is configured
     if let Ok(imap_config) = ImapConfig::from_env() {
-        let email_monitor = Arc::new(EmailMonitor::new(imap_config, Arc::new(store.pool().clone())));
+        let email_monitor = Arc::new(EmailMonitor::new(
+            imap_config,
+            Arc::new(store.pool().clone()),
+        ));
         email_monitor.start().await;
         info!("📧 Email monitor started");
     } else {
@@ -155,7 +164,10 @@ async fn main() -> Result<()> {
     });
 
     let task_count = 3; // communication, nag, suggestion
-    info!("✅ Worker fully initialized with {} tasks + email monitor", task_count);
+    info!(
+        "✅ Worker fully initialized with {} tasks + email monitor",
+        task_count
+    );
     info!("📋 Tasks will run continuously with automatic restart on failure");
     info!("🏥 Health check available at http://localhost:9090/health/worker");
     info!("ℹ️  Email: Set SMTP_* env vars for real sending, IMAP_* for receiving");

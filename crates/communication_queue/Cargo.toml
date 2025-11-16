@@ -11,6 +11,7 @@ path = "src/bin/worker.rs"
 [dependencies]
 core_domain = { path = "../core_domain" }
 local_store = { path = "../local_store" }
+secure_vault = { path = "../secure_vault" }
 
 tracing-subscriber.workspace = true
 

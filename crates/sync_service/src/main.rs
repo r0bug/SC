@@ -36,6 +36,7 @@ use axum::{
     Router,
 };
 use local_store::LocalStore;
+use secure_vault::load_from_env_and_export;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -48,6 +49,11 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize Prometheus metrics
     let prometheus_handle = observability::init_metrics();
+
+    if let Err(err) = load_from_env_and_export() {
+        tracing::error!("Failed to load secure vault: {}", err);
+        return Err(err.into());
+    }
 
     let database_url =
         std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/contacts.db".to_string());
@@ -87,10 +93,15 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "30".to_string())
         .parse::<u64>()
         .unwrap_or(30);
+    let scanner_strict = std::env::var("VIRUS_SCANNER_STRICT")
+        .unwrap_or_else(|_| "true".to_string())
+        .parse::<bool>()
+        .unwrap_or(true);
     let virus_scanner = Arc::new(virus_scanner::VirusScanner::new(
         scanner_enabled,
         scanner_socket,
         scanner_timeout,
+        scanner_strict,
     ));
 
     let app_state = state::AppState::new(

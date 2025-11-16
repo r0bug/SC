@@ -6,9 +6,13 @@
 mod commands;
 
 use commands::*;
+use secure_vault::load_from_env_and_export;
 use tauri::Manager;
 
 fn main() {
+    if let Err(err) = load_from_env_and_export() {
+        eprintln!("Failed to load secure vault: {}", err);
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())

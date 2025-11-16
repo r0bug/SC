@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use std::path::Path;
+use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
@@ -14,14 +15,16 @@ pub struct VirusScanner {
     enabled: bool,
     socket_path: String,
     timeout_secs: u64,
+    strict: bool,
 }
 
 impl VirusScanner {
-    pub fn new(enabled: bool, socket_path: String, timeout_secs: u64) -> Self {
+    pub fn new(enabled: bool, socket_path: String, timeout_secs: u64, strict: bool) -> Self {
         Self {
             enabled,
             socket_path,
             timeout_secs,
+            strict,
         }
     }
 
@@ -34,10 +37,11 @@ impl VirusScanner {
         // Try to connect to ClamAV socket
         match self.scan_with_clamav(file_path).await {
             Ok(result) => Ok(result),
-            Err(e) => {
-                tracing::warn!("ClamAV scan failed: {}, using mock scanner", e);
+            Err(e) if !self.strict => {
+                tracing::warn!("ClamAV scan failed, falling back to mock scanner: {}", e);
                 Ok(self.mock_scan(file_path))
             }
+            Err(e) => Err(e),
         }
     }
 
@@ -51,14 +55,26 @@ impl VirusScanner {
         .map_err(|_| anyhow!("Connection timeout"))?
         .map_err(|e| anyhow!("Failed to connect to ClamAV: {}", e))?;
 
-        // Send SCAN command with file path
-        let command = format!("SCAN {}\\n", file_path.display());
-        stream.write_all(command.as_bytes()).await?;
+        stream.write_all(b"INSTREAM\n").await?;
+
+        let mut file = File::open(file_path).await?;
+        let mut buffer = vec![0u8; 64 * 1024];
+        loop {
+            let bytes_read = file.read(&mut buffer).await?;
+            if bytes_read == 0 {
+                break;
+            }
+            let chunk_len = (bytes_read as u32).to_be_bytes();
+            stream.write_all(&chunk_len).await?;
+            stream.write_all(&buffer[..bytes_read]).await?;
+        }
+        stream.write_all(&0u32.to_be_bytes()).await?;
         stream.flush().await?;
 
         // Read response
-        let mut response = String::new();
-        stream.read_to_string(&mut response).await?;
+        let mut response_bytes = Vec::new();
+        stream.read_to_end(&mut response_bytes).await?;
+        let response = String::from_utf8_lossy(&response_bytes);
 
         // Parse ClamAV response
         if response.contains(" OK") {

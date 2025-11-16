@@ -11,6 +11,8 @@ node_modules/
 # Environment
 .env
 .env.local
+config/credentials.env
+config/credentials.vault
 
 # Data
 data/
@@ -25,3 +27,4 @@ sagenscontact-installer-bundle.sh
 *.tmp
 *.swp
 *~
+AUTH_SETUP.md

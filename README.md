@@ -5,9 +5,9 @@ Portable contact manager for macOS/Linux desktops with responsive web interface.
 ## ⚠️ Alpha Release Notice
 
 This is an ALPHA release with the following characteristics:
-- Uses placeholder credentials (NOT secure)
+- Uses placeholder credentials by default (configure the encrypted vault for real secrets)
 - Mock implementations for external services (Segmind AI, SMS, email, social)
-- File-based credential storage (migrating to secure vault in beta)
+- Secure vault support is available, but plaintext files remain enabled for development setups
 - Limited production readiness
 
 ## Features
@@ -137,6 +137,38 @@ pnpm dev
 
 **Desktop App:** Tauri implementation planned for beta. See `apps/desktop/README.md`
 
+### Desktop Shortcuts (Linux)
+
+Linux desktop integration with launcher scripts and `.desktop` files:
+
+**Install Desktop Shortcuts:**
+```bash
+# Desktop shortcuts are automatically available in:
+# ~/.local/share/applications/
+
+# Three launchers available:
+# - SagensContact Web (starts sync service + web UI on port 3001)
+# - SagensContact Desktop (starts sync service + Tauri desktop app)
+# - SagensContact CLI (opens terminal with CLI)
+```
+
+**Launcher Scripts:**
+- `start-web.sh` - Starts sync service and web UI, opens browser to http://localhost:3001
+- `start-desktop.sh` - Starts sync service and Tauri desktop app
+- Desktop shortcuts created during installation reference these scripts
+
+**Manual Launch:**
+```bash
+# Web UI
+./start-web.sh
+
+# Desktop app (when available)
+./start-desktop.sh
+
+# Or use the documented start.sh:
+./start.sh  # Runs sync_service, worker, and web UI
+```
+
 ## Project Structure
 
 ```
@@ -182,6 +214,28 @@ Migrations are embedded and run automatically on startup. Schema is defined in `
 
 See `config/README.md` for detailed configuration instructions.
 
+### Secure Credential Vault
+
+All services (sync, worker, CLI, and desktop) can now read secrets from an encrypted vault instead of plaintext files.
+
+1. Populate `config/credentials.env` using `config/credentials.env.example`.
+2. Encrypt it:
+
+   ```bash
+   cargo run -p secure_vault --features cli --bin vault_tool -- \
+     encrypt --input config/credentials.env --output config/credentials.vault \
+     --key "choose-a-strong-master-key"
+   ```
+
+3. Export the vault location/key before starting any component:
+
+   ```bash
+   export SAGENSCONTACT_VAULT_FILE="$PWD/config/credentials.vault"
+   export SAGENSCONTACT_VAULT_KEY="choose-a-strong-master-key"
+   ```
+
+The loader decrypts the file at runtime and injects the secrets as environment variables, so existing configuration code continues to work.
+
 **Security Warning**: Alpha uses plaintext credential files. Do NOT use in production.
 
 ### Attachment Storage
@@ -210,8 +264,8 @@ AWS_SECRET_ACCESS_KEY=your-secret
 ```
 
 **Virus Scanning**
-- **Alpha**: Mock scanner (always returns Clean for development)
-- **Beta**: ClamAV integration for real virus scanning
+- **Development**: Set `VIRUS_SCANNER_ENABLED=false` to use the mock scanner.
+- **Beta**: Enable ClamAV scanning with `VIRUS_SCANNER_ENABLED=true`, `CLAMAV_SOCKET_PATH=/var/run/clamav/clamd.ctl`, and `VIRUS_SCANNER_STRICT=true`. Uploads stream through the ClamAV `INSTREAM` protocol and fail if the daemon is unavailable.
 - **Scan statuses**: `Pending` → `Clean` | `Infected` | `Error`
 - Infected files are automatically rejected and deleted
 
@@ -309,7 +363,7 @@ Displays last 10 searches with result count and timestamps, respecting privacy s
 - **Desktop app:** Architecture documented, implementation planned for beta
 - **Web UI:** Core features implemented (contacts, notes, communications), advanced features (projects detail, sharing UI, settings) pending
 - **External services:** Email, SMS, social, AI use mock/deterministic responses
-- **Security:** No auth, no encryption, plaintext credentials (see SECURITY_NOTES.md)
+- **Security:** Auth still limited to single-user JWT, but secrets can now be sourced from the encrypted vault (see SECURITY_NOTES.md)
 - **Sync:** Basic WebSocket support, no conflict resolution yet
 - **Attachments:** Local filesystem only (MinIO/S3 in beta)
 - **Single-user:** No multi-tenancy or user isolation
@@ -328,8 +382,8 @@ See **[SECURITY_NOTES.md](SECURITY_NOTES.md)** for comprehensive security discus
 - [x] Comprehensive test coverage for attachment and AI systems
 
 **Upcoming**:
-- [ ] Implement secure credential vault integration
-- [ ] Add real virus scanning (ClamAV integration)
+- [x] Implement secure credential vault integration (use `secure_vault` + encrypted env file)
+- [x] Add real virus scanning (ClamAV `INSTREAM` integration)
 - [ ] Implement proper authentication (JWT, OAuth2)
 - [ ] Add end-to-end encryption for synced data
 - [ ] Complete Tauri desktop application polish

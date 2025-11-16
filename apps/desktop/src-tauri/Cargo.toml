@@ -28,6 +28,7 @@ local_store = { path = "../../../crates/local_store" }
 core_domain = { path = "../../../crates/core_domain" }
 import_service = { path = "../../../crates/import_service" }
 ai_middleware = { path = "../../../crates/ai_middleware" }
+secure_vault = { path = "../../../crates/secure_vault" }
 
 [dev-dependencies]
 tempfile = "3"
