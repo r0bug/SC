@@ -1,7 +1,10 @@
-use core_domain::{Communication, CommunicationAttempt, CommunicationDirection, CommunicationType, CommunicationHistoryStatus, CommunicationStatus, DomainError, DomainResult};
-use sqlx::{Pool, Sqlite, FromRow};
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use core_domain::{
+    Communication, CommunicationAttempt, CommunicationDirection, CommunicationHistoryStatus,
+    CommunicationStatus, CommunicationType, DomainError, DomainResult,
+};
+use sqlx::{FromRow, Pool, Sqlite};
+use uuid::Uuid;
 
 pub struct CommunicationRepository<'a> {
     pool: &'a Pool<Sqlite>,
@@ -81,7 +84,11 @@ impl<'a> CommunicationRepository<'a> {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
-    pub async fn list_all_attempts(&self, limit: i64, offset: i64) -> DomainResult<Vec<CommunicationAttempt>> {
+    pub async fn list_all_attempts(
+        &self,
+        limit: i64,
+        offset: i64,
+    ) -> DomainResult<Vec<CommunicationAttempt>> {
         let rows = sqlx::query_as::<_, CommAttemptRow>(
             "SELECT id, contact_id, method, subject, message, status, scheduled_at, attempted_at, retry_count, created_at
              FROM communication_attempts
@@ -96,7 +103,24 @@ impl<'a> CommunicationRepository<'a> {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
-    pub async fn list_by_contact(&self, contact_id: Uuid) -> DomainResult<Vec<CommunicationAttempt>> {
+    pub async fn get_attempt(&self, id: Uuid) -> DomainResult<CommunicationAttempt> {
+        let row = sqlx::query_as::<_, CommAttemptRow>(
+            "SELECT id, contact_id, method, subject, message, status, scheduled_at, attempted_at, retry_count, created_at
+             FROM communication_attempts WHERE id = ?",
+        )
+        .bind(id.to_string())
+        .fetch_optional(self.pool)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?
+        .ok_or_else(|| DomainError::NotFound(format!("CommunicationAttempt {}", id)))?;
+
+        Ok(row.into())
+    }
+
+    pub async fn list_by_contact(
+        &self,
+        contact_id: Uuid,
+    ) -> DomainResult<Vec<CommunicationAttempt>> {
         let rows = sqlx::query_as::<_, CommAttemptRow>(
             "SELECT id, contact_id, method, subject, message, status, scheduled_at, attempted_at, retry_count, created_at
              FROM communication_attempts
@@ -175,7 +199,10 @@ impl<'a> CommunicationRepository<'a> {
         Ok(())
     }
 
-    pub async fn get_communications_by_contact(&self, contact_id: Uuid) -> DomainResult<Vec<Communication>> {
+    pub async fn get_communications_by_contact(
+        &self,
+        contact_id: Uuid,
+    ) -> DomainResult<Vec<Communication>> {
         let rows = sqlx::query_as::<_, CommunicationRow>(
             "SELECT id, contact_id, communication_type, direction, timestamp, content, duration_seconds, phone_number, thread_id, status, metadata, created_at, updated_at
              FROM communications WHERE contact_id = ? ORDER BY timestamp DESC"
@@ -188,7 +215,10 @@ impl<'a> CommunicationRepository<'a> {
         rows.into_iter().map(|row| row.try_into()).collect()
     }
 
-    pub async fn get_communications_by_phone(&self, phone_number: &str) -> DomainResult<Vec<Communication>> {
+    pub async fn get_communications_by_phone(
+        &self,
+        phone_number: &str,
+    ) -> DomainResult<Vec<Communication>> {
         let rows = sqlx::query_as::<_, CommunicationRow>(
             "SELECT id, contact_id, communication_type, direction, timestamp, content, duration_seconds, phone_number, thread_id, status, metadata, created_at, updated_at
              FROM communications WHERE phone_number = ? ORDER BY timestamp DESC"
@@ -201,7 +231,10 @@ impl<'a> CommunicationRepository<'a> {
         rows.into_iter().map(|row| row.try_into()).collect()
     }
 
-    pub async fn get_communications_by_thread(&self, thread_id: &str) -> DomainResult<Vec<Communication>> {
+    pub async fn get_communications_by_thread(
+        &self,
+        thread_id: &str,
+    ) -> DomainResult<Vec<Communication>> {
         let rows = sqlx::query_as::<_, CommunicationRow>(
             "SELECT id, contact_id, communication_type, direction, timestamp, content, duration_seconds, phone_number, thread_id, status, metadata, created_at, updated_at
              FROM communications WHERE thread_id = ? ORDER BY timestamp ASC"
@@ -214,14 +247,27 @@ impl<'a> CommunicationRepository<'a> {
         rows.into_iter().map(|row| row.try_into()).collect()
     }
 
-    pub async fn count_communications_by_contact(&self, contact_id: Uuid) -> DomainResult<i64> {
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM communications WHERE contact_id = ?"
+    pub async fn get_communication(&self, id: Uuid) -> DomainResult<Communication> {
+        let row = sqlx::query_as::<_, CommunicationRow>(
+            "SELECT id, contact_id, communication_type, direction, timestamp, content, duration_seconds, phone_number, thread_id, status, metadata, created_at, updated_at
+             FROM communications WHERE id = ?",
         )
-        .bind(contact_id.to_string())
-        .fetch_one(self.pool)
+        .bind(id.to_string())
+        .fetch_optional(self.pool)
         .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+        .map_err(|e| DomainError::Internal(e.to_string()))?
+        .ok_or_else(|| DomainError::NotFound(format!("Communication {}", id)))?;
+
+        row.try_into()
+    }
+
+    pub async fn count_communications_by_contact(&self, contact_id: Uuid) -> DomainResult<i64> {
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM communications WHERE contact_id = ?")
+                .bind(contact_id.to_string())
+                .fetch_one(self.pool)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(count.0)
     }
@@ -315,14 +361,24 @@ impl TryFrom<CommunicationRow> for Communication {
             "Email" => CommunicationType::Email,
             "VideoCall" => CommunicationType::VideoCall,
             "VoiceMail" => CommunicationType::VoiceMail,
-            _ => return Err(DomainError::Internal(format!("Invalid communication type: {}", row.communication_type))),
+            _ => {
+                return Err(DomainError::Internal(format!(
+                    "Invalid communication type: {}",
+                    row.communication_type
+                )))
+            }
         };
 
         let direction = match row.direction.as_str() {
             "Inbound" => CommunicationDirection::Inbound,
             "Outbound" => CommunicationDirection::Outbound,
             "Missed" => CommunicationDirection::Missed,
-            _ => return Err(DomainError::Internal(format!("Invalid direction: {}", row.direction))),
+            _ => {
+                return Err(DomainError::Internal(format!(
+                    "Invalid direction: {}",
+                    row.direction
+                )))
+            }
         };
 
         let status = match row.status.as_str() {
@@ -330,7 +386,12 @@ impl TryFrom<CommunicationRow> for Communication {
             "Failed" => CommunicationHistoryStatus::Failed,
             "Blocked" => CommunicationHistoryStatus::Blocked,
             "Rejected" => CommunicationHistoryStatus::Rejected,
-            _ => return Err(DomainError::Internal(format!("Invalid status: {}", row.status))),
+            _ => {
+                return Err(DomainError::Internal(format!(
+                    "Invalid status: {}",
+                    row.status
+                )))
+            }
         };
 
         let timestamp = DateTime::parse_from_rfc3339(&row.timestamp)

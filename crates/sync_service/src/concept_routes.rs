@@ -4,7 +4,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use core_domain::Concept;
+use core_domain::{Concept, Permission, ShareEntityType};
 use local_store::repositories::ConceptRepository;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -21,6 +21,53 @@ pub struct CreateConceptRequest {
 #[derive(Debug, Serialize)]
 pub struct ConceptResponse {
     pub concept: Concept,
+}
+
+async fn ensure_concept_permission(
+    app_state: &AppState,
+    user_id: &Uuid,
+    concept_id: &Uuid,
+    owner_id: Uuid,
+    permission: Permission,
+) -> Result<(), StatusCode> {
+    let permitted = match permission {
+        Permission::Read => {
+            app_state
+                .acl_service
+                .can_read(user_id, ShareEntityType::Concept, concept_id)
+                .await
+        }
+        Permission::Write => {
+            app_state
+                .acl_service
+                .can_write(user_id, ShareEntityType::Concept, concept_id)
+                .await
+        }
+        Permission::Delete => {
+            app_state
+                .acl_service
+                .can_delete(user_id, ShareEntityType::Concept, concept_id)
+                .await
+        }
+        Permission::Share => {
+            app_state
+                .acl_service
+                .can_share(user_id, ShareEntityType::Concept, concept_id)
+                .await
+        }
+    };
+
+    match permitted {
+        Ok(true) => Ok(()),
+        Ok(false) => {
+            if owner_id == *user_id {
+                Ok(())
+            } else {
+                Err(StatusCode::FORBIDDEN)
+            }
+        }
+        Err(err) => Err(StatusCode::from(err)),
+    }
 }
 
 /// POST /api/concepts
@@ -70,6 +117,17 @@ pub async fn create_concept(
         )
     })?;
 
+    app_state
+        .acl_service
+        .create_acl(&user.id, ShareEntityType::Concept, &concept.id)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to create ACL".to_string(),
+            )
+        })?;
+
     // Audit log: concept created
     let ip = audit::extract_ip_address(&headers);
     let user_agent = audit::extract_user_agent(&headers);
@@ -84,7 +142,7 @@ pub async fn create_concept(
 /// GET /api/concepts/:id
 pub async fn get_concept(
     State(app_state): State<AppState>,
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ConceptResponse>, (StatusCode, &'static str)> {
     let repo = ConceptRepository::new(&app_state.pool);
@@ -92,6 +150,16 @@ pub async fn get_concept(
         .get_by_id(id)
         .await
         .map_err(|_| (StatusCode::NOT_FOUND, "Concept not found"))?;
+
+    ensure_concept_permission(
+        &app_state,
+        &user.id,
+        &concept.id,
+        concept.created_by,
+        Permission::Read,
+    )
+    .await
+    .map_err(|code| (code, "Access denied"))?;
 
     Ok(Json(ConceptResponse { concept }))
 }
@@ -110,10 +178,15 @@ pub async fn update_concept(
         .await
         .map_err(|_| (StatusCode::NOT_FOUND, "Concept not found"))?;
 
-    // Check if user owns the concept
-    if concept.created_by != user.id {
-        return Err((StatusCode::FORBIDDEN, "Access denied"));
-    }
+    ensure_concept_permission(
+        &app_state,
+        &user.id,
+        &concept.id,
+        concept.created_by,
+        Permission::Write,
+    )
+    .await
+    .map_err(|code| (code, "Access denied"))?;
 
     // Track changes for audit log
     let changes = serde_json::json!({
@@ -162,10 +235,15 @@ pub async fn delete_concept(
         .await
         .map_err(|_| (StatusCode::NOT_FOUND, "Concept not found"))?;
 
-    // Check if user owns the concept
-    if concept.created_by != user.id {
-        return Err((StatusCode::FORBIDDEN, "Access denied"));
-    }
+    ensure_concept_permission(
+        &app_state,
+        &user.id,
+        &concept.id,
+        concept.created_by,
+        Permission::Delete,
+    )
+    .await
+    .map_err(|code| (code, "Access denied"))?;
 
     repo.delete(id).await.map_err(|_| {
         (

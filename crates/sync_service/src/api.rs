@@ -10,7 +10,8 @@ use axum::{
 };
 use core_domain::*;
 use local_store::*;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 // Request DTOs for creating entities
@@ -93,6 +94,111 @@ fn default_limit() -> i64 {
     50
 }
 
+async fn ensure_entity_permission(
+    state: &AppState,
+    user_id: &Uuid,
+    owner_id: Uuid,
+    entity_type: ShareEntityType,
+    entity_id: &Uuid,
+    permission: Permission,
+) -> Result<(), StatusCode> {
+    let permitted = match permission {
+        Permission::Read => {
+            state
+                .acl_service
+                .can_read(user_id, entity_type, entity_id)
+                .await
+        }
+        Permission::Write => {
+            state
+                .acl_service
+                .can_write(user_id, entity_type, entity_id)
+                .await
+        }
+        Permission::Delete => {
+            state
+                .acl_service
+                .can_delete(user_id, entity_type, entity_id)
+                .await
+        }
+        Permission::Share => {
+            state
+                .acl_service
+                .can_share(user_id, entity_type, entity_id)
+                .await
+        }
+    };
+
+    match permitted {
+        Ok(true) => Ok(()),
+        Ok(false) => {
+            if owner_id == *user_id {
+                Ok(())
+            } else {
+                Err(StatusCode::FORBIDDEN)
+            }
+        }
+        Err(err) => Err(StatusCode::from(err)),
+    }
+}
+
+async fn fetch_owner_id(
+    state: &AppState,
+    entity_type: ShareEntityType,
+    entity_id: Uuid,
+) -> Result<Uuid, StatusCode> {
+    match entity_type {
+        ShareEntityType::Contact => {
+            let repo = ContactRepository::new(state.store.pool());
+            let entity = repo
+                .get_by_id(entity_id)
+                .await
+                .map_err(|_| StatusCode::NOT_FOUND)?;
+            Ok(entity.created_by)
+        }
+        ShareEntityType::Project => {
+            let repo = ProjectRepository::new(state.store.pool());
+            let entity = repo
+                .get_by_id(entity_id)
+                .await
+                .map_err(|_| StatusCode::NOT_FOUND)?;
+            Ok(entity.created_by)
+        }
+        ShareEntityType::Note => {
+            let repo = NoteRepository::new(state.store.pool());
+            let entity = repo
+                .get_by_id(entity_id)
+                .await
+                .map_err(|_| StatusCode::NOT_FOUND)?;
+            Ok(entity.created_by)
+        }
+        ShareEntityType::CalendarEvent => {
+            let repo = CalendarEventRepository::new(state.store.pool());
+            let entity = repo
+                .get_by_id(entity_id)
+                .await
+                .map_err(|_| StatusCode::NOT_FOUND)?;
+            Ok(entity.created_by)
+        }
+        ShareEntityType::Group => {
+            let repo = GroupRepository::new(state.store.pool());
+            let entity = repo
+                .get_by_id(entity_id)
+                .await
+                .map_err(|_| StatusCode::NOT_FOUND)?;
+            Ok(entity.created_by)
+        }
+        ShareEntityType::Concept => {
+            let repo = ConceptRepository::new(state.store.pool());
+            let entity = repo
+                .get_by_id(entity_id)
+                .await
+                .map_err(|_| StatusCode::NOT_FOUND)?;
+            Ok(entity.created_by)
+        }
+    }
+}
+
 pub async fn list_contacts(
     AuthUser(user): AuthUser,
     State(state): State<AppState>,
@@ -108,12 +214,15 @@ pub async fn list_contacts(
 
     let repo = ContactRepository::new(state.store.pool());
     // Filter by user ownership
-    let contacts = repo.list(params.limit, params.offset, user.id).await.map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Internal server error"})),
-        )
-    })?;
+    let contacts = repo
+        .list(params.limit, params.offset, user.id)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Internal server error"})),
+            )
+        })?;
     Ok(Json(contacts))
 }
 
@@ -149,6 +258,12 @@ pub async fn create_contact(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    state
+        .acl_service
+        .create_acl(&user.id, ShareEntityType::Contact, &contact.id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     // Audit log: contact created
     let ip = audit::extract_ip_address(&headers);
     let user_agent = audit::extract_user_agent(&headers);
@@ -180,10 +295,15 @@ pub async fn get_contact(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Ownership check: Verify the contact belongs to the requesting user
-    if contact.created_by != user.id {
-        return Err(StatusCode::FORBIDDEN);
-    }
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        contact.created_by,
+        ShareEntityType::Contact,
+        &contact.id,
+        Permission::Read,
+    )
+    .await?;
 
     Ok(Json(contact))
 }
@@ -297,6 +417,12 @@ pub async fn create_project(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
+    state
+        .acl_service
+        .create_acl(&user.id, ShareEntityType::Project, &project.id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     // Audit log: project created
     let ip = audit::extract_ip_address(&headers);
     let user_agent = audit::extract_user_agent(&headers);
@@ -319,10 +445,15 @@ pub async fn get_project(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Ownership check: Verify the project belongs to the requesting user
-    if project.created_by != user.id {
-        return Err(StatusCode::FORBIDDEN);
-    }
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        project.created_by,
+        ShareEntityType::Project,
+        &project.id,
+        Permission::Read,
+    )
+    .await?;
 
     Ok(Json(project))
 }
@@ -342,10 +473,15 @@ pub async fn update_project(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Ownership check: Verify the project belongs to the requesting user
-    if project.created_by != user.id {
-        return Err(StatusCode::FORBIDDEN);
-    }
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        project.created_by,
+        ShareEntityType::Project,
+        &project.id,
+        Permission::Write,
+    )
+    .await?;
 
     // Track changes for audit log
     let mut changes = serde_json::Map::new();
@@ -408,10 +544,15 @@ pub async fn delete_project(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Ownership check: Verify the project belongs to the requesting user
-    if project.created_by != user.id {
-        return Err(StatusCode::FORBIDDEN);
-    }
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        project.created_by,
+        ShareEntityType::Project,
+        &project.id,
+        Permission::Delete,
+    )
+    .await?;
 
     repo.delete(id)
         .await
@@ -434,6 +575,40 @@ pub async fn create_note(
     headers: HeaderMap,
     Json(req): Json<CreateNoteRequest>,
 ) -> Result<(StatusCode, Json<Note>), StatusCode> {
+    if let Some(contact_id) = req.contact_id {
+        let contact_repo = ContactRepository::new(state.store.pool());
+        let contact = contact_repo
+            .get_by_id(contact_id)
+            .await
+            .map_err(|_| StatusCode::NOT_FOUND)?;
+        ensure_entity_permission(
+            &state,
+            &user.id,
+            contact.created_by,
+            ShareEntityType::Contact,
+            &contact.id,
+            Permission::Write,
+        )
+        .await?;
+    }
+
+    if let Some(project_id) = req.project_id {
+        let project_repo = ProjectRepository::new(state.store.pool());
+        let project = project_repo
+            .get_by_id(project_id)
+            .await
+            .map_err(|_| StatusCode::NOT_FOUND)?;
+        ensure_entity_permission(
+            &state,
+            &user.id,
+            project.created_by,
+            ShareEntityType::Project,
+            &project.id,
+            Permission::Write,
+        )
+        .await?;
+    }
+
     let note = Note {
         id: Uuid::new_v4(),
         contact_id: req.contact_id,
@@ -453,6 +628,12 @@ pub async fn create_note(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    state
+        .acl_service
+        .create_acl(&user.id, ShareEntityType::Note, &note.id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     // Audit log: note created
     let ip = audit::extract_ip_address(&headers);
     let user_agent = audit::extract_user_agent(&headers);
@@ -465,10 +646,26 @@ pub async fn create_note(
 }
 
 pub async fn list_notes_by_contact(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<Note>>, StatusCode> {
+    let contact_repo = ContactRepository::new(state.store.pool());
+    let contact = contact_repo
+        .get_by_id(id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        contact.created_by,
+        ShareEntityType::Contact,
+        &contact.id,
+        Permission::Read,
+    )
+    .await?;
+
     let repo = NoteRepository::new(state.store.pool());
     let notes = repo
         .list_by_contact(id)
@@ -478,10 +675,26 @@ pub async fn list_notes_by_contact(
 }
 
 pub async fn queue_communication(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Json(attempt): Json<CommunicationAttempt>,
 ) -> Result<(StatusCode, Json<CommunicationAttempt>), StatusCode> {
+    let contact_repo = ContactRepository::new(state.store.pool());
+    let contact = contact_repo
+        .get_by_id(attempt.contact_id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        contact.created_by,
+        ShareEntityType::Contact,
+        &contact.id,
+        Permission::Write,
+    )
+    .await?;
+
     let repo = CommunicationRepository::new(state.store.pool());
     repo.create(&attempt)
         .await
@@ -490,10 +703,26 @@ pub async fn queue_communication(
 }
 
 pub async fn create_share(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Json(invite): Json<ShareInvite>,
 ) -> Result<(StatusCode, Json<ShareInvite>), StatusCode> {
+    if invite.shared_by != user.id {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let owner_id = fetch_owner_id(&state, invite.entity_type, invite.entity_id).await?;
+
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        owner_id,
+        invite.entity_type,
+        &invite.entity_id,
+        Permission::Share,
+    )
+    .await?;
+
     let repo = ShareRepository::new(state.store.pool());
     repo.create(&invite)
         .await
@@ -502,7 +731,7 @@ pub async fn create_share(
 }
 
 pub async fn get_suggestions(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(contact_id): Path<Uuid>,
 ) -> Result<Json<Vec<AiSuggestion>>, StatusCode> {
@@ -511,6 +740,16 @@ pub async fn get_suggestions(
         .get_by_id(contact_id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        contact.created_by,
+        ShareEntityType::Contact,
+        &contact.id,
+        Permission::Read,
+    )
+    .await?;
 
     let engine = SuggestionEngine::new((*state.ai_client).clone());
     let suggestions = engine
@@ -536,10 +775,15 @@ pub async fn update_contact(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Ownership check: Verify the contact belongs to the requesting user
-    if contact.created_by != user.id {
-        return Err(StatusCode::FORBIDDEN);
-    }
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        contact.created_by,
+        ShareEntityType::Contact,
+        &contact.id,
+        Permission::Write,
+    )
+    .await?;
 
     // Track changes for audit log
     let mut changes = serde_json::Map::new();
@@ -574,7 +818,10 @@ pub async fn update_contact(
         contact.notes = Some(notes);
     }
     if let Some(social_handles) = updates.social_handles {
-        changes.insert("social_handles".to_string(), serde_json::json!(social_handles));
+        changes.insert(
+            "social_handles".to_string(),
+            serde_json::json!(social_handles),
+        );
         contact.social_handles = social_handles;
     }
     if let Some(tags) = updates.tags {
@@ -619,10 +866,15 @@ pub async fn delete_contact(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    // Ownership check: Verify the contact belongs to the requesting user
-    if contact.created_by != user.id {
-        return Err(StatusCode::FORBIDDEN);
-    }
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        contact.created_by,
+        ShareEntityType::Contact,
+        &contact.id,
+        Permission::Delete,
+    )
+    .await?;
 
     repo.delete(id)
         .await
@@ -695,6 +947,16 @@ pub async fn update_note(
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        note.created_by,
+        ShareEntityType::Note,
+        &note.id,
+        Permission::Write,
+    )
+    .await?;
+
     // Track changes for audit log
     let mut changes = serde_json::Map::new();
 
@@ -738,6 +1000,21 @@ pub async fn delete_note(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, StatusCode> {
     let repo = NoteRepository::new(state.store.pool());
+    let note = repo
+        .get_by_id(id)
+        .await
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    ensure_entity_permission(
+        &state,
+        &user.id,
+        note.created_by,
+        ShareEntityType::Note,
+        &note.id,
+        Permission::Delete,
+    )
+    .await?;
+
     repo.delete(id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -763,7 +1040,7 @@ pub struct CommunicationListQuery {
 }
 
 pub async fn list_communication_attempts(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Query(params): Query<CommunicationListQuery>,
 ) -> Result<Json<Vec<CommunicationAttempt>>, (StatusCode, Json<serde_json::Value>)> {
@@ -777,14 +1054,12 @@ pub async fn list_communication_attempts(
 
     let repo = CommunicationRepository::new(state.store.pool());
     let attempts = if let Some(contact_id) = params.contact_id {
-        repo.list_by_contact(contact_id)
-            .await
-            .map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(serde_json::json!({"error": "Internal server error"})),
-                )
-            })?
+        repo.list_by_contact(contact_id).await.map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Internal server error"})),
+            )
+        })?
     } else {
         repo.list_all_attempts(params.limit, params.offset)
             .await
@@ -795,15 +1070,86 @@ pub async fn list_communication_attempts(
                 )
             })?
     };
-    Ok(Json(attempts))
+    let contact_repo = ContactRepository::new(state.store.pool());
+    let mut owner_cache: HashMap<Uuid, Uuid> = HashMap::new();
+    let mut filtered = Vec::new();
+
+    for attempt in attempts {
+        let owner_id = if let Some(owner) = owner_cache.get(&attempt.contact_id) {
+            *owner
+        } else {
+            let contact = match contact_repo.get_by_id(attempt.contact_id).await {
+                Ok(contact) => contact,
+                Err(_) => continue,
+            };
+            owner_cache.insert(attempt.contact_id, contact.created_by);
+            contact.created_by
+        };
+
+        match ensure_entity_permission(
+            &state,
+            &user.id,
+            owner_id,
+            ShareEntityType::Contact,
+            &attempt.contact_id,
+            Permission::Read,
+        )
+        .await
+        {
+            Ok(()) => filtered.push(attempt),
+            Err(StatusCode::FORBIDDEN) => continue,
+            Err(code) => {
+                return Err((
+                    code,
+                    Json(serde_json::json!({"error": "Failed to authorize communication attempt"})),
+                ));
+            }
+        }
+    }
+
+    Ok(Json(filtered))
 }
 
 pub async fn cancel_communication(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<serde_json::Value>)> {
     let repo = CommunicationRepository::new(state.store.pool());
+    let attempt = repo.get_attempt(id).await.map_err(|_| {
+        (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({"error": "Not found"})),
+        )
+    })?;
+
+    let contact_repo = ContactRepository::new(state.store.pool());
+    let contact = contact_repo
+        .get_by_id(attempt.contact_id)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Contact not found"})),
+            )
+        })?;
+
+    if let Err(code) = ensure_entity_permission(
+        &state,
+        &user.id,
+        contact.created_by,
+        ShareEntityType::Contact,
+        &contact.id,
+        Permission::Write,
+    )
+    .await
+    {
+        return Err((
+            code,
+            Json(serde_json::json!({"error": "Access denied for communication"})),
+        ));
+    }
+
     repo.cancel(id).await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,

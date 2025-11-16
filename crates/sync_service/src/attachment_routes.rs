@@ -9,8 +9,11 @@ use axum::{
     response::Response,
     Json,
 };
-use core_domain::{Attachment, AttachmentEntityType, ShareEntityType};
-use local_store::AttachmentRepository;
+use core_domain::{Attachment, AttachmentEntityType, Permission, ShareEntityType};
+use local_store::{
+    AttachmentRepository, CalendarEventRepository, CommunicationRepository, ContactRepository,
+    NoteRepository, ProjectRepository,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -39,6 +42,162 @@ fn attachment_entity_to_share_entity(entity_type: AttachmentEntityType) -> Share
         AttachmentEntityType::CalendarEvent => ShareEntityType::CalendarEvent,
         // Map Communication to Contact as a workaround (Communication not in ShareEntityType)
         AttachmentEntityType::Communication => ShareEntityType::Contact,
+    }
+}
+
+async fn resolve_attachment_owner(
+    state: &AppState,
+    entity_type: AttachmentEntityType,
+    entity_id: Uuid,
+) -> Result<Uuid, (StatusCode, Json<ErrorResponse>)> {
+    match entity_type {
+        AttachmentEntityType::Contact => {
+            let repo = ContactRepository::new(state.store.pool());
+            let contact = repo.get_by_id(entity_id).await.map_err(|_| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: "Contact not found".to_string(),
+                    }),
+                )
+            })?;
+            Ok(contact.created_by)
+        }
+        AttachmentEntityType::Project => {
+            let repo = ProjectRepository::new(state.store.pool());
+            let project = repo.get_by_id(entity_id).await.map_err(|_| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: "Project not found".to_string(),
+                    }),
+                )
+            })?;
+            Ok(project.created_by)
+        }
+        AttachmentEntityType::Note => {
+            let repo = NoteRepository::new(state.store.pool());
+            let note = repo.get_by_id(entity_id).await.map_err(|_| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: "Note not found".to_string(),
+                    }),
+                )
+            })?;
+            Ok(note.created_by)
+        }
+        AttachmentEntityType::CalendarEvent => {
+            let repo = CalendarEventRepository::new(state.store.pool());
+            let event = repo.get_by_id(entity_id).await.map_err(|_| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: "Calendar event not found".to_string(),
+                    }),
+                )
+            })?;
+            Ok(event.created_by)
+        }
+        AttachmentEntityType::Communication => {
+            let comm_repo = CommunicationRepository::new(state.store.pool());
+            let communication = comm_repo.get_communication(entity_id).await.map_err(|_| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse {
+                        error: "Communication not found".to_string(),
+                    }),
+                )
+            })?;
+            let contact_repo = ContactRepository::new(state.store.pool());
+            let contact = contact_repo
+                .get_by_id(communication.contact_id)
+                .await
+                .map_err(|_| {
+                    (
+                        StatusCode::NOT_FOUND,
+                        Json(ErrorResponse {
+                            error: "Contact not found".to_string(),
+                        }),
+                    )
+                })?;
+            Ok(contact.created_by)
+        }
+    }
+}
+
+async fn ensure_attachment_permission(
+    state: &AppState,
+    user_id: &Uuid,
+    entity_type: AttachmentEntityType,
+    entity_id: Uuid,
+    permission: Permission,
+) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
+    let owner_id = resolve_attachment_owner(state, entity_type.clone(), entity_id).await?;
+
+    let permitted = match permission {
+        Permission::Read => {
+            state
+                .acl_service
+                .can_read(
+                    user_id,
+                    attachment_entity_to_share_entity(entity_type.clone()),
+                    &entity_id,
+                )
+                .await
+        }
+        Permission::Write => {
+            state
+                .acl_service
+                .can_write(
+                    user_id,
+                    attachment_entity_to_share_entity(entity_type.clone()),
+                    &entity_id,
+                )
+                .await
+        }
+        Permission::Delete => {
+            state
+                .acl_service
+                .can_delete(
+                    user_id,
+                    attachment_entity_to_share_entity(entity_type.clone()),
+                    &entity_id,
+                )
+                .await
+        }
+        Permission::Share => {
+            state
+                .acl_service
+                .can_share(
+                    user_id,
+                    attachment_entity_to_share_entity(entity_type.clone()),
+                    &entity_id,
+                )
+                .await
+        }
+    };
+
+    match permitted {
+        Ok(true) => Ok(()),
+        Ok(false) => {
+            if owner_id == *user_id {
+                Ok(())
+            } else {
+                Err((
+                    StatusCode::FORBIDDEN,
+                    Json(ErrorResponse {
+                        error: "Access denied for attachment operation".to_string(),
+                    }),
+                ))
+            }
+        }
+        Err(err) => Err((
+            StatusCode::from(err),
+            Json(ErrorResponse {
+                error: "Failed to verify attachment permissions".to_string(),
+            }),
+        )),
     }
 }
 
@@ -194,11 +353,23 @@ pub async fn upload_attachment(
         }
     };
 
+    ensure_attachment_permission(
+        &state,
+        &user.id,
+        entity_type.clone(),
+        entity_id,
+        Permission::Write,
+    )
+    .await?;
+
     // Calculate checksum
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(&file_data);
     let checksum = hex::encode(hasher.finalize());
+
+    // Clone entity_type for audit logging before the original is moved into the Attachment struct
+    let entity_type_for_audit = entity_type.clone();
 
     // For now, store locally in data/attachments
     // TODO: Use AttachmentService with proper storage backend
@@ -307,7 +478,7 @@ pub async fn upload_attachment(
         "entity_type": entity_type_str,
         "entity_id": entity_id
     });
-    let share_entity_type = attachment_entity_to_share_entity(attachment.entity_type);
+    let share_entity_type = attachment_entity_to_share_entity(entity_type_for_audit);
     let _ = state
         .audit_service
         .log_operation(
@@ -333,7 +504,7 @@ pub async fn upload_attachment(
 /// List attachments for an entity
 /// GET /api/attachments?entity_type={type}&entity_id={id}
 pub async fn list_attachments(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Query(params): Query<ListAttachmentsQuery>,
 ) -> Result<Json<Vec<Attachment>>, (StatusCode, Json<ErrorResponse>)> {
@@ -352,6 +523,15 @@ pub async fn list_attachments(
             ));
         }
     };
+
+    ensure_attachment_permission(
+        &state,
+        &user.id,
+        entity_type.clone(),
+        params.entity_id,
+        Permission::Read,
+    )
+    .await?;
 
     let repo = AttachmentRepository::new(state.store.pool());
     let attachments = repo
@@ -388,6 +568,24 @@ pub async fn download_attachment(
             }),
         )
     })?;
+
+    ensure_attachment_permission(
+        &state,
+        &user.id,
+        attachment.entity_type.clone(),
+        attachment.entity_id,
+        Permission::Delete,
+    )
+    .await?;
+
+    ensure_attachment_permission(
+        &state,
+        &user.id,
+        attachment.entity_type.clone(),
+        attachment.entity_id,
+        Permission::Read,
+    )
+    .await?;
 
     // Check scan status
     if attachment.scan_status == core_domain::ScanStatus::Infected {
@@ -439,16 +637,19 @@ pub async fn download_attachment(
     // Audit log: attachment downloaded (read access)
     let ip = audit::extract_ip_address(&headers);
     let user_agent = audit::extract_user_agent(&headers);
+    // Save values before partial move
+    let attachment_entity_type = attachment.entity_type;
+    let attachment_entity_id = attachment.entity_id;
     let changes = serde_json::json!({
         "filename": attachment.filename,
         "action": "download"
     });
-    let share_entity_type = attachment_entity_to_share_entity(attachment.entity_type);
+    let share_entity_type = attachment_entity_to_share_entity(attachment_entity_type);
     let _ = state
         .audit_service
         .log_operation(
             share_entity_type,
-            attachment.entity_id,
+            attachment_entity_id,
             core_domain::AuditAction::Read,
             user.id,
             changes,
