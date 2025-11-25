@@ -15,6 +15,7 @@ mod observability;
 mod rate_limit;
 mod search_history_routes;
 mod security_headers;
+mod settings_routes;
 mod share_routes;
 mod state;
 mod twilio_routes;
@@ -104,6 +105,13 @@ async fn main() -> anyhow::Result<()> {
         scanner_strict,
     ));
 
+    let default_settings = serde_json::json!({
+        "theme": "light",
+        "notifications": true,
+        "sync_enabled": true
+    });
+    let user_settings = Arc::new(tokio::sync::RwLock::new(default_settings));
+
     let app_state = state::AppState::new(
         store,
         ai_client,
@@ -114,6 +122,7 @@ async fn main() -> anyhow::Result<()> {
         pool,
         ws_broadcaster,
         import_jobs,
+        user_settings,
         update_checker,
         update_config,
         last_update_check,
@@ -142,7 +151,15 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/login", post(auth_routes::login))
         .route("/api/auth/refresh", post(auth_routes::refresh))
         .route("/api/auth/logout", post(auth_routes::logout))
-        .route("/api/auth/me", get(auth_routes::get_current_user))
+        .route(
+            "/api/auth/me",
+            get(auth_routes::get_current_user).put(auth_routes::update_current_user),
+        )
+        .route(
+            "/api/auth/change-password",
+            post(auth_routes::change_password),
+        )
+        .route("/api/auth/logout-all", post(auth_routes::logout_all))
         .layer(middleware::from_fn(move |req, next| {
             let limiter = auth_rate_limiter.clone();
             async move { limiter.middleware(req, next).await }
@@ -274,6 +291,10 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/search-history/:id/clicked",
             post(search_history_routes::update_clicked_result),
+        )
+        .route(
+            "/api/settings",
+            get(settings_routes::get_settings).put(settings_routes::update_settings),
         )
         // Worker callback routes
         .route(

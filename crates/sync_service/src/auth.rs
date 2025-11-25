@@ -7,6 +7,7 @@ use axum::{
     Json,
 };
 use bcrypt::{hash, verify, DEFAULT_COST};
+use chrono::Utc;
 use core_domain::User;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use local_store::repositories::UserRepository;
@@ -19,11 +20,13 @@ fn get_jwt_secret() -> &'static [u8] {
     // Read JWT secret from environment variable at runtime
     static JWT_SECRET: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
 
-    JWT_SECRET.get_or_init(|| {
-        match std::env::var("JWT_SECRET") {
+    JWT_SECRET
+        .get_or_init(|| match std::env::var("JWT_SECRET") {
             Ok(secret) => {
                 if secret.len() < 32 {
-                    tracing::warn!("JWT_SECRET is too short (< 32 chars). Use a longer secret for production!");
+                    tracing::warn!(
+                        "JWT_SECRET is too short (< 32 chars). Use a longer secret for production!"
+                    );
                 }
                 secret.into_bytes()
             }
@@ -43,8 +46,8 @@ fn get_jwt_secret() -> &'static [u8] {
                      NEVER use default/hardcoded secrets!"
                 );
             }
-        }
-    }).as_slice()
+        })
+        .as_slice()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -211,6 +214,37 @@ impl AuthService {
     pub async fn refresh_token(&self, old_token: &str) -> Result<String, AuthError> {
         let user_id = validate_jwt(old_token)?;
         generate_jwt(&user_id)
+    }
+
+    pub async fn change_password(
+        &self,
+        user_id: Uuid,
+        current_password: &str,
+        new_password: &str,
+    ) -> Result<(), AuthError> {
+        let repo = UserRepository::new(&self.pool);
+        let mut user = repo
+            .get_by_id(user_id)
+            .await
+            .map_err(|_| AuthError::InvalidCredentials)?;
+
+        let matches = verify(current_password.as_bytes(), &user.password_hash)
+            .map_err(|_| AuthError::InvalidCredentials)?;
+        if !matches {
+            return Err(AuthError::InvalidCredentials);
+        }
+
+        validation::validate_password(new_password).map_err(|_| AuthError::InvalidCredentials)?;
+
+        user.password_hash =
+            hash(new_password.as_bytes(), DEFAULT_COST).map_err(|_| AuthError::InternalError)?;
+        user.updated_at = Utc::now();
+
+        repo.update(&user)
+            .await
+            .map_err(|_| AuthError::InternalError)?;
+
+        Ok(())
     }
 }
 

@@ -72,6 +72,36 @@ export class ApiClient {
 		}
 	}
 
+	async logoutAll(): Promise<void> {
+		await this.request('/auth/logout-all', { method: 'POST' });
+		this.logout();
+	}
+
+	async getCurrentUser(): Promise<User> {
+		return this.request('/auth/me');
+	}
+
+	async updateUserProfile(payload: {
+		name?: string;
+		email?: string;
+		preferences?: Record<string, any>;
+	}): Promise<User> {
+		return this.request('/auth/me', {
+			method: 'PUT',
+			body: JSON.stringify(payload)
+		});
+	}
+
+	async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+		await this.request('/auth/change-password', {
+			method: 'POST',
+			body: JSON.stringify({
+				current_password: currentPassword,
+				new_password: newPassword
+			})
+		});
+	}
+
 	// Dashboard
 	async getDashboard(): Promise<DashboardSummary> {
 		return this.request('/dashboard');

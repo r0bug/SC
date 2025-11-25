@@ -67,6 +67,7 @@ pub struct AppState {
     pub pool: Arc<Pool<Sqlite>>,
     pub ws_broadcaster: Arc<WebSocketBroadcaster>,
     pub import_jobs: Arc<RwLock<Vec<ImportJob>>>,
+    pub user_settings: Arc<RwLock<serde_json::Value>>,
     // Update system state
     pub update_checker: Arc<UpdateChecker>,
     pub update_config: Arc<RwLock<UpdateConfig>>,
@@ -84,6 +85,7 @@ impl AppState {
         pool: Arc<Pool<Sqlite>>,
         ws_broadcaster: Arc<WebSocketBroadcaster>,
         import_jobs: Arc<RwLock<Vec<ImportJob>>>,
+        user_settings: Arc<RwLock<serde_json::Value>>,
         update_checker: Arc<UpdateChecker>,
         update_config: Arc<RwLock<UpdateConfig>>,
         last_update_check: Arc<RwLock<Option<UpdateInfo>>>,
@@ -98,6 +100,7 @@ impl AppState {
             pool,
             ws_broadcaster,
             import_jobs,
+            user_settings,
             update_checker,
             update_config,
             last_update_check,
