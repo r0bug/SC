@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use core_domain::{Communication, CommunicationDirection, CommunicationType, CommunicationHistoryStatus, Contact};
+use core_domain::{Communication, CommunicationDirection, CommunicationType, CommunicationHistoryStatus, Contact, system_user_id};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use serde_json::json;
@@ -238,7 +238,7 @@ impl StreamingAndroidParser {
             groups: vec![],
             created_at: Utc::now(),
             updated_at: Utc::now(),
-            created_by: Uuid::nil(),
+            created_by: system_user_id(),
             version: 1,
             last_synced_at: None,
             metadata: json!({}),
@@ -271,6 +271,7 @@ impl StreamingAndroidParser {
             }),
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            created_by: system_user_id(),
         };
 
         Ok(Some((contact, communication)))
@@ -334,7 +335,7 @@ impl StreamingAndroidParser {
             groups: vec![],
             created_at: Utc::now(),
             updated_at: Utc::now(),
-            created_by: Uuid::nil(),
+            created_by: system_user_id(),
             version: 1,
             last_synced_at: None,
             metadata: json!({}),
@@ -367,6 +368,7 @@ impl StreamingAndroidParser {
             }),
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            created_by: system_user_id(),
         };
 
         Ok(Some((contact, communication)))

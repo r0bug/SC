@@ -14,14 +14,14 @@ use tracing::info;
 use uuid::Uuid;
 
 /// Get the user ID for CLI operations
-/// If authenticated, use the logged-in user ID, otherwise use a nil UUID for local operations
+/// If authenticated, use the logged-in user ID, otherwise use system user for local operations
 fn get_user_id() -> Result<Uuid> {
     let config = AuthConfig::load()?;
     if let Some(user_id_str) = config.user_id {
         Uuid::parse_str(&user_id_str).map_err(|e| anyhow::anyhow!("Invalid user ID: {}", e))
     } else {
-        // Use nil UUID for local/unauthenticated operations
-        Ok(Uuid::nil())
+        // Use system user for local/unauthenticated operations
+        Ok(system_user_id())
     }
 }
 
@@ -306,6 +306,7 @@ pub async fn communicate_command(contact_id: &str, method: &str, message: String
         attempted_at: None,
         retry_count: 0,
         created_at: Utc::now(),
+        created_by: get_user_id()?,
     };
 
     comm_repo

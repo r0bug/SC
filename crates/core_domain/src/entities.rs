@@ -37,6 +37,7 @@ pub struct Tag {
     pub name: String,
     pub color: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub created_by: Uuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,6 +188,7 @@ pub struct CommunicationAttempt {
     pub attempted_at: Option<DateTime<Utc>>,
     pub retry_count: i32,
     pub created_at: DateTime<Utc>,
+    pub created_by: Uuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -449,6 +451,7 @@ pub struct Communication {
     pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub created_by: Uuid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

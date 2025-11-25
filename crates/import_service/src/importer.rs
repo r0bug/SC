@@ -104,7 +104,7 @@ impl ImportService {
             let is_valid = validation.errors.iter().all(|e| e.row != index);
 
             if !is_valid {
-                transaction.log_change("contact".to_string(), Uuid::nil(), Operation::Skip);
+                transaction.log_change("contact".to_string(), core_domain::system_user_id(), Operation::Skip);
                 continue;
             }
 
@@ -112,7 +112,7 @@ impl ImportService {
             let mapped = mapper.map_row(row)?;
 
             // Create contact from mapped data
-            let contact = create_contact_from_mapped(&mapped)?;
+            let mut contact = create_contact_from_mapped(&mapped, user_id)?;
 
             // Check if contact exists (for update vs insert)
             let existing = contact_repo
@@ -333,9 +333,7 @@ fn get_contact_field_names() -> Vec<String> {
     ]
 }
 
-fn create_contact_from_mapped(data: &HashMap<String, String>) -> Result<Contact, ImportError> {
-    let placeholder_user_id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
-
+fn create_contact_from_mapped(data: &HashMap<String, String>, user_id: Uuid) -> Result<Contact, ImportError> {
     Ok(Contact {
         id: Uuid::new_v4(),
         first_name: data
@@ -354,7 +352,7 @@ fn create_contact_from_mapped(data: &HashMap<String, String>) -> Result<Contact,
         groups: vec![],
         created_at: chrono::Utc::now(),
         updated_at: chrono::Utc::now(),
-        created_by: placeholder_user_id,
+        created_by: user_id,
         version: 1,
         last_synced_at: None,
         metadata: serde_json::json!({}),

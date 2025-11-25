@@ -7,8 +7,10 @@ mod audit;
 mod auth;
 mod auth_routes;
 mod calendar_routes;
+mod communication_routes;
 mod concept_routes;
 mod dashboard_routes;
+mod encryption;
 mod group_routes;
 mod import_routes;
 mod observability;
@@ -142,7 +144,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/auth/login", post(auth_routes::login))
         .route("/api/auth/refresh", post(auth_routes::refresh))
         .route("/api/auth/logout", post(auth_routes::logout))
-        .route("/api/auth/me", get(auth_routes::get_current_user))
+        .route("/api/auth/me", get(auth_routes::get_current_user).put(auth_routes::update_current_user))
+        .route("/api/auth/change-password", post(auth_routes::change_password))
         .layer(middleware::from_fn(move |req, next| {
             let limiter = auth_rate_limiter.clone();
             async move { limiter.middleware(req, next).await }
@@ -194,6 +197,9 @@ async fn main() -> anyhow::Result<()> {
     // Update system routes
     let update_router = update_routes::update_routes().with_state(app_state.clone());
 
+    // Encryption routes (E2E encrypted entity storage)
+    let encryption_router = encryption::encryption_routes(pool.as_ref().clone());
+
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/metrics", get(metrics_handler))
@@ -205,6 +211,7 @@ async fn main() -> anyhow::Result<()> {
         .merge(import_router)
         .merge(dashboard_router)
         .merge(update_router)
+        .merge(encryption_router)
         // Share routes
         .route("/api/shares", post(share_routes::create_share))
         .route("/api/shares/:id/accept", post(share_routes::accept_share))
@@ -313,6 +320,15 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/communications/search",
             get(android_import_routes::search_communications),
+        )
+        // Communication configuration and testing routes
+        .route(
+            "/api/communications/config",
+            get(communication_routes::get_config_status),
+        )
+        .route(
+            "/api/communications/test",
+            post(communication_routes::send_test_communication),
         )
         // Existing routes
         .route(

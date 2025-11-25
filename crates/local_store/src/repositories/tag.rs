@@ -12,11 +12,12 @@ impl<'a> TagRepository<'a> {
     }
 
     pub async fn create(&self, tag: &Tag) -> DomainResult<()> {
-        sqlx::query("INSERT INTO tags (id, name, color, created_at) VALUES (?, ?, ?, ?)")
+        sqlx::query("INSERT INTO tags (id, name, color, created_at, created_by) VALUES (?, ?, ?, ?, ?)")
             .bind(tag.id.to_string())
             .bind(&tag.name)
             .bind(&tag.color)
             .bind(tag.created_at.to_rfc3339())
+            .bind(tag.created_by.to_string())
             .execute(self.pool)
             .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
@@ -25,7 +26,7 @@ impl<'a> TagRepository<'a> {
 
     pub async fn get_by_id(&self, id: Uuid) -> DomainResult<Tag> {
         let row = sqlx::query_as::<_, TagRow>(
-            "SELECT id, name, color, created_at FROM tags WHERE id = ?",
+            "SELECT id, name, color, created_at, created_by FROM tags WHERE id = ?",
         )
         .bind(id.to_string())
         .fetch_one(self.pool)
@@ -35,10 +36,11 @@ impl<'a> TagRepository<'a> {
         Ok(row.into())
     }
 
-    pub async fn list(&self) -> DomainResult<Vec<Tag>> {
+    pub async fn list(&self, user_id: Uuid) -> DomainResult<Vec<Tag>> {
         let rows = sqlx::query_as::<_, TagRow>(
-            "SELECT id, name, color, created_at FROM tags ORDER BY name",
+            "SELECT id, name, color, created_at, created_by FROM tags WHERE created_by = ? ORDER BY name",
         )
+        .bind(user_id.to_string())
         .fetch_all(self.pool)
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;
@@ -91,6 +93,7 @@ struct TagRow {
     name: String,
     color: Option<String>,
     created_at: String,
+    created_by: String,
 }
 
 impl From<TagRow> for Tag {
@@ -102,6 +105,7 @@ impl From<TagRow> for Tag {
             created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
                 .unwrap()
                 .with_timezone(&chrono::Utc),
+            created_by: Uuid::parse_str(&row.created_by).unwrap(),
         }
     }
 }

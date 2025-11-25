@@ -1,4 +1,4 @@
-use crate::{CommunicationQueue, NagScheduler};
+use crate::{CommunicationConfig, CommunicationQueue, NagScheduler};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use core_domain::{AiInsight, AiInsightEntityType, AiInsightType};
@@ -22,9 +22,17 @@ pub struct CommunicationTask {
 
 impl CommunicationTask {
     pub fn new(store: Arc<LocalStore>, sync_service_url: Option<String>) -> Self {
+        // Load configuration and create queue with real or mock adapters
+        let config = CommunicationConfig::from_env();
+        let queue = CommunicationQueue::with_config(config)
+            .unwrap_or_else(|e| {
+                warn!("Failed to create queue with config: {}. Using mock adapters.", e);
+                CommunicationQueue::new()
+            });
+
         Self {
             store,
-            queue: Arc::new(CommunicationQueue::new()),
+            queue: Arc::new(queue),
             interval: Duration::from_secs(30),
             sync_service_url,
         }

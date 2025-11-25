@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::Utc;
-use core_domain::Contact;
+use core_domain::{Contact, system_user_id};
 use csv::ReaderBuilder;
 use serde_json::json;
 use std::fs::File;
@@ -12,7 +12,7 @@ use uuid::Uuid;
 pub struct GoogleContactsImporter;
 
 impl GoogleContactsImporter {
-    pub fn parse_csv(file_path: &Path) -> Result<Vec<Contact>> {
+    pub fn parse_csv(file_path: &Path, user_id: Uuid) -> Result<Vec<Contact>> {
         info!("Parsing Google Contacts CSV from {:?}", file_path);
 
         let file = File::open(file_path)?;
@@ -24,7 +24,7 @@ impl GoogleContactsImporter {
         for result in reader.deserialize::<GoogleContactRow>() {
             match result {
                 Ok(row) => {
-                    if let Some(contact) = Self::row_to_contact(row) {
+                    if let Some(contact) = Self::row_to_contact(row, user_id) {
                         contacts.push(contact);
                     } else {
                         skipped += 1;
@@ -46,7 +46,7 @@ impl GoogleContactsImporter {
         Ok(contacts)
     }
 
-    fn row_to_contact(row: GoogleContactRow) -> Option<Contact> {
+    fn row_to_contact(row: GoogleContactRow, user_id: Uuid) -> Option<Contact> {
         // Skip if no meaningful data
         let has_name = !row.first_name.is_empty() || !row.last_name.is_empty();
         let has_email = !row.email_1_value.is_empty();
@@ -103,7 +103,7 @@ impl GoogleContactsImporter {
             groups: vec![],
             created_at: Utc::now(),
             updated_at: Utc::now(),
-            created_by: Uuid::nil(),
+            created_by: user_id,
             version: 1,
             last_synced_at: None,
             metadata,

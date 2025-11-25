@@ -1,10 +1,18 @@
-use crate::adapters::{EmailAdapter, SmsAdapter, SocialAdapter};
+use crate::adapters::{
+    EmailAdapter, EmailAdapterTrait, MockEmailAdapter, MockSmsAdapter, SmsAdapter,
+    SmsAdapterTrait, SmtpEmailAdapter, SocialAdapter, TwilioSmsAdapter,
+};
+use crate::config::CommunicationConfig;
 use anyhow::Result;
 use core_domain::{CommunicationAttempt, CommunicationMethod, CommunicationStatus};
 use local_store::CommunicationRepository;
+use std::sync::Arc;
 use tracing::{error, info, warn};
 
 pub struct CommunicationQueue {
+    email_adapter_trait: Arc<dyn EmailAdapterTrait>,
+    sms_adapter_trait: Arc<dyn SmsAdapterTrait>,
+    // Legacy adapters for compatibility
     email_adapter: EmailAdapter,
     sms_adapter: SmsAdapter,
     social_adapter: SocialAdapter,
@@ -17,12 +25,46 @@ impl Default for CommunicationQueue {
 }
 
 impl CommunicationQueue {
+    /// Create queue with default mock adapters (for backward compatibility)
     pub fn new() -> Self {
         Self {
+            email_adapter_trait: Arc::new(MockEmailAdapter::new()),
+            sms_adapter_trait: Arc::new(MockSmsAdapter::new()),
             email_adapter: EmailAdapter::new(),
             sms_adapter: SmsAdapter::new(),
             social_adapter: SocialAdapter::new(),
         }
+    }
+
+    /// Create queue with configuration-based adapter selection
+    pub fn with_config(config: CommunicationConfig) -> Result<Self> {
+        config.log_status();
+
+        // Select email adapter based on config
+        let email_adapter_trait: Arc<dyn EmailAdapterTrait> = if config.is_real_email_available() {
+            info!("Using real SMTP email adapter");
+            Arc::new(SmtpEmailAdapter::from_env()?)
+        } else {
+            info!("Using mock email adapter");
+            Arc::new(MockEmailAdapter::new())
+        };
+
+        // Select SMS adapter based on config
+        let sms_adapter_trait: Arc<dyn SmsAdapterTrait> = if config.is_real_sms_available() {
+            info!("Using real Twilio SMS adapter");
+            Arc::new(TwilioSmsAdapter::from_env()?)
+        } else {
+            info!("Using mock SMS adapter");
+            Arc::new(MockSmsAdapter::new())
+        };
+
+        Ok(Self {
+            email_adapter_trait,
+            sms_adapter_trait,
+            email_adapter: EmailAdapter::new(),
+            sms_adapter: SmsAdapter::new(),
+            social_adapter: SocialAdapter::new(),
+        })
     }
 
     pub async fn process_attempt(
@@ -36,9 +78,25 @@ impl CommunicationQueue {
         );
 
         let result = match &attempt.method {
-            CommunicationMethod::Email => self.email_adapter.send(attempt).await,
-            CommunicationMethod::SMS => self.sms_adapter.send(attempt).await,
+            CommunicationMethod::Email => {
+                // For email, we need to extract the recipient from the contact
+                // In a real scenario, this would be looked up from the contact repository
+                // For now, we'll use a placeholder approach
+                let to = "placeholder@example.com"; // TODO: Look up from contact
+                let subject = attempt.subject.as_deref().unwrap_or("No Subject");
+                let body = &attempt.message;
+
+                self.email_adapter_trait.send_email(to, subject, body).await
+            }
+            CommunicationMethod::SMS => {
+                // For SMS, we need to extract the phone number from the contact
+                // In a real scenario, this would be looked up from the contact repository
+                let to = "+15555550100"; // TODO: Look up from contact
+
+                self.sms_adapter_trait.send_sms(to, &attempt.message).await
+            }
             CommunicationMethod::Social { platform } => {
+                // Still use legacy adapter for social (still mocked)
                 self.social_adapter.send(attempt, platform).await
             }
         };

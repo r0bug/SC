@@ -19,7 +19,7 @@ impl<'a> NoteRepository<'a> {
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         sqlx::query(
-            "INSERT INTO notes (id, contact_id, project_id, title, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO notes (id, contact_id, project_id, title, content, created_at, updated_at, created_by, version, last_synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(note.id.to_string())
         .bind(note.contact_id.map(|id| id.to_string()))
@@ -28,6 +28,9 @@ impl<'a> NoteRepository<'a> {
         .bind(&note.content)
         .bind(note.created_at.to_rfc3339())
         .bind(note.updated_at.to_rfc3339())
+        .bind(note.created_by.to_string())
+        .bind(note.version)
+        .bind(note.last_synced_at.map(|d| d.to_rfc3339()))
         .execute(&mut *tx)
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;
@@ -55,11 +58,12 @@ impl<'a> NoteRepository<'a> {
         Ok(row.into_note(attachment_ids))
     }
 
-    pub async fn list_by_contact(&self, contact_id: Uuid) -> DomainResult<Vec<Note>> {
+    pub async fn list_by_contact(&self, contact_id: Uuid, user_id: Uuid) -> DomainResult<Vec<Note>> {
         let rows = sqlx::query_as::<_, NoteRow>(
-            "SELECT id, contact_id, project_id, title, content, created_at, updated_at, created_by, version, last_synced_at FROM notes WHERE contact_id = ? ORDER BY created_at DESC"
+            "SELECT id, contact_id, project_id, title, content, created_at, updated_at, created_by, version, last_synced_at FROM notes WHERE contact_id = ? AND created_by = ? ORDER BY created_at DESC"
         )
         .bind(contact_id.to_string())
+        .bind(user_id.to_string())
         .fetch_all(self.pool)
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;

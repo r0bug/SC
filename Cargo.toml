@@ -4,15 +4,15 @@ members = [
     "crates/core_domain",
     "crates/local_store",
     "crates/sync_service",
-    # "crates/communication_queue",  # Temporarily excluded - requires DATABASE_URL for sqlx compile-time checks
+    "crates/communication_queue",
     "crates/ai_middleware",
     "crates/cli_client",
     "crates/import_service",
     "crates/secure_vault",
+    "crates/crypto",
 ]
 exclude = [
     "apps/desktop/src-tauri",
-    "crates/communication_queue",  # Temporarily excluded - see members comment above
 ]
 
 [workspace.package]

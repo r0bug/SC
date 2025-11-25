@@ -1,0 +1,46 @@
+[package]
+name = "crypto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Encryption
+aes-gcm = "0.10"
+argon2 = "0.5"
+rand = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Encoding
+base64 = "0.21"
+
+# Async
+tokio = { workspace = true, optional = true }
+
+# Database (for key storage)
+sqlx = { workspace = true, optional = true }
+
+# Logging
+tracing = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+[features]
+default = []
+async = ["tokio", "sqlx"]
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

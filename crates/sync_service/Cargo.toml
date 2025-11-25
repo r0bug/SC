@@ -12,7 +12,7 @@ path = "src/main.rs"
 core_domain = { path = "../core_domain" }
 local_store = { path = "../local_store" }
 ai_middleware = { path = "../ai_middleware" }
-# communication_queue = { path = "../communication_queue" }  # Temporarily disabled - see workspace Cargo.toml
+communication_queue = { path = "../communication_queue" }
 import_service = { path = "../import_service" }
 secure_vault = { path = "../secure_vault" }
 
@@ -42,6 +42,8 @@ sha2 = "0.10"
 hex = "0.4"
 reqwest = { version = "0.11", features = ["json"] }
 quick-xml = "0.31"
+rpassword = "7.3"
+base64 = "0.21"
 
 # Phase 7: Observability & Security
 metrics = "0.22"

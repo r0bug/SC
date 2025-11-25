@@ -47,7 +47,9 @@ CREATE TABLE IF NOT EXISTS tags (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     color TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS contact_tags (
@@ -225,7 +227,9 @@ CREATE TABLE IF NOT EXISTS communication_attempts (
     attempted_at TEXT,
     retry_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
-    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+    created_by TEXT NOT NULL,
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
 -- Communications (historical records of SMS, calls, emails that occurred)
@@ -243,7 +247,9 @@ CREATE TABLE IF NOT EXISTS communications (
     metadata TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+    created_by TEXT NOT NULL,
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
 -- Share invites with acceptance tracking
@@ -396,11 +402,14 @@ CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, en
 CREATE INDEX IF NOT EXISTS idx_attachments_uploaded_by ON attachments(uploaded_by);
 CREATE INDEX IF NOT EXISTS idx_comm_attempts_contact ON communication_attempts(contact_id);
 CREATE INDEX IF NOT EXISTS idx_comm_attempts_status ON communication_attempts(status);
+CREATE INDEX IF NOT EXISTS idx_comm_attempts_created_by ON communication_attempts(created_by);
 CREATE INDEX IF NOT EXISTS idx_communications_contact ON communications(contact_id);
 CREATE INDEX IF NOT EXISTS idx_communications_timestamp ON communications(timestamp);
 CREATE INDEX IF NOT EXISTS idx_communications_phone ON communications(phone_number);
 CREATE INDEX IF NOT EXISTS idx_communications_thread ON communications(thread_id);
 CREATE INDEX IF NOT EXISTS idx_communications_type ON communications(communication_type);
+CREATE INDEX IF NOT EXISTS idx_communications_created_by ON communications(created_by);
+CREATE INDEX IF NOT EXISTS idx_tags_created_by ON tags(created_by);
 CREATE INDEX IF NOT EXISTS idx_share_invites_email ON share_invites(shared_with_email);
 CREATE INDEX IF NOT EXISTS idx_share_invites_user ON share_invites(shared_with_user);
 CREATE INDEX IF NOT EXISTS idx_share_invites_entity ON share_invites(entity_type, entity_id);

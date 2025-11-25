@@ -81,6 +81,7 @@ impl SmsAdapterTrait for MockSmsAdapter {
 }
 
 /// Twilio SMS adapter - real SMS sending via Twilio REST API
+#[derive(Debug)]
 pub struct TwilioSmsAdapter {
     account_sid: String,
     auth_token: String,
@@ -159,6 +160,7 @@ impl SmsAdapterTrait for TwilioSmsAdapter {
 }
 
 /// SMTP Email adapter - real email sending via SMTP
+#[derive(Debug)]
 pub struct SmtpEmailAdapter {
     smtp_server: String,
     smtp_port: u16,

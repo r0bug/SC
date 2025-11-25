@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_imap::types::Fetch;
 use async_native_tls::TlsConnector;
+use core_domain::system_user_id;
 use futures::StreamExt;
 use local_store::ContactRepository;
 use mail_parser::MessageParser;
@@ -183,7 +184,7 @@ impl EmailMonitor {
 
         // Find or create contact
         let contact_repo = ContactRepository::new(&self.db_pool);
-        let placeholder_user = Uuid::nil(); // TODO: Multi-user support
+        let placeholder_user = system_user_id(); // System user for email-triggered contacts
 
         let contact_id = match contact_repo.search(&from_address, placeholder_user).await {
             Ok(contacts) if !contacts.is_empty() => {
@@ -209,7 +210,7 @@ impl EmailMonitor {
                     metadata: serde_json::json!({}),
                     created_at: chrono::Utc::now(),
                     updated_at: chrono::Utc::now(),
-                    created_by: Uuid::nil(), // Placeholder for auto-created contacts
+                    created_by: system_user_id(), // System user for auto-created contacts
                     version: 1,
                     last_synced_at: None,
                 };

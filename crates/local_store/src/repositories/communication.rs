@@ -299,6 +299,7 @@ struct CommAttemptRow {
     attempted_at: Option<String>,
     retry_count: i32,
     created_at: String,
+    created_by: String,
 }
 
 impl From<CommAttemptRow> for CommunicationAttempt {
@@ -324,6 +325,7 @@ impl From<CommAttemptRow> for CommunicationAttempt {
             created_at: chrono::DateTime::parse_from_rfc3339(&row.created_at)
                 .unwrap()
                 .with_timezone(&chrono::Utc),
+            created_by: Uuid::parse_str(&row.created_by).unwrap_or(core_domain::system_user_id()),
         }
     }
 }
@@ -343,6 +345,7 @@ struct CommunicationRow {
     metadata: String,
     created_at: String,
     updated_at: String,
+    created_by: String,
 }
 
 impl TryFrom<CommunicationRow> for Communication {
@@ -423,6 +426,7 @@ impl TryFrom<CommunicationRow> for Communication {
             metadata,
             created_at,
             updated_at,
+            created_by: Uuid::parse_str(&row.created_by).unwrap_or(core_domain::system_user_id()),
         })
     }
 }

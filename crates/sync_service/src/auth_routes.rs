@@ -102,5 +102,75 @@ pub async fn get_current_user(AuthUser(user): AuthUser) -> impl IntoResponse {
         "name": user.name,
         "email_verified": user.email_verified,
         "active": user.active,
+        "preferences": user.preferences,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+        "last_login_at": user.last_login_at,
     }))
+}
+
+/// PUT /api/auth/me
+/// Update current user profile
+#[derive(serde::Deserialize)]
+pub struct UpdateProfileRequest {
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub preferences: Option<serde_json::Value>,
+}
+
+pub async fn update_current_user(
+    State(app_state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Json(req): Json<UpdateProfileRequest>,
+) -> impl IntoResponse {
+    // Update user in database
+    let user_repo = local_store::repositories::UserRepository::new(&app_state.pool);
+
+    let mut updated_user = user.clone();
+    if let Some(name) = req.name {
+        updated_user.name = name;
+    }
+    if let Some(email) = req.email {
+        updated_user.email = email;
+    }
+    if let Some(preferences) = req.preferences {
+        updated_user.preferences = preferences;
+    }
+
+    match user_repo.update(&updated_user).await {
+        Ok(_) => Json(serde_json::json!({
+            "id": updated_user.id,
+            "email": updated_user.email,
+            "name": updated_user.name,
+            "email_verified": updated_user.email_verified,
+            "active": updated_user.active,
+            "preferences": updated_user.preferences,
+            "created_at": updated_user.created_at,
+            "updated_at": updated_user.updated_at,
+            "last_login_at": updated_user.last_login_at,
+        })),
+        Err(err) => {
+            return Json(serde_json::json!({
+                "error": format!("Failed to update user: {}", err)
+            }));
+        }
+    }
+}
+
+/// POST /api/auth/change-password
+#[derive(serde::Deserialize)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+pub async fn change_password(
+    State(app_state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Json(req): Json<ChangePasswordRequest>,
+) -> Result<impl IntoResponse, AuthError> {
+    app_state.auth_service.change_password(user.id, &req.current_password, &req.new_password).await?;
+    Ok(Json(serde_json::json!({
+        "message": "Password changed successfully"
+    })))
 }
