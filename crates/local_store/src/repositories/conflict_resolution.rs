@@ -1,15 +1,15 @@
 use core_domain::{
     ConflictResolution, DomainError, DomainResult, ResolutionStrategy, ShareEntityType,
 };
-use sqlx::{Pool, Sqlite};
+use crate::db::DbPool;
 use uuid::Uuid;
 
 pub struct ConflictResolutionRepository<'a> {
-    pool: &'a Pool<Sqlite>,
+    pool: &'a DbPool,
 }
 
 impl<'a> ConflictResolutionRepository<'a> {
-    pub fn new(pool: &'a Pool<Sqlite>) -> Self {
+    pub fn new(pool: &'a DbPool) -> Self {
         Self { pool }
     }
 
@@ -236,7 +236,7 @@ mod tests {
     use chrono::Utc;
     use sqlx::sqlite::SqlitePoolOptions;
 
-    async fn setup_test_db() -> Pool<Sqlite> {
+    async fn setup_test_db() -> DbPool {
         let pool = SqlitePoolOptions::new()
             .connect("sqlite::memory:")
             .await

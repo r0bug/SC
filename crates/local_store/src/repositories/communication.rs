@@ -3,15 +3,16 @@ use core_domain::{
     Communication, CommunicationAttempt, CommunicationDirection, CommunicationHistoryStatus,
     CommunicationStatus, CommunicationType, DomainError, DomainResult,
 };
-use sqlx::{FromRow, Pool, Sqlite};
+use sqlx::FromRow;
+use crate::db::DbPool;
 use uuid::Uuid;
 
 pub struct CommunicationRepository<'a> {
-    pool: &'a Pool<Sqlite>,
+    pool: &'a DbPool,
 }
 
 impl<'a> CommunicationRepository<'a> {
-    pub fn new(pool: &'a Pool<Sqlite>) -> Self {
+    pub fn new(pool: &'a DbPool) -> Self {
         Self { pool }
     }
 

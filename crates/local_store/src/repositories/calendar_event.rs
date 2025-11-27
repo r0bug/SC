@@ -1,13 +1,13 @@
 use core_domain::{CalendarEvent, DomainError, DomainResult, Reminder};
-use sqlx::{Pool, Sqlite};
+use crate::db::DbPool;
 use uuid::Uuid;
 
 pub struct CalendarEventRepository<'a> {
-    pool: &'a Pool<Sqlite>,
+    pool: &'a DbPool,
 }
 
 impl<'a> CalendarEventRepository<'a> {
-    pub fn new(pool: &'a Pool<Sqlite>) -> Self {
+    pub fn new(pool: &'a DbPool) -> Self {
         Self { pool }
     }
 
@@ -457,7 +457,7 @@ mod tests {
     use core_domain::ReminderMethod;
     use sqlx::sqlite::SqlitePoolOptions;
 
-    async fn setup_test_db() -> Pool<Sqlite> {
+    async fn setup_test_db() -> DbPool {
         let pool = SqlitePoolOptions::new()
             .connect("sqlite::memory:")
             .await

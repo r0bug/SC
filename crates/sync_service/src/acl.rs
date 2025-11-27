@@ -1,15 +1,15 @@
 use core_domain::{AclGrant, Permission, ResourceAcl, ShareEntityType};
 use local_store::repositories::ResourceAclRepository;
-use sqlx::{Pool, Sqlite};
+use local_store::DbPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct AclService {
-    pool: Arc<Pool<Sqlite>>,
+    pool: Arc<DbPool>,
 }
 
 impl AclService {
-    pub fn new(pool: Arc<Pool<Sqlite>>) -> Self {
+    pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
 

@@ -8,7 +8,7 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::{Pool, Sqlite};
+use local_store::DbPool;
 use std::io::BufRead;
 use uuid::Uuid;
 
@@ -266,7 +266,7 @@ pub fn parse_mms_xml<R: BufRead>(reader: R) -> Result<Vec<MmsRecord>> {
 
 /// Insert call records into database
 pub async fn insert_calls(
-    pool: &Pool<Sqlite>,
+    pool: &DbPool,
     calls: Vec<CallRecord>,
     user_id: &str,
     source_file: &str,
@@ -336,7 +336,7 @@ pub async fn insert_calls(
 
 /// Insert SMS records into database
 pub async fn insert_sms(
-    pool: &Pool<Sqlite>,
+    pool: &DbPool,
     messages: Vec<SmsRecord>,
     user_id: &str,
     source_file: &str,
@@ -408,7 +408,7 @@ pub async fn insert_sms(
 
 /// Insert MMS records into database
 pub async fn insert_mms(
-    pool: &Pool<Sqlite>,
+    pool: &DbPool,
     messages: Vec<MmsRecord>,
     user_id: &str,
     source_file: &str,

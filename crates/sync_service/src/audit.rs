@@ -1,16 +1,16 @@
 use core_domain::{AuditAction, AuditLog, DomainResult, ShareEntityType};
 use local_store::repositories::AuditLogRepository;
-use sqlx::{Pool, Sqlite};
+use local_store::DbPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
 /// Service for audit logging - tracks all CRUD operations and authentication events
 pub struct AuditService {
-    pool: Arc<Pool<Sqlite>>,
+    pool: Arc<DbPool>,
 }
 
 impl AuditService {
-    pub fn new(pool: Arc<Pool<Sqlite>>) -> Self {
+    pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
 

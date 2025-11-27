@@ -7,7 +7,7 @@ use crate::websocket::WebSocketBroadcaster;
 use ai_middleware::SegmindClient;
 use local_store::LocalStore;
 use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Sqlite};
+use local_store::DbPool;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -64,7 +64,7 @@ pub struct AppState {
     pub acl_service: Arc<AclService>,
     pub audit_service: Arc<AuditService>,
     pub virus_scanner: Arc<VirusScanner>,
-    pub pool: Arc<Pool<Sqlite>>,
+    pub pool: Arc<DbPool>,
     pub ws_broadcaster: Arc<WebSocketBroadcaster>,
     pub import_jobs: Arc<RwLock<Vec<ImportJob>>>,
     pub user_settings: Arc<RwLock<serde_json::Value>>,
@@ -82,7 +82,7 @@ impl AppState {
         acl_service: Arc<AclService>,
         audit_service: Arc<AuditService>,
         virus_scanner: Arc<VirusScanner>,
-        pool: Arc<Pool<Sqlite>>,
+        pool: Arc<DbPool>,
         ws_broadcaster: Arc<WebSocketBroadcaster>,
         import_jobs: Arc<RwLock<Vec<ImportJob>>>,
         user_settings: Arc<RwLock<serde_json::Value>>,

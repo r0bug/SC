@@ -1,13 +1,13 @@
 use core_domain::{Contact, DomainError, DomainResult, SocialHandle};
-use sqlx::{Pool, Sqlite};
+use crate::db::DbPool;
 use uuid::Uuid;
 
 pub struct ContactRepository<'a> {
-    pool: &'a Pool<Sqlite>,
+    pool: &'a DbPool,
 }
 
 impl<'a> ContactRepository<'a> {
-    pub fn new(pool: &'a Pool<Sqlite>) -> Self {
+    pub fn new(pool: &'a DbPool) -> Self {
         Self { pool }
     }
 

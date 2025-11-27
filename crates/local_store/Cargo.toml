@@ -4,6 +4,11 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
+[features]
+default = ["sqlite"]
+sqlite = []
+postgres = []
+
 [dependencies]
 core_domain = { path = "../core_domain" }
 

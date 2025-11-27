@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use core_domain::{DomainError, DomainResult};
-use sqlx::{FromRow, Pool, Sqlite};
+use sqlx::FromRow;
+use crate::db::DbPool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -23,11 +24,11 @@ pub struct SmsMessage {
 }
 
 pub struct SmsHistoryRepository<'a> {
-    pool: &'a Pool<Sqlite>,
+    pool: &'a DbPool,
 }
 
 impl<'a> SmsHistoryRepository<'a> {
-    pub fn new(pool: &'a Pool<Sqlite>) -> Self {
+    pub fn new(pool: &'a DbPool) -> Self {
         Self { pool }
     }
 

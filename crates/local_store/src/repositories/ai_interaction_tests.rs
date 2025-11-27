@@ -5,10 +5,10 @@ mod ai_interaction_integration_tests {
     use chrono::Utc;
     use core_domain::AiInteraction;
     use sqlx::sqlite::SqlitePoolOptions;
-    use sqlx::{Pool, Sqlite};
+    use crate::db::DbPool;
     use uuid::Uuid;
 
-    async fn setup_test_db() -> Pool<Sqlite> {
+    async fn setup_test_db() -> DbPool {
         let pool = SqlitePoolOptions::new()
             .connect("sqlite::memory:")
             .await
@@ -22,7 +22,7 @@ mod ai_interaction_integration_tests {
         pool
     }
 
-    async fn create_test_user(pool: &Pool<Sqlite>) -> Uuid {
+    async fn create_test_user(pool: &DbPool) -> Uuid {
         let user_id = Uuid::new_v4();
         sqlx::query("INSERT INTO users (id, email, name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
             .bind(user_id.to_string())

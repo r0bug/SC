@@ -12,7 +12,7 @@ use core_domain::User;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use local_store::repositories::UserRepository;
 use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Sqlite};
+use local_store::DbPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -98,11 +98,11 @@ impl From<User> for UserInfo {
 }
 
 pub struct AuthService {
-    pool: Arc<Pool<Sqlite>>,
+    pool: Arc<DbPool>,
 }
 
 impl AuthService {
-    pub fn new(pool: Arc<Pool<Sqlite>>) -> Self {
+    pub fn new(pool: Arc<DbPool>) -> Self {
         Self { pool }
     }
 

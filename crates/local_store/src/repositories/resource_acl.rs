@@ -1,13 +1,13 @@
 use core_domain::{AclGrant, DomainError, DomainResult, ResourceAcl, ShareEntityType};
-use sqlx::{Pool, Sqlite};
+use crate::db::DbPool;
 use uuid::Uuid;
 
 pub struct ResourceAclRepository<'a> {
-    pool: &'a Pool<Sqlite>,
+    pool: &'a DbPool,
 }
 
 impl<'a> ResourceAclRepository<'a> {
-    pub fn new(pool: &'a Pool<Sqlite>) -> Self {
+    pub fn new(pool: &'a DbPool) -> Self {
         Self { pool }
     }
 
@@ -181,7 +181,7 @@ mod tests {
     use core_domain::Permission;
     use sqlx::sqlite::SqlitePoolOptions;
 
-    async fn setup_test_db() -> Pool<Sqlite> {
+    async fn setup_test_db() -> DbPool {
         let pool = SqlitePoolOptions::new()
             .connect("sqlite::memory:")
             .await
