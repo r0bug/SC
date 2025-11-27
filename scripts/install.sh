@@ -5,7 +5,9 @@
 # This script automatically detects, installs, and configures all prerequisites
 # for running SagensContact Alpha on a fresh system.
 #
-# Usage: ./install.sh [--skip-build] [--no-services] [--help]
+# Supports both fresh installations and upgrades from previous versions.
+#
+# Usage: ./install.sh [--skip-build] [--no-services] [--upgrade] [--help]
 #
 
 set -e  # Exit on error
@@ -18,12 +20,18 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Version tracking
+INSTALLER_VERSION="0.1.0-alpha.3"
+VERSION_FILE="VERSION"
+
 # Configuration
 INSTALL_DIR="${INSTALL_DIR:-/opt/sagenscontact}"
 DATA_DIR="${DATA_DIR:-$INSTALL_DIR/data}"
 LOG_FILE="${LOG_FILE:-/tmp/sagenscontact-install-$$.log}"
 SKIP_BUILD=false
 NO_SERVICES=false
+UPGRADE_MODE=false
+EXISTING_INSTALLATION=false
 
 # Ensure log file is writable
 touch "$LOG_FILE" 2>/dev/null || LOG_FILE="/dev/null"
@@ -77,6 +85,10 @@ parse_args() {
                 NO_SERVICES=true
                 shift
                 ;;
+            --upgrade)
+                UPGRADE_MODE=true
+                shift
+                ;;
             --help)
                 show_help
                 exit 0
@@ -99,6 +111,7 @@ Usage: $0 [OPTIONS]
 OPTIONS:
     --skip-build     Skip building from source (use pre-built binaries)
     --no-services    Don't set up systemd services (manual start only)
+    --upgrade        Force upgrade mode (auto-detected if existing install found)
     --help           Show this help message
 
 ENVIRONMENT VARIABLES:
@@ -116,6 +129,16 @@ EXAMPLES:
     # Use pre-built binaries
     sudo ./install.sh --skip-build
 
+    # Upgrade existing installation
+    sudo ./install.sh --upgrade
+
+UPGRADES:
+    The installer automatically detects existing installations and:
+    - Backs up your data before upgrading
+    - Preserves your configuration (config/env)
+    - Stops services, upgrades, then restarts
+    - Runs database migrations automatically
+
 EOF
 }
 
@@ -125,6 +148,197 @@ check_root() {
         log_error "This script must be run as root for system-wide installation"
         log_info "Run with sudo, or use --no-services for user-local install"
         exit 1
+    fi
+}
+
+# Get installed version
+get_installed_version() {
+    if [[ -f "$INSTALL_DIR/$VERSION_FILE" ]]; then
+        cat "$INSTALL_DIR/$VERSION_FILE"
+    else
+        echo "unknown"
+    fi
+}
+
+# Check for existing installation
+check_existing_installation() {
+    show_progress "Checking for existing installation"
+
+    if [[ -d "$INSTALL_DIR" ]] && [[ -f "$INSTALL_DIR/binaries/sagenscontact" || -f "$INSTALL_DIR/binaries/sync_service" ]]; then
+        EXISTING_INSTALLATION=true
+        local installed_version
+        installed_version=$(get_installed_version)
+
+        if [[ "$UPGRADE_MODE" == true ]]; then
+            show_success "Existing installation found (v$installed_version) - upgrade mode"
+        else
+            log_warn "Existing installation found at $INSTALL_DIR (v$installed_version)"
+            echo ""
+            echo -e "${YELLOW}An existing installation was detected.${NC}"
+            echo "Current version: $installed_version"
+            echo "New version: $INSTALLER_VERSION"
+            echo ""
+            read -p "Upgrade existing installation? (yes/no): " confirm
+            if [[ "$confirm" == "yes" ]]; then
+                UPGRADE_MODE=true
+                show_success "Proceeding with upgrade"
+            else
+                log_error "Installation cancelled. Use a different INSTALL_DIR or remove existing installation."
+                exit 1
+            fi
+        fi
+    else
+        show_success "No existing installation found - fresh install"
+    fi
+}
+
+# Create pre-upgrade backup
+create_upgrade_backup() {
+    if [[ "$UPGRADE_MODE" != true ]] || [[ "$EXISTING_INSTALLATION" != true ]]; then
+        return 0
+    fi
+
+    show_progress "Creating pre-upgrade backup"
+
+    local backup_dir="$INSTALL_DIR/backups"
+    local timestamp
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_file="$backup_dir/pre-upgrade-$timestamp.tar.gz"
+
+    mkdir -p "$backup_dir"
+
+    # Backup data, config, and version info
+    local items_to_backup=()
+    [[ -d "$DATA_DIR" ]] && items_to_backup+=("$DATA_DIR")
+    [[ -f "$INSTALL_DIR/config/env" ]] && items_to_backup+=("$INSTALL_DIR/config/env")
+    [[ -f "$INSTALL_DIR/$VERSION_FILE" ]] && items_to_backup+=("$INSTALL_DIR/$VERSION_FILE")
+
+    if [[ ${#items_to_backup[@]} -gt 0 ]]; then
+        tar -czf "$backup_file" "${items_to_backup[@]}" 2>/dev/null || true
+        show_success "Backup created: $backup_file"
+        log_info "Backup size: $(du -h "$backup_file" | cut -f1)"
+    else
+        log_warn "No data to backup"
+    fi
+
+    # Keep only last 5 pre-upgrade backups
+    if [[ -d "$backup_dir" ]]; then
+        cd "$backup_dir"
+        ls -t pre-upgrade-*.tar.gz 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null || true
+        cd - > /dev/null
+    fi
+}
+
+# Stop existing services before upgrade
+stop_existing_services() {
+    if [[ "$UPGRADE_MODE" != true ]] || [[ "$EXISTING_INSTALLATION" != true ]]; then
+        return 0
+    fi
+
+    show_progress "Stopping existing services"
+
+    # Try systemd first
+    if systemctl is-active sagenscontact-sync &>/dev/null; then
+        systemctl stop sagenscontact-sync 2>/dev/null || true
+        log_info "Stopped sagenscontact-sync service"
+    fi
+    if systemctl is-active sagenscontact-web &>/dev/null; then
+        systemctl stop sagenscontact-web 2>/dev/null || true
+        log_info "Stopped sagenscontact-web service"
+    fi
+    if systemctl is-active sagenscontact-worker &>/dev/null; then
+        systemctl stop sagenscontact-worker 2>/dev/null || true
+        log_info "Stopped sagenscontact-worker service"
+    fi
+
+    # Also try pkill for non-systemd installations
+    pkill -f "$INSTALL_DIR/binaries/sync_service" 2>/dev/null || true
+    pkill -f "$INSTALL_DIR/binaries/worker" 2>/dev/null || true
+
+    # Wait for services to stop
+    sleep 2
+
+    show_success "Existing services stopped"
+}
+
+# Preserve existing configuration
+preserve_config() {
+    if [[ "$UPGRADE_MODE" != true ]] || [[ "$EXISTING_INSTALLATION" != true ]]; then
+        return 0
+    fi
+
+    show_progress "Preserving existing configuration"
+
+    # Save existing env file to temp location
+    if [[ -f "$INSTALL_DIR/config/env" ]]; then
+        cp "$INSTALL_DIR/config/env" "/tmp/sagenscontact-env-backup-$$.tmp"
+        PRESERVED_ENV="/tmp/sagenscontact-env-backup-$$.tmp"
+        show_success "Configuration preserved"
+    else
+        PRESERVED_ENV=""
+        log_warn "No existing configuration to preserve"
+    fi
+}
+
+# Restore preserved configuration
+restore_config() {
+    if [[ -z "${PRESERVED_ENV:-}" ]] || [[ ! -f "${PRESERVED_ENV:-}" ]]; then
+        return 0
+    fi
+
+    show_progress "Restoring preserved configuration"
+
+    # Restore the preserved env file
+    cp "$PRESERVED_ENV" "$INSTALL_DIR/config/env"
+    rm -f "$PRESERVED_ENV"
+
+    show_success "Configuration restored"
+}
+
+# Write version file
+write_version_file() {
+    show_progress "Writing version information"
+
+    cat > "$INSTALL_DIR/$VERSION_FILE" << EOF
+$INSTALLER_VERSION
+Installed: $(date -Iseconds)
+Installer: scripts/install.sh
+EOF
+
+    show_success "Version $INSTALLER_VERSION recorded"
+}
+
+# Restart services after upgrade
+restart_services() {
+    if [[ "$UPGRADE_MODE" != true ]] || [[ "$NO_SERVICES" == true ]]; then
+        return 0
+    fi
+
+    show_progress "Restarting services after upgrade"
+
+    # Restart systemd services if they exist
+    if [[ -f /etc/systemd/system/sagenscontact-sync.service ]]; then
+        systemctl daemon-reload
+        systemctl start sagenscontact-sync 2>/dev/null || true
+        log_info "Started sagenscontact-sync service"
+    fi
+    if [[ -f /etc/systemd/system/sagenscontact-web.service ]]; then
+        systemctl start sagenscontact-web 2>/dev/null || true
+        log_info "Started sagenscontact-web service"
+    fi
+    if [[ -f /etc/systemd/system/sagenscontact-worker.service ]]; then
+        systemctl start sagenscontact-worker 2>/dev/null || true
+        log_info "Started sagenscontact-worker service"
+    fi
+
+    # Wait for services to start
+    sleep 3
+
+    # Verify services are running
+    if systemctl is-active sagenscontact-sync &>/dev/null; then
+        show_success "Services restarted successfully"
+    else
+        log_warn "Services may not have started. Check: systemctl status sagenscontact-sync"
     fi
 }
 
@@ -740,9 +954,14 @@ verify_installation() {
 print_summary() {
     echo ""
     echo "═══════════════════════════════════════════════════════════════"
-    echo -e "${GREEN}SagensContact Alpha Installation Complete!${NC}"
+    if [[ "$UPGRADE_MODE" == true ]]; then
+        echo -e "${GREEN}SagensContact Alpha Upgrade Complete!${NC}"
+    else
+        echo -e "${GREEN}SagensContact Alpha Installation Complete!${NC}"
+    fi
     echo "═══════════════════════════════════════════════════════════════"
     echo ""
+    echo "Version: $INSTALLER_VERSION"
     echo "Installation Directory: $INSTALL_DIR"
     echo "Data Directory: $DATA_DIR"
     echo "Configuration: $INSTALL_DIR/config/env"
@@ -802,7 +1021,7 @@ print_summary() {
 # Main installation flow
 main() {
     echo "═══════════════════════════════════════════════════════════════"
-    echo "SagensContact Alpha - Turnkey Installer"
+    echo "SagensContact Alpha - Turnkey Installer (v$INSTALLER_VERSION)"
     echo "═══════════════════════════════════════════════════════════════"
     echo ""
 
@@ -814,6 +1033,22 @@ main() {
 
     check_root
     detect_os
+
+    # Check for existing installation (must be early)
+    check_existing_installation
+
+    # If upgrading, backup and stop services first
+    if [[ "$UPGRADE_MODE" == true ]]; then
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "Upgrade: Preparing for upgrade"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+
+        create_upgrade_backup
+        stop_existing_services
+        preserve_config
+    fi
 
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -851,10 +1086,18 @@ main() {
     echo ""
 
     generate_jwt_secret
-    create_env_file
+
+    # For upgrades, restore config instead of creating new
+    if [[ "$UPGRADE_MODE" == true ]] && [[ -n "${PRESERVED_ENV:-}" ]]; then
+        restore_config
+    else
+        create_env_file
+    fi
+
     run_migrations
     create_startup_scripts
     create_systemd_services
+    write_version_file
 
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -864,9 +1107,16 @@ main() {
 
     verify_installation
 
+    # Restart services after upgrade
+    restart_services
+
     print_summary
 
-    log "Installation completed successfully at $(date)"
+    if [[ "$UPGRADE_MODE" == true ]]; then
+        log "Upgrade completed successfully at $(date)"
+    else
+        log "Installation completed successfully at $(date)"
+    fi
 }
 
 # Run main

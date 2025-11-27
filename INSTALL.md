@@ -54,6 +54,90 @@ sudo ./scripts/install.sh --skip-build
 
 ---
 
+## 🔄 Upgrading from Previous Versions
+
+**The installers automatically detect existing installations and perform upgrades safely.**
+
+### Automatic Upgrade (Recommended)
+
+Both installers handle upgrades automatically:
+
+```bash
+# Turnkey installer (system-wide)
+cd SC
+sudo ./scripts/install.sh
+
+# Simple installer (local development)
+cd SC/alpha
+./install.sh
+```
+
+The upgrade process:
+1. Detects existing installation and version
+2. **Creates automatic backup** before upgrade
+3. Stops running services
+4. Preserves your configuration (.env/config files)
+5. Rebuilds and installs new version
+6. Preserves your data (database, attachments)
+7. Restarts services
+
+### Force Upgrade Mode
+
+To skip the interactive prompt:
+```bash
+sudo ./scripts/install.sh --upgrade
+```
+
+### Pre-Upgrade Backups
+
+Backups are automatically created at:
+- **Turnkey:** `/opt/sagenscontact/backups/pre-upgrade-YYYYMMDD_HHMMSS.tar.gz`
+- **Simple:** `data/backups/pre-upgrade-YYYYMMDD_HHMMSS.tar.gz`
+
+Each backup includes:
+- Database (`contacts.db`)
+- Attachments (`data/attachments/`)
+- Configuration (`.env` or `config/env`)
+- Version info
+
+### Manual Restore from Backup
+
+If you need to rollback:
+```bash
+# Stop services
+./stop.sh  # or: sudo systemctl stop sagenscontact-*
+
+# Restore from backup
+tar -xzf data/backups/pre-upgrade-YYYYMMDD_HHMMSS.tar.gz
+
+# Restart services
+./start.sh  # or: sudo systemctl start sagenscontact-*
+```
+
+### Version Tracking
+
+Installed version is tracked in:
+- **Turnkey:** `/opt/sagenscontact/VERSION`
+- **Simple:** `.sagenscontact_version`
+
+Check current version:
+```bash
+cat /opt/sagenscontact/VERSION
+# or
+cat .sagenscontact_version
+```
+
+### Database Migrations
+
+Database migrations run automatically on startup. The application uses SQLx embedded migrations that:
+- Apply new schema changes
+- Are idempotent (safe to run multiple times)
+- Preserve existing data
+
+No manual migration steps are required.
+
+---
+
 ## 📋 What Gets Installed
 
 ### Prerequisites (Auto-Installed)
@@ -254,6 +338,59 @@ sudo userdel sagenscontact
 
 ---
 
-**Version:** 0.1.0-alpha
+**Version:** 0.1.0-alpha.3
 **License:** MIT
 **Repository:** https://github.com/r0bug/SC
+
+---
+
+## 📖 For Claude Code Developers
+
+This section helps future Claude Code instances understand the installer system.
+
+### Installer Architecture
+
+**Two installation methods:**
+
+1. **`scripts/install.sh`** (Turnkey Linux Installer)
+   - System-wide installation to `/opt/sagenscontact`
+   - Creates systemd services and dedicated user
+   - Supports Ubuntu, Debian, Fedora, RHEL/Rocky, Arch
+   - Version tracking via `/opt/sagenscontact/VERSION`
+
+2. **`install.sh`** (Simple Installer)
+   - Local development installation in project directory
+   - Creates start.sh, stop.sh, backup.sh, restore.sh scripts
+   - Supports Linux and macOS
+   - Version tracking via `.sagenscontact_version`
+
+### Key Upgrade Features
+
+Both installers implement:
+- `INSTALLER_VERSION` constant (update when releasing)
+- `VERSION_FILE` tracking
+- `check_existing_installation()` detection
+- `create_upgrade_backup()` automatic backups
+- `stop_existing_services()` clean shutdown
+- `preserve_config()` / `restore_config()` config preservation
+- `restart_services()` post-upgrade restart
+
+### Updating for New Releases
+
+When releasing a new version:
+1. Update `INSTALLER_VERSION` in both installers
+2. Update version in this file
+3. Update `Cargo.toml` versions in workspace
+4. Database migrations are automatic (add to `crates/local_store/migrations/`)
+
+### Testing Upgrades
+
+```bash
+# Test fresh install, then upgrade
+./install.sh
+# Make some changes (add contacts, etc.)
+# Pull new code
+git pull
+./install.sh  # Should detect existing and upgrade
+# Verify data preserved
+```

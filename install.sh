@@ -3,15 +3,22 @@ set -e
 
 # SagensContact Installer
 # Automated installation script for testers
+# Supports both fresh installations and upgrades from previous versions
 
 BOLD='\033[1m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Version tracking
+INSTALLER_VERSION="0.1.0-alpha.3"
+VERSION_FILE=".sagenscontact_version"
 
 echo -e "${BOLD}╔═══════════════════════════════════════╗${NC}"
 echo -e "${BOLD}║   SagensContact Alpha Installer      ║${NC}"
+echo -e "${BOLD}║   Version: $INSTALLER_VERSION              ║${NC}"
 echo -e "${BOLD}╚═══════════════════════════════════════╝${NC}"
 echo ""
 
@@ -20,6 +27,59 @@ if [ ! -f "Cargo.toml" ] || [ ! -d "crates" ]; then
     echo -e "${RED}Error: Please run this script from the sagenscontact/alpha directory${NC}"
     echo "Usage: cd alpha && ./install.sh"
     exit 1
+fi
+
+# Check for existing installation
+EXISTING_INSTALL=false
+UPGRADE_MODE=false
+
+if [ -f "$VERSION_FILE" ]; then
+    EXISTING_INSTALL=true
+    OLD_VERSION=$(head -1 "$VERSION_FILE")
+    echo -e "${BLUE}Existing installation detected: v$OLD_VERSION${NC}"
+
+    if [ "$OLD_VERSION" = "$INSTALLER_VERSION" ]; then
+        echo -e "${YELLOW}Same version already installed. Reinstalling...${NC}"
+    else
+        echo -e "${GREEN}Upgrading from v$OLD_VERSION to v$INSTALLER_VERSION${NC}"
+    fi
+    UPGRADE_MODE=true
+    echo ""
+elif [ -f "target/release/sagenscontact" ] || [ -f "target/release/sync_service" ]; then
+    EXISTING_INSTALL=true
+    echo -e "${YELLOW}Existing build found (unknown version). Upgrading...${NC}"
+    UPGRADE_MODE=true
+    echo ""
+fi
+
+# Create pre-upgrade backup if upgrading
+if [ "$UPGRADE_MODE" = true ]; then
+    echo -e "${BOLD}Creating pre-upgrade backup...${NC}"
+
+    BACKUP_DIR="data/backups"
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    mkdir -p "$BACKUP_DIR"
+
+    # Backup database and config
+    if [ -f "data/contacts.db" ] || [ -f ".env" ]; then
+        tar -czf "$BACKUP_DIR/pre-upgrade-$TIMESTAMP.tar.gz" \
+            data/contacts.db \
+            data/attachments/ \
+            .env \
+            "$VERSION_FILE" 2>/dev/null || true
+        echo -e "${GREEN}✓ Backup created: $BACKUP_DIR/pre-upgrade-$TIMESTAMP.tar.gz${NC}"
+
+        # Keep only last 5 pre-upgrade backups
+        cd "$BACKUP_DIR"
+        ls -t pre-upgrade-*.tar.gz 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null || true
+        cd - > /dev/null
+    fi
+
+    # Stop existing services
+    echo -e "${BOLD}Stopping existing services...${NC}"
+    ./stop.sh 2>/dev/null || true
+    sleep 2
+    echo ""
 fi
 
 # Detect OS
@@ -251,11 +311,29 @@ mkdir -p logs
 
 echo -e "${GREEN}✓ Scripts created: start.sh, stop.sh, backup.sh, restore.sh${NC}"
 
-# Installation complete
+# Write version file
+cat > "$VERSION_FILE" << EOF
+$INSTALLER_VERSION
+Installed: $(date -Iseconds)
+Installer: install.sh
+EOF
+echo -e "${GREEN}✓ Version file created${NC}"
+
+# Installation/Upgrade complete
 echo ""
-echo -e "${BOLD}${GREEN}╔═══════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${GREEN}║   Installation Complete! 🎉           ║${NC}"
-echo -e "${BOLD}${GREEN}╚═══════════════════════════════════════╝${NC}"
+if [ "$UPGRADE_MODE" = true ]; then
+    echo -e "${BOLD}${GREEN}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${GREEN}║   Upgrade Complete! 🎉                ║${NC}"
+    echo -e "${BOLD}${GREEN}╚═══════════════════════════════════════╝${NC}"
+    echo ""
+    echo -e "${GREEN}Upgraded to version $INSTALLER_VERSION${NC}"
+    echo -e "Your data and configuration have been preserved."
+    echo -e "Pre-upgrade backup: data/backups/pre-upgrade-*.tar.gz"
+else
+    echo -e "${BOLD}${GREEN}╔═══════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${GREEN}║   Installation Complete! 🎉           ║${NC}"
+    echo -e "${BOLD}${GREEN}╚═══════════════════════════════════════╝${NC}"
+fi
 echo ""
 echo -e "${BOLD}Quick Start:${NC}"
 echo ""
