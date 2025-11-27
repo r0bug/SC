@@ -9,6 +9,7 @@ members = [
     "crates/cli_client",
     "crates/import_service",
     "crates/secure_vault",
+    "crates/cache_layer",
 ]
 exclude = [
     "apps/desktop/src-tauri",

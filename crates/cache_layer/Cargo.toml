@@ -1,0 +1,27 @@
+[package]
+name = "cache_layer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Caching layer with Redis and in-memory backends"
+
+[features]
+default = ["memory"]
+memory = []
+redis = ["dep:redis"]
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+async-trait = "0.1"
+
+# Optional Redis support
+redis = { version = "0.25", features = ["tokio-comp", "connection-manager"], optional = true }
+
+# In-memory cache implementation
+moka = { version = "0.12", features = ["future"] }
