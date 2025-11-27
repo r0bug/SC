@@ -5,6 +5,8 @@ pub mod error;
 
 pub use service::AttachmentService;
 pub use storage::{StorageBackend, LocalStorage};
+#[cfg(feature = "s3-storage")]
+pub use storage::S3Storage;
 pub use scanner::{VirusScanner, MockScanner};
 pub use error::AttachmentError;
 

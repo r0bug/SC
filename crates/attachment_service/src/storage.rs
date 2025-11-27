@@ -109,12 +109,135 @@ impl StorageBackend for LocalStorage {
 pub struct S3Storage {
     client: aws_sdk_s3::Client,
     bucket: String,
+    prefix: String,
 }
 
 #[cfg(feature = "s3-storage")]
 impl S3Storage {
+    /// Create S3 storage with existing client
     pub fn new(client: aws_sdk_s3::Client, bucket: String) -> Self {
-        Self { client, bucket }
+        Self {
+            client,
+            bucket,
+            prefix: "attachments".to_string(),
+        }
+    }
+
+    /// Create S3 storage with custom prefix
+    pub fn with_prefix(client: aws_sdk_s3::Client, bucket: String, prefix: String) -> Self {
+        Self { client, bucket, prefix }
+    }
+
+    /// Create S3-compatible storage (MinIO, DigitalOcean Spaces, etc.)
+    ///
+    /// # Arguments
+    /// * `endpoint_url` - Custom endpoint URL (e.g., "http://localhost:9000" for MinIO)
+    /// * `region` - Region (can be any string for MinIO, e.g., "us-east-1")
+    /// * `access_key` - Access key ID
+    /// * `secret_key` - Secret access key
+    /// * `bucket` - Bucket name
+    pub async fn new_s3_compatible(
+        endpoint_url: &str,
+        region: &str,
+        access_key: &str,
+        secret_key: &str,
+        bucket: String,
+    ) -> Result<Self, AttachmentError> {
+        use aws_sdk_s3::config::{Builder, Credentials, Region};
+
+        let credentials = Credentials::new(
+            access_key,
+            secret_key,
+            None,
+            None,
+            "static",
+        );
+
+        let config = Builder::new()
+            .endpoint_url(endpoint_url)
+            .region(Region::new(region.to_string()))
+            .credentials_provider(credentials)
+            .force_path_style(true) // Required for MinIO
+            .build();
+
+        let client = aws_sdk_s3::Client::from_conf(config);
+
+        tracing::info!("Connected to S3-compatible storage at {}", endpoint_url);
+
+        Ok(Self {
+            client,
+            bucket,
+            prefix: "attachments".to_string(),
+        })
+    }
+
+    /// Create from environment variables
+    /// - S3_ENDPOINT_URL (optional, for MinIO/S3-compatible)
+    /// - S3_REGION (default: us-east-1)
+    /// - S3_ACCESS_KEY_ID
+    /// - S3_SECRET_ACCESS_KEY
+    /// - S3_BUCKET
+    pub async fn from_env() -> Result<Self, AttachmentError> {
+        let endpoint_url = std::env::var("S3_ENDPOINT_URL").ok();
+        let region = std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".to_string());
+        let access_key = std::env::var("S3_ACCESS_KEY_ID")
+            .map_err(|_| AttachmentError::StorageError("S3_ACCESS_KEY_ID not set".to_string()))?;
+        let secret_key = std::env::var("S3_SECRET_ACCESS_KEY")
+            .map_err(|_| AttachmentError::StorageError("S3_SECRET_ACCESS_KEY not set".to_string()))?;
+        let bucket = std::env::var("S3_BUCKET")
+            .map_err(|_| AttachmentError::StorageError("S3_BUCKET not set".to_string()))?;
+
+        if let Some(endpoint) = endpoint_url {
+            // S3-compatible (MinIO, DigitalOcean Spaces, etc.)
+            Self::new_s3_compatible(&endpoint, &region, &access_key, &secret_key, bucket).await
+        } else {
+            // AWS S3
+            use aws_sdk_s3::config::{Builder, Credentials, Region};
+
+            let credentials = Credentials::new(
+                &access_key,
+                &secret_key,
+                None,
+                None,
+                "static",
+            );
+
+            let config = Builder::new()
+                .region(Region::new(region))
+                .credentials_provider(credentials)
+                .build();
+
+            let client = aws_sdk_s3::Client::from_conf(config);
+
+            tracing::info!("Connected to AWS S3");
+
+            Ok(Self {
+                client,
+                bucket,
+                prefix: "attachments".to_string(),
+            })
+        }
+    }
+
+    fn generate_key(&self, filename: &str) -> String {
+        let id = Uuid::new_v4();
+        let extension = Path::new(filename)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("bin");
+
+        // Organize by date for better listing performance
+        let now = chrono::Utc::now();
+        let date_path = now.format("%Y/%m/%d").to_string();
+
+        format!(
+            "{}/{}/{}/{}.{}",
+            self.prefix,
+            date_path,
+            &id.to_string()[..2],
+            id,
+            extension
+        )
     }
 }
 
@@ -122,7 +245,7 @@ impl S3Storage {
 #[async_trait]
 impl StorageBackend for S3Storage {
     async fn store(&self, data: &[u8], filename: &str) -> Result<String, AttachmentError> {
-        let key = format!("attachments/{}/{}", Uuid::new_v4(), filename);
+        let key = self.generate_key(filename);
 
         self.client
             .put_object()
@@ -132,6 +255,8 @@ impl StorageBackend for S3Storage {
             .send()
             .await
             .map_err(|e| AttachmentError::StorageError(e.to_string()))?;
+
+        tracing::info!("Stored file in S3: s3://{}/{}", self.bucket, key);
 
         Ok(key)
     }

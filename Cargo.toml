@@ -13,7 +13,8 @@ members = [
 ]
 exclude = [
     "apps/desktop/src-tauri",
-    "crates/communication_queue",  # Temporarily excluded - see members comment above
+    "crates/communication_queue",  # Temporarily excluded - requires DATABASE_URL for sqlx compile-time checks
+    "crates/attachment_service",   # Requires PostgreSQL (not default) - build separately with features
 ]
 
 [workspace.package]
