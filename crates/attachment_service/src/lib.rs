@@ -29,6 +29,12 @@ pub struct AttachmentConfig {
 
     /// Whether to enable virus scanning
     pub enable_virus_scan: bool,
+
+    /// Whether to generate thumbnails for images
+    pub generate_thumbnails: bool,
+
+    /// Thumbnail size (max dimension in pixels)
+    pub thumbnail_size: u32,
 }
 
 impl Default for AttachmentConfig {
@@ -48,6 +54,8 @@ impl Default for AttachmentConfig {
             storage_path: PathBuf::from("./data/attachments"),
             encrypt_at_rest: false,
             enable_virus_scan: true,
+            generate_thumbnails: true,
+            thumbnail_size: 200,
         }
     }
 }

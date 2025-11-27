@@ -413,8 +413,8 @@ impl AuditService {
 
         self.log_operation(
             ShareEntityType::Contact, // Using Contact as placeholder for auth events
-            user_id, // entity_id = user_id for auth events
-            AuditAction::Read, // Using Read as placeholder for authentication
+            user_id,                  // entity_id = user_id for auth events
+            AuditAction::Read,        // Using Read as placeholder for authentication
             user_id,
             action_data,
             ip,

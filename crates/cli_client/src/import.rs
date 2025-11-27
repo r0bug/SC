@@ -1,3 +1,4 @@
+use crate::auth::AuthConfig;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use core_domain::*;
@@ -10,6 +11,18 @@ use std::fs::File;
 use std::io::{self, BufReader, Write};
 use tracing::{info, warn};
 use uuid::Uuid;
+
+/// Get the user ID for CLI import operations
+fn get_import_user_id() -> Uuid {
+    AuthConfig::load()
+        .ok()
+        .and_then(|config| config.user_id)
+        .and_then(|id_str| Uuid::parse_str(&id_str).ok())
+        .unwrap_or_else(|| {
+            // Use nil UUID for local/unauthenticated operations
+            Uuid::nil()
+        })
+}
 
 pub async fn import_csv(path: &str, store: &LocalStore) -> Result<()> {
     let file = File::open(path)?;
@@ -170,8 +183,7 @@ fn parse_csv_record(
 
     let first_name = first_name.ok_or_else(|| anyhow::anyhow!("Missing first_name"))?;
 
-    // Use a placeholder user ID for CLI imports
-    let placeholder_user_id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+    let user_id = get_import_user_id();
 
     Ok(Contact {
         id: Uuid::new_v4(),
@@ -188,7 +200,7 @@ fn parse_csv_record(
         groups: vec![],
         created_at: Utc::now(),
         updated_at: Utc::now(),
-        created_by: placeholder_user_id,
+        created_by: user_id,
         version: 1,
         last_synced_at: None,
         metadata: serde_json::json!({}),
@@ -216,10 +228,15 @@ pub async fn import_sms(path: &str, store: &LocalStore) -> Result<()> {
 
     println!("\n📊 Import Summary:");
     println!("   Total SMS messages: {}", sms_data.total_messages);
-    println!("   Unique phone numbers: {}", sms_data.messages_by_phone.len());
+    println!(
+        "   Unique phone numbers: {}",
+        sms_data.messages_by_phone.len()
+    );
 
     // Show top 10 contacts by message count
-    let mut phone_stats: Vec<_> = sms_data.messages_by_phone.iter()
+    let mut phone_stats: Vec<_> = sms_data
+        .messages_by_phone
+        .iter()
         .map(|(phone, messages)| (phone, messages.len()))
         .collect();
     phone_stats.sort_by(|a, b| b.1.cmp(&a.1));
@@ -252,13 +269,18 @@ pub async fn import_sms(path: &str, store: &LocalStore) -> Result<()> {
     let mut messages_imported = 0;
     let mut failed = 0;
 
-    let default_user = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+    let user_id = get_import_user_id();
 
     for (phone, messages) in sms_data.messages_by_phone.iter() {
         // Look up existing contact by phone number
         let contact = match contact_repo.get_by_phone(phone).await? {
             Some(existing) => {
-                info!("Found existing contact for {}: {} {}", phone, existing.first_name, existing.last_name.as_deref().unwrap_or(""));
+                info!(
+                    "Found existing contact for {}: {} {}",
+                    phone,
+                    existing.first_name,
+                    existing.last_name.as_deref().unwrap_or("")
+                );
                 contacts_found += 1;
                 existing
             }
@@ -296,7 +318,7 @@ pub async fn import_sms(path: &str, store: &LocalStore) -> Result<()> {
                     groups: vec![],
                     created_at: Utc::now(),
                     updated_at: Utc::now(),
-                    created_by: default_user,
+                    created_by: user_id,
                     version: 1,
                     last_synced_at: None,
                     metadata: serde_json::json!({"import_source": "sms_backup", "message_count": messages.len()}),
@@ -351,7 +373,10 @@ pub async fn import_sms(path: &str, store: &LocalStore) -> Result<()> {
         }
 
         if (contacts_created + contacts_found) % 100 == 0 {
-            print!("\r   Processed {} phone numbers...", contacts_created + contacts_found);
+            print!(
+                "\r   Processed {} phone numbers...",
+                contacts_created + contacts_found
+            );
             io::stdout().flush().ok();
         }
     }
@@ -373,7 +398,7 @@ struct ParsedSmsMessage {
     body: String,
     date_ms: i64,
     readable_date: String,
-    message_type: i32,  // 1=received, 2=sent, 3=draft, etc.
+    message_type: i32, // 1=received, 2=sent, 3=draft, etc.
     thread_id: Option<i32>,
     read: i32,
     subscription_id: Option<String>,
@@ -429,7 +454,11 @@ fn parse_sms_messages(path: &str) -> Result<SmsImportData> {
                             contact_name = attr.unescape_value().ok().map(|v| v.to_string());
                         }
                         b"body" => {
-                            body = attr.unescape_value().ok().map(|v| v.to_string()).unwrap_or_default();
+                            body = attr
+                                .unescape_value()
+                                .ok()
+                                .map(|v| v.to_string())
+                                .unwrap_or_default();
                         }
                         b"type" => {
                             if let Ok(type_str) = attr.unescape_value() {

@@ -31,4 +31,7 @@ pub enum AttachmentError {
 
     #[error("Encryption error: {0}")]
     EncryptionError(String),
+
+    #[error("Other error: {0}")]
+    Other(String),
 }

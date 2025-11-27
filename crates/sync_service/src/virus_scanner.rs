@@ -119,7 +119,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_mock_scanner_clean_file() {
-        let scanner = VirusScanner::new(false, String::new(), 30);
+        // When disabled, scanner should mark files as clean
+        let scanner = VirusScanner::new(false, String::new(), 30, false);
 
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file, "This is a clean file").unwrap();
@@ -130,11 +131,34 @@ mod tests {
 
     #[tokio::test]
     async fn test_mock_scanner_eicar() {
-        let scanner = VirusScanner::new(false, String::new(), 30);
+        // When enabled but strict=false, scanner falls back to mock for EICAR detection
+        let scanner = VirusScanner::new(true, "/nonexistent/socket".to_string(), 30, false);
 
         let temp_file = NamedTempFile::with_prefix("eicar_test").unwrap();
 
         let result = scanner.scan_file(temp_file.path()).await.unwrap();
         assert!(matches!(result, ScanResult::Infected(_)));
+    }
+
+    #[tokio::test]
+    async fn test_mock_scanner_malware_filename() {
+        // Test that mock scanner detects files with "malware" in name
+        let scanner = VirusScanner::new(true, "/nonexistent/socket".to_string(), 30, false);
+
+        let temp_file = NamedTempFile::with_prefix("malware_test").unwrap();
+
+        let result = scanner.scan_file(temp_file.path()).await.unwrap();
+        assert!(matches!(result, ScanResult::Infected(_)));
+    }
+
+    #[tokio::test]
+    async fn test_disabled_scanner() {
+        // Disabled scanner should always return Clean
+        let scanner = VirusScanner::new(false, String::new(), 30, true);
+
+        let temp_file = NamedTempFile::with_prefix("virus_test").unwrap();
+
+        let result = scanner.scan_file(temp_file.path()).await.unwrap();
+        assert!(matches!(result, ScanResult::Clean));
     }
 }

@@ -138,7 +138,11 @@ impl JsonImporter {
                     Some("first_name")
                 }
                 _ if lower.contains("last") && lower.contains("name") => Some("last_name"),
-                _ if lower == "lastname" || lower == "lname" || lower == "surname" || lower == "family_name" => {
+                _ if lower == "lastname"
+                    || lower == "lname"
+                    || lower == "surname"
+                    || lower == "family_name" =>
+                {
                     Some("last_name")
                 }
                 _ if lower == "name" || lower == "full_name" || lower == "fullname" => {
@@ -147,16 +151,28 @@ impl JsonImporter {
                 _ if lower.contains("email") || lower == "mail" || lower == "e-mail" => {
                     Some("email")
                 }
-                _ if lower.contains("phone") || lower.contains("mobile") || lower.contains("cell") => {
+                _ if lower.contains("phone")
+                    || lower.contains("mobile")
+                    || lower.contains("cell") =>
+                {
                     Some("phone")
                 }
-                _ if lower.contains("company") || lower.contains("organization") || lower == "org" => {
+                _ if lower.contains("company")
+                    || lower.contains("organization")
+                    || lower == "org" =>
+                {
                     Some("organization")
                 }
-                _ if lower.contains("title") || lower.contains("position") || lower.contains("job") => {
+                _ if lower.contains("title")
+                    || lower.contains("position")
+                    || lower.contains("job") =>
+                {
                     Some("title")
                 }
-                _ if lower.contains("note") || lower.contains("comment") || lower.contains("description") => {
+                _ if lower.contains("note")
+                    || lower.contains("comment")
+                    || lower.contains("description") =>
+                {
                     Some("notes")
                 }
                 _ if lower.contains("address") || lower.contains("street") => Some("address"),
@@ -188,7 +204,9 @@ impl ImportConnector for JsonImporter {
         ConnectorMetadata {
             id: "json".to_string(),
             name: "JSON File".to_string(),
-            description: "Import from JSON files with arrays of contact objects or nested structures".to_string(),
+            description:
+                "Import from JSON files with arrays of contact objects or nested structures"
+                    .to_string(),
             supported_extensions: vec!["json".to_string()],
             supported_mime_types: vec!["application/json".to_string()],
             format: ImportFormat::Json,
@@ -200,9 +218,8 @@ impl ImportConnector for JsonImporter {
     async fn parse(&self, file_path: &Path) -> Result<ParseResult, ImportError> {
         // Read and parse JSON file
         let content = std::fs::read_to_string(file_path)?;
-        let json_value: Value = serde_json::from_str(&content).map_err(|e| {
-            ImportError::Other(format!("Invalid JSON: {}", e))
-        })?;
+        let json_value: Value = serde_json::from_str(&content)
+            .map_err(|e| ImportError::Other(format!("Invalid JSON: {}", e)))?;
 
         // Extract records from JSON structure
         let (records, structure_info) = Self::extract_records(json_value)?;
@@ -316,8 +333,14 @@ mod tests {
 
         assert_eq!(result.rows.len(), 1);
         assert_eq!(result.rows[0].get("name.first").unwrap(), "John");
-        assert_eq!(result.rows[0].get("contact_info.email").unwrap(), "john@example.com");
-        assert_eq!(result.metadata.get("structure").unwrap(), "nested_array:contacts");
+        assert_eq!(
+            result.rows[0].get("contact_info.email").unwrap(),
+            "john@example.com"
+        );
+        assert_eq!(
+            result.metadata.get("structure").unwrap(),
+            "nested_array:contacts"
+        );
     }
 
     #[tokio::test]

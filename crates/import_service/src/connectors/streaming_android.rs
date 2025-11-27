@@ -1,6 +1,8 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use core_domain::{Communication, CommunicationDirection, CommunicationType, CommunicationHistoryStatus, Contact};
+use core_domain::{
+    Communication, CommunicationDirection, CommunicationHistoryStatus, CommunicationType, Contact,
+};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use serde_json::json;
@@ -58,7 +60,9 @@ impl StreamingAndroidParser {
                 Ok(Event::Empty(ref e)) if e.name().as_ref() == b"sms" => {
                     stats.total_messages += 1;
 
-                    if let Some((contact, communication)) = self.parse_sms_element(&mut reader, e)? {
+                    if let Some((contact, communication)) =
+                        self.parse_sms_element(&mut reader, e)?
+                    {
                         let phone = contact.phone.clone().unwrap_or_default();
 
                         // Group by phone number to accumulate communications
@@ -85,7 +89,11 @@ impl StreamingAndroidParser {
                 }
                 Ok(Event::Eof) => break,
                 Err(e) => {
-                    warn!("XML parsing error at position {}: {:?}", reader.buffer_position(), e);
+                    warn!(
+                        "XML parsing error at position {}: {:?}",
+                        reader.buffer_position(),
+                        e
+                    );
                     stats.errors += 1;
                 }
                 _ => {}
@@ -137,7 +145,9 @@ impl StreamingAndroidParser {
                 Ok(Event::Empty(ref e)) if e.name().as_ref() == b"call" => {
                     stats.total_messages += 1;
 
-                    if let Some((contact, communication)) = self.parse_call_element(&mut reader, e)? {
+                    if let Some((contact, communication)) =
+                        self.parse_call_element(&mut reader, e)?
+                    {
                         let phone = contact.phone.clone().unwrap_or_default();
 
                         if let Some(&idx) = contact_map.get(&phone) {
@@ -251,8 +261,7 @@ impl StreamingAndroidParser {
             CommunicationDirection::Inbound
         };
 
-        let timestamp = DateTime::from_timestamp_millis(date_ms)
-            .unwrap_or_else(Utc::now);
+        let timestamp = DateTime::from_timestamp_millis(date_ms).unwrap_or_else(Utc::now);
 
         let communication = Communication {
             id: Uuid::new_v4(),
@@ -303,7 +312,10 @@ impl StreamingAndroidParser {
             .get("duration")
             .and_then(|d| d.parse::<i32>().ok())
             .unwrap_or(0);
-        let call_type = attrs.get("type").and_then(|t| t.parse::<i32>().ok()).unwrap_or(1);
+        let call_type = attrs
+            .get("type")
+            .and_then(|t| t.parse::<i32>().ok())
+            .unwrap_or(1);
         let contact_name = attrs.get("contact_name").cloned();
 
         let (first_name, last_name) = if let Some(name) = contact_name.as_ref() {
@@ -347,8 +359,7 @@ impl StreamingAndroidParser {
             _ => CommunicationDirection::Inbound,
         };
 
-        let timestamp = DateTime::from_timestamp_millis(date_ms)
-            .unwrap_or_else(Utc::now);
+        let timestamp = DateTime::from_timestamp_millis(date_ms).unwrap_or_else(Utc::now);
 
         let communication = Communication {
             id: Uuid::new_v4(),

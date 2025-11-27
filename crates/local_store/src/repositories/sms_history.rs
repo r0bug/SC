@@ -1,7 +1,7 @@
-use core_domain::{DomainError, DomainResult};
-use sqlx::{Pool, Sqlite, FromRow};
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
+use core_domain::{DomainError, DomainResult};
+use sqlx::{FromRow, Pool, Sqlite};
+use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct SmsMessage {
@@ -9,13 +9,13 @@ pub struct SmsMessage {
     pub contact_id: Option<Uuid>,
     pub phone_number: String,
     pub contact_name: Option<String>,
-    pub message_date: i64,           // Unix timestamp in milliseconds
-    pub message_type: i32,           // 1=received, 2=sent, 3=draft, 4=outbox, 5=failed, 6=queued
+    pub message_date: i64, // Unix timestamp in milliseconds
+    pub message_type: i32, // 1=received, 2=sent, 3=draft, 4=outbox, 5=failed, 6=queued
     pub subject: Option<String>,
     pub body: String,
     pub readable_date: String,
     pub thread_id: Option<i32>,
-    pub read_status: i32,            // 0=unread, 1=read
+    pub read_status: i32, // 0=unread, 1=read
     pub subscription_id: Option<String>,
     pub imported_at: DateTime<Utc>,
     pub imported_by: String,
@@ -37,7 +37,7 @@ impl<'a> SmsHistoryRepository<'a> {
             "INSERT INTO sms_history (id, contact_id, phone_number, contact_name, message_date,
              message_type, subject, body, readable_date, thread_id, read_status, subscription_id,
              imported_at, imported_by, source_file)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(sms.id.to_string())
         .bind(sms.contact_id.map(|id| id.to_string()))
@@ -63,8 +63,10 @@ impl<'a> SmsHistoryRepository<'a> {
 
     /// Batch insert multiple SMS messages (more efficient for imports)
     pub async fn batch_create(&self, messages: &[SmsMessage]) -> DomainResult<usize> {
-        let mut tx = self.pool.begin().await
-            .map_err(|e| DomainError::Internal(format!("Failed to start transaction: {}", e)))?;
+        let mut tx =
+            self.pool.begin().await.map_err(|e| {
+                DomainError::Internal(format!("Failed to start transaction: {}", e))
+            })?;
 
         let mut count = 0;
         for sms in messages {
@@ -96,7 +98,8 @@ impl<'a> SmsHistoryRepository<'a> {
             count += 1;
         }
 
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(format!("Failed to commit transaction: {}", e)))?;
 
         Ok(count)
@@ -108,7 +111,7 @@ impl<'a> SmsHistoryRepository<'a> {
             "SELECT id, contact_id, phone_number, contact_name, message_date, message_type,
              subject, body, readable_date, thread_id, read_status, subscription_id,
              imported_at, imported_by, source_file
-             FROM sms_history WHERE contact_id = ? ORDER BY message_date DESC"
+             FROM sms_history WHERE contact_id = ? ORDER BY message_date DESC",
         )
         .bind(contact_id.to_string())
         .fetch_all(self.pool)
@@ -124,7 +127,7 @@ impl<'a> SmsHistoryRepository<'a> {
             "SELECT id, contact_id, phone_number, contact_name, message_date, message_type,
              subject, body, readable_date, thread_id, read_status, subscription_id,
              imported_at, imported_by, source_file
-             FROM sms_history WHERE phone_number = ? ORDER BY message_date DESC"
+             FROM sms_history WHERE phone_number = ? ORDER BY message_date DESC",
         )
         .bind(phone_number)
         .fetch_all(self.pool)
@@ -140,7 +143,7 @@ impl<'a> SmsHistoryRepository<'a> {
             "SELECT id, contact_id, phone_number, contact_name, message_date, message_type,
              subject, body, readable_date, thread_id, read_status, subscription_id,
              imported_at, imported_by, source_file
-             FROM sms_history WHERE thread_id = ? ORDER BY message_date ASC"
+             FROM sms_history WHERE thread_id = ? ORDER BY message_date ASC",
         )
         .bind(thread_id)
         .fetch_all(self.pool)
@@ -152,21 +155,23 @@ impl<'a> SmsHistoryRepository<'a> {
 
     /// Count SMS messages for a contact
     pub async fn count_by_contact(&self, contact_id: Uuid) -> DomainResult<i64> {
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM sms_history WHERE contact_id = ?"
-        )
-        .bind(contact_id.to_string())
-        .fetch_one(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(format!("Failed to count SMS messages: {}", e)))?;
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM sms_history WHERE contact_id = ?")
+            .bind(contact_id.to_string())
+            .fetch_one(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(format!("Failed to count SMS messages: {}", e)))?;
 
         Ok(count.0)
     }
 
     /// Update contact_id for messages with a specific phone number (used after creating contact)
-    pub async fn link_messages_to_contact(&self, phone_number: &str, contact_id: Uuid) -> DomainResult<u64> {
+    pub async fn link_messages_to_contact(
+        &self,
+        phone_number: &str,
+        contact_id: Uuid,
+    ) -> DomainResult<u64> {
         let result = sqlx::query(
-            "UPDATE sms_history SET contact_id = ? WHERE phone_number = ? AND contact_id IS NULL"
+            "UPDATE sms_history SET contact_id = ? WHERE phone_number = ? AND contact_id IS NULL",
         )
         .bind(contact_id.to_string())
         .bind(phone_number)
@@ -204,7 +209,8 @@ impl TryFrom<SmsMessageRow> for SmsMessage {
         let id = Uuid::parse_str(&row.id)
             .map_err(|e| DomainError::Internal(format!("Invalid UUID: {}", e)))?;
 
-        let contact_id = row.contact_id
+        let contact_id = row
+            .contact_id
             .map(|id_str| Uuid::parse_str(&id_str))
             .transpose()
             .map_err(|e| DomainError::Internal(format!("Invalid contact_id UUID: {}", e)))?;

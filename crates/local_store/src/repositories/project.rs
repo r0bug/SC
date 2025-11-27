@@ -20,8 +20,10 @@ impl<'a> ProjectRepository<'a> {
         };
 
         // Start transaction to ensure atomicity
-        let mut tx = self.pool.begin().await
-            .map_err(|e| DomainError::Internal(format!("Failed to start transaction: {}", e)))?;
+        let mut tx =
+            self.pool.begin().await.map_err(|e| {
+                DomainError::Internal(format!("Failed to start transaction: {}", e))
+            })?;
 
         // Insert main project record
         sqlx::query(
@@ -42,30 +44,31 @@ impl<'a> ProjectRepository<'a> {
 
         // Insert project contacts
         for contact_id in &project.contacts {
-            sqlx::query(
-                "INSERT INTO project_contacts (project_id, contact_id) VALUES (?, ?)"
-            )
-            .bind(project.id.to_string())
-            .bind(contact_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| DomainError::Internal(format!("Failed to insert project contact: {}", e)))?;
+            sqlx::query("INSERT INTO project_contacts (project_id, contact_id) VALUES (?, ?)")
+                .bind(project.id.to_string())
+                .bind(contact_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| {
+                    DomainError::Internal(format!("Failed to insert project contact: {}", e))
+                })?;
         }
 
         // Insert project tags
         for tag_id in &project.tags {
-            sqlx::query(
-                "INSERT INTO project_tags (project_id, tag_id) VALUES (?, ?)"
-            )
-            .bind(project.id.to_string())
-            .bind(tag_id.to_string())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| DomainError::Internal(format!("Failed to insert project tag: {}", e)))?;
+            sqlx::query("INSERT INTO project_tags (project_id, tag_id) VALUES (?, ?)")
+                .bind(project.id.to_string())
+                .bind(tag_id.to_string())
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| {
+                    DomainError::Internal(format!("Failed to insert project tag: {}", e))
+                })?;
         }
 
         // Commit transaction
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| DomainError::Internal(format!("Failed to commit transaction: {}", e)))?;
 
         Ok(())
@@ -130,16 +133,15 @@ impl<'a> ProjectRepository<'a> {
         .filter_map(|s| Uuid::parse_str(&s).ok())
         .collect();
 
-        let tags = sqlx::query_scalar::<_, String>(
-            "SELECT tag_id FROM project_tags WHERE project_id = ?",
-        )
-        .bind(id.to_string())
-        .fetch_all(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?
-        .into_iter()
-        .filter_map(|s| Uuid::parse_str(&s).ok())
-        .collect();
+        let tags =
+            sqlx::query_scalar::<_, String>("SELECT tag_id FROM project_tags WHERE project_id = ?")
+                .bind(id.to_string())
+                .fetch_all(self.pool)
+                .await
+                .map_err(|e| DomainError::Internal(e.to_string()))?
+                .into_iter()
+                .filter_map(|s| Uuid::parse_str(&s).ok())
+                .collect();
 
         Ok(row.into_project(contacts, tags, vec![]))
     }
@@ -283,7 +285,10 @@ impl<'a> ProjectRepository<'a> {
         Ok(())
     }
 
-    pub async fn list_by_status(&self, status: core_domain::ProjectStatus) -> DomainResult<Vec<Project>> {
+    pub async fn list_by_status(
+        &self,
+        status: core_domain::ProjectStatus,
+    ) -> DomainResult<Vec<Project>> {
         let status_str = match status {
             core_domain::ProjectStatus::Active => "Active",
             core_domain::ProjectStatus::Completed => "Completed",

@@ -1,11 +1,11 @@
-use crate::{auth::AuthUser, state::AppState};
+use crate::{audit, auth::AuthUser, state::AppState};
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
-use core_domain::{Permission, ShareEntityType, ShareInvite};
+use core_domain::{AuditAction, Permission, ShareEntityType, ShareInvite};
 use local_store::repositories::{ShareRepository, UserRepository};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -28,6 +28,7 @@ pub struct ShareResponse {
 /// POST /api/shares
 pub async fn create_share(
     State(app_state): State<AppState>,
+    headers: HeaderMap,
     AuthUser(user): AuthUser,
     Json(req): Json<CreateShareRequest>,
 ) -> impl IntoResponse {
@@ -80,7 +81,7 @@ pub async fn create_share(
         shared_by: user.id,
         shared_with_email: req.email.clone(),
         shared_with_user: target_user.as_ref().map(|u| u.id),
-        permissions,
+        permissions: permissions.clone(),
         accepted: false,
         accepted_at: None,
         revoked: false,
@@ -95,6 +96,26 @@ pub async fn create_share(
         .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to create share"))?;
 
+    // Audit log: share created
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_operation(
+            entity_type,
+            req.entity_id,
+            AuditAction::Create,
+            user.id,
+            serde_json::json!({
+                "event": "share_created",
+                "shared_with": req.email,
+                "permissions": permissions.iter().map(|p| format!("{:?}", p)).collect::<Vec<_>>()
+            }),
+            ip,
+            user_agent,
+        )
+        .await;
+
     Ok(Json(ShareResponse {
         id: invite.id,
         message: format!("Share invite sent to {}", req.email),
@@ -104,6 +125,7 @@ pub async fn create_share(
 /// POST /api/shares/:id/accept
 pub async fn accept_share(
     State(app_state): State<AppState>,
+    headers: HeaderMap,
     AuthUser(user): AuthUser,
     Path(share_id): Path<Uuid>,
 ) -> impl IntoResponse {
@@ -153,7 +175,7 @@ pub async fn accept_share(
             &user.id,
             invite.entity_type,
             &invite.entity_id,
-            invite.permissions,
+            invite.permissions.clone(),
         )
         .await
         .map_err(|_| {
@@ -162,6 +184,27 @@ pub async fn accept_share(
                 "Failed to grant permissions",
             )
         })?;
+
+    // Audit log: share accepted
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_operation(
+            invite.entity_type,
+            invite.entity_id,
+            AuditAction::Update,
+            user.id,
+            serde_json::json!({
+                "event": "share_accepted",
+                "share_id": share_id,
+                "shared_by": invite.shared_by,
+                "permissions": invite.permissions.iter().map(|p| format!("{:?}", p)).collect::<Vec<_>>()
+            }),
+            ip,
+            user_agent,
+        )
+        .await;
 
     Ok(Json(serde_json::json!({
         "message": "Share accepted successfully",
@@ -213,6 +256,7 @@ pub async fn reject_share(
 /// POST /api/shares/:id/revoke
 pub async fn revoke_share(
     State(app_state): State<AppState>,
+    headers: HeaderMap,
     AuthUser(user): AuthUser,
     Path(share_id): Path<Uuid>,
 ) -> impl IntoResponse {
@@ -233,6 +277,11 @@ pub async fn revoke_share(
     if invite.revoked {
         return Err((StatusCode::BAD_REQUEST, "Share already revoked"));
     }
+
+    // Store info for audit log before modifications
+    let entity_type = invite.entity_type;
+    let entity_id = invite.entity_id;
+    let shared_with_email = invite.shared_with_email.clone();
 
     // Revoke the share
     invite.revoked = true;
@@ -263,6 +312,26 @@ pub async fn revoke_share(
                 })?;
         }
     }
+
+    // Audit log: share revoked
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_operation(
+            entity_type,
+            entity_id,
+            AuditAction::Delete,
+            user.id,
+            serde_json::json!({
+                "event": "share_revoked",
+                "share_id": share_id,
+                "shared_with": shared_with_email
+            }),
+            ip,
+            user_agent,
+        )
+        .await;
 
     Ok(Json(serde_json::json!({
         "message": "Share revoked successfully",

@@ -6,12 +6,15 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use core_domain::{Contact, ShareEntityType, SocialHandle};
 use import_service::{
     create_default_registry, ConnectorMetadata, DeduplicationConfig, DeduplicationEngine,
     DuplicateStrategy, MatchCriteria,
 };
+use local_store::repositories::ContactRepository;
 use serde::{Deserialize, Serialize};
-use sqlx::{QueryBuilder, Row};
+use sqlx::Row;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -200,11 +203,12 @@ pub async fn execute_import(
         jobs.push(job.clone());
     }
 
-    // Spawn background task
+    // Spawn background task with user_id for proper ownership
     let state_clone = state.clone();
     let request_clone = request.clone();
+    let user_id = _user.id;
     tokio::spawn(async move {
-        process_import(state_clone, job_id, file_data, file_name, request_clone).await;
+        process_import(state_clone, job_id, file_data, file_name, request_clone, user_id).await;
     });
 
     Ok(Json(serde_json::json!({
@@ -263,17 +267,19 @@ async fn process_import(
     file_data: Vec<u8>,
     file_name: String,
     request: ImportRequest,
+    user_id: Uuid,
 ) {
     let start_time = std::time::Instant::now();
 
-    // Update job status
-    let update_status = |status: JobStatus, phase: String| {
-        let state = state.clone();
+    // Update job status helper
+    let update_job = |state: AppState, job_id: Uuid, status: JobStatus, phase: String, current: usize, total: usize| {
         async move {
             let mut jobs = state.import_jobs.write().await;
             if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
                 job.status = status;
                 job.progress.phase = phase;
+                job.progress.current = current;
+                job.progress.total = total;
                 job.updated_at = chrono::Utc::now();
             }
         }
@@ -284,36 +290,58 @@ async fn process_import(
     let temp_path = temp_dir.join(format!("import_{}_{}", job_id, file_name));
     if let Err(e) = tokio::fs::write(&temp_path, &file_data).await {
         tracing::error!("Failed to write temp file: {}", e);
-        update_status(JobStatus::Failed, "File write error".to_string()).await;
+        update_job(state.clone(), job_id, JobStatus::Failed, "File write error".to_string(), 0, 0).await;
         return;
     }
 
     // Find connector
-    update_status(JobStatus::Validating, "Detecting format".to_string()).await;
+    update_job(state.clone(), job_id, JobStatus::Validating, "Detecting format".to_string(), 0, 0).await;
     let registry = create_default_registry();
     let connector = match registry.find_connector(&temp_path) {
         Some(c) => c,
         None => {
-            update_status(JobStatus::Failed, "No suitable connector found".to_string()).await;
+            update_job(state.clone(), job_id, JobStatus::Failed, "No suitable connector found".to_string(), 0, 0).await;
             let _ = tokio::fs::remove_file(&temp_path).await;
             return;
         }
     };
 
     // Parse file
-    update_status(JobStatus::Parsing, "Parsing file".to_string()).await;
+    update_job(state.clone(), job_id, JobStatus::Parsing, "Parsing file".to_string(), 0, 0).await;
     let parse_result = match connector.parse(&temp_path).await {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Parse error: {}", e);
-            update_status(JobStatus::Failed, format!("Parse error: {}", e)).await;
+            update_job(state.clone(), job_id, JobStatus::Failed, format!("Parse error: {}", e), 0, 0).await;
             let _ = tokio::fs::remove_file(&temp_path).await;
             return;
         }
     };
 
-    // Deduplicate
-    update_status(JobStatus::Deduplicating, "Checking duplicates".to_string()).await;
+    let total_rows = parse_result.rows.len();
+    update_job(state.clone(), job_id, JobStatus::Deduplicating, "Checking duplicates".to_string(), 0, total_rows).await;
+
+    // Check for existing contacts in database (fetch all user's contacts for dedup)
+    let contact_repo = ContactRepository::new(state.store.pool());
+    let existing_contacts = match contact_repo.list(10000, 0, user_id).await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("Failed to fetch existing contacts: {}", e);
+            Vec::new()
+        }
+    };
+
+    // Build lookup maps for deduplication
+    let existing_by_email: HashMap<String, &Contact> = existing_contacts
+        .iter()
+        .filter_map(|c| c.email.as_ref().map(|e| (e.to_lowercase(), c)))
+        .collect();
+    let existing_by_phone: HashMap<String, &Contact> = existing_contacts
+        .iter()
+        .filter_map(|c| c.phone.as_ref().map(|p| (normalize_phone(p), c)))
+        .collect();
+
+    // Determine dedupe strategy
     let dedupe_strategy = match request.dedupe_strategy.as_deref() {
         Some("skip") => DuplicateStrategy::Skip,
         Some("update") => DuplicateStrategy::Update,
@@ -329,49 +357,170 @@ async fn process_import(
         _ => MatchCriteria::EmailOrPhone,
     };
 
-    let dedup_config = DeduplicationConfig {
-        strategy: dedupe_strategy,
-        match_criteria,
-        ..Default::default()
-    };
+    // Import contacts
+    update_job(state.clone(), job_id, JobStatus::Importing, "Importing contacts".to_string(), 0, total_rows).await;
 
-    let dedup_engine = DeduplicationEngine::new(dedup_config);
-    let duplicates = match dedup_engine.find_duplicates(&parse_result.rows) {
-        Ok(d) => d.len(),
-        Err(e) => {
-            tracing::error!("Deduplication error: {}", e);
-            0
+    let mut imported = 0;
+    let mut skipped = 0;
+    let mut failed = 0;
+    let mut duplicates_found = 0;
+
+    for (index, row) in parse_result.rows.iter().enumerate() {
+        // Update progress every 10 rows
+        if index % 10 == 0 {
+            update_job(state.clone(), job_id, JobStatus::Importing, format!("Importing {} of {}", index, total_rows), index, total_rows).await;
         }
-    };
 
-    // Import (placeholder - would call actual import logic)
-    update_status(JobStatus::Importing, "Importing contacts".to_string()).await;
+        // Convert row to contact
+        let contact = row_to_contact(row, user_id);
 
-    // TODO: Actual import implementation
-    let imported = parse_result.rows.len();
-    let skipped = duplicates;
-    let failed = 0;
+        // Check for duplicates
+        let is_duplicate = match match_criteria {
+            MatchCriteria::Email => {
+                contact.email.as_ref().map_or(false, |e| existing_by_email.contains_key(&e.to_lowercase()))
+            }
+            MatchCriteria::Phone => {
+                contact.phone.as_ref().map_or(false, |p| existing_by_phone.contains_key(&normalize_phone(p)))
+            }
+            MatchCriteria::FullName => {
+                existing_contacts.iter().any(|c| {
+                    c.first_name.to_lowercase() == contact.first_name.to_lowercase() &&
+                    c.last_name.as_ref().map(|l| l.to_lowercase()) == contact.last_name.as_ref().map(|l| l.to_lowercase())
+                })
+            }
+            MatchCriteria::EmailOrPhone | MatchCriteria::Custom(_) => {
+                // Default: match by email or phone
+                contact.email.as_ref().map_or(false, |e| existing_by_email.contains_key(&e.to_lowercase())) ||
+                contact.phone.as_ref().map_or(false, |p| existing_by_phone.contains_key(&normalize_phone(p)))
+            }
+        };
+
+        if is_duplicate {
+            duplicates_found += 1;
+            match dedupe_strategy {
+                DuplicateStrategy::Skip | DuplicateStrategy::Ask => {
+                    // Skip duplicates (Ask behaves like Skip in automated import)
+                    skipped += 1;
+                    continue;
+                }
+                DuplicateStrategy::KeepBoth => {
+                    // Fall through to create new contact
+                }
+                DuplicateStrategy::Update | DuplicateStrategy::Merge => {
+                    // For now, skip - proper update/merge requires finding the existing contact
+                    skipped += 1;
+                    continue;
+                }
+            }
+        }
+
+        // Dry run mode - don't actually save
+        if request.dry_run.unwrap_or(false) {
+            imported += 1;
+            continue;
+        }
+
+        // Create contact
+        match contact_repo.create(&contact).await {
+            Ok(_) => {
+                // Create ACL for the contact
+                let _ = state.acl_service.create_acl(&user_id, ShareEntityType::Contact, &contact.id).await;
+                imported += 1;
+            }
+            Err(e) => {
+                tracing::error!("Failed to create contact: {}", e);
+                failed += 1;
+            }
+        }
+    }
 
     // Complete
     let elapsed = start_time.elapsed().as_secs_f64();
     let mut jobs = state.import_jobs.write().await;
     if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
         job.status = JobStatus::Completed;
-        job.progress.current = imported;
-        job.progress.total = imported;
+        job.progress.current = total_rows;
+        job.progress.total = total_rows;
+        job.progress.phase = "Completed".to_string();
         job.result = Some(ImportResult {
             imported,
             skipped,
             failed,
-            duplicates_found: duplicates,
+            duplicates_found,
             elapsed_seconds: elapsed,
             log_id: Uuid::new_v4(),
         });
         job.updated_at = chrono::Utc::now();
     }
 
+    tracing::info!(
+        "Import job {} completed: {} imported, {} skipped, {} failed, {} duplicates",
+        job_id, imported, skipped, failed, duplicates_found
+    );
+
     // Cleanup
     let _ = tokio::fs::remove_file(&temp_path).await;
+}
+
+/// Convert a parsed row (HashMap) to a Contact entity
+fn row_to_contact(row: &HashMap<String, String>, user_id: Uuid) -> Contact {
+    let now = chrono::Utc::now();
+
+    // Standard field mappings (handles common variations)
+    let first_name = get_field(row, &["first_name", "firstName", "First Name", "given_name", "Given Name", "name"])
+        .unwrap_or_else(|| "Unknown".to_string());
+    let last_name = get_field(row, &["last_name", "lastName", "Last Name", "family_name", "Family Name", "surname"]);
+    let email = get_field(row, &["email", "Email", "E-mail", "email_address", "Email Address"]);
+    let phone = get_field(row, &["phone", "Phone", "phone_number", "Phone Number", "mobile", "Mobile", "cell"]);
+    let organization = get_field(row, &["organization", "Organization", "company", "Company", "org"]);
+    let title = get_field(row, &["title", "Title", "job_title", "Job Title", "position", "Position"]);
+    let notes = get_field(row, &["notes", "Notes", "description", "Description", "bio", "Bio"]);
+
+    Contact {
+        id: Uuid::new_v4(),
+        first_name,
+        last_name,
+        email,
+        phone,
+        organization,
+        title,
+        notes,
+        social_handles: Vec::new(),
+        tags: Vec::new(),
+        projects: Vec::new(),
+        groups: Vec::new(),
+        created_at: now,
+        updated_at: now,
+        created_by: user_id,
+        version: 1,
+        last_synced_at: None,
+        metadata: serde_json::json!({"imported": true, "import_time": now}),
+    }
+}
+
+/// Get a field value from a row, trying multiple possible column names
+fn get_field(row: &HashMap<String, String>, keys: &[&str]) -> Option<String> {
+    for key in keys {
+        // Try exact match
+        if let Some(val) = row.get(*key) {
+            if !val.is_empty() {
+                return Some(val.clone());
+            }
+        }
+        // Try case-insensitive match
+        let key_lower = key.to_lowercase();
+        for (k, v) in row {
+            if k.to_lowercase() == key_lower && !v.is_empty() {
+                return Some(v.clone());
+            }
+        }
+    }
+    None
+}
+
+/// Normalize phone number for comparison (remove non-digits)
+fn normalize_phone(phone: &str) -> String {
+    phone.chars().filter(|c| c.is_ascii_digit()).collect()
 }
 
 /// GET /api/import/history - Get import history from database

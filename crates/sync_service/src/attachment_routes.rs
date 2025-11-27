@@ -569,15 +569,7 @@ pub async fn download_attachment(
         )
     })?;
 
-    ensure_attachment_permission(
-        &state,
-        &user.id,
-        attachment.entity_type.clone(),
-        attachment.entity_id,
-        Permission::Delete,
-    )
-    .await?;
-
+    // Check if user has permission to read attachments on the parent entity
     ensure_attachment_permission(
         &state,
         &user.id,
@@ -691,6 +683,16 @@ pub async fn delete_attachment(
             }),
         )
     })?;
+
+    // Check if user has permission to delete attachments on the parent entity
+    ensure_attachment_permission(
+        &state,
+        &user.id,
+        attachment.entity_type.clone(),
+        attachment.entity_id,
+        Permission::Delete,
+    )
+    .await?;
 
     // Save attachment info for audit log before deletion
     let attachment_filename = attachment.filename.clone();

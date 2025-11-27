@@ -12,6 +12,7 @@ path = "src/bin/worker.rs"
 core_domain = { path = "../core_domain" }
 local_store = { path = "../local_store" }
 secure_vault = { path = "../secure_vault" }
+ai_middleware = { path = "../ai_middleware" }
 
 tracing-subscriber.workspace = true
 

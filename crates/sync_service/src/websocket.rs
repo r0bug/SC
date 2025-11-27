@@ -95,6 +95,21 @@ pub enum BroadcastEvent {
         share_id: Uuid,
         user_id: Uuid,
     },
+
+    /// SMS received via Twilio webhook
+    SmsReceived {
+        id: Uuid,
+        contact_id: Option<Uuid>,
+        from: String,
+        body: String,
+    },
+    /// SMS sent to a contact
+    SmsSent {
+        id: Uuid,
+        contact_id: Uuid,
+        to: String,
+        body: String,
+    },
 }
 
 type Clients = Arc<RwLock<HashMap<Uuid, mpsc::UnboundedSender<Message>>>>;

@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
-use core_domain::{Communication, CommunicationDirection, CommunicationType, CommunicationHistoryStatus};
+use core_domain::{
+    Communication, CommunicationDirection, CommunicationHistoryStatus, CommunicationType,
+};
 use local_store::repositories::CommunicationRepository;
 use quick_xml::events::Event;
 use quick_xml::Reader;
@@ -298,8 +300,7 @@ pub async fn insert_calls(
         };
 
         // Convert timestamp from milliseconds
-        let timestamp = DateTime::from_timestamp_millis(call.call_date)
-            .unwrap_or_else(Utc::now);
+        let timestamp = DateTime::from_timestamp_millis(call.call_date).unwrap_or_else(Utc::now);
 
         let communication = Communication {
             id: Uuid::parse_str(&call.id).unwrap_or_else(|_| Uuid::new_v4()),
@@ -369,8 +370,7 @@ pub async fn insert_sms(
         };
 
         // Convert timestamp from milliseconds
-        let timestamp = DateTime::from_timestamp_millis(sms.message_date)
-            .unwrap_or_else(Utc::now);
+        let timestamp = DateTime::from_timestamp_millis(sms.message_date).unwrap_or_else(Utc::now);
 
         let communication = Communication {
             id: Uuid::parse_str(&sms.id).unwrap_or_else(|_| Uuid::new_v4()),
@@ -446,8 +446,7 @@ pub async fn insert_mms(
         };
 
         // Convert timestamp from milliseconds
-        let timestamp = DateTime::from_timestamp_millis(mms.message_date)
-            .unwrap_or_else(Utc::now);
+        let timestamp = DateTime::from_timestamp_millis(mms.message_date).unwrap_or_else(Utc::now);
 
         let communication = Communication {
             id: Uuid::parse_str(&mms.id).unwrap_or_else(|_| Uuid::new_v4()),

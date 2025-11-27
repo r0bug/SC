@@ -94,7 +94,10 @@ Respond ONLY with valid JSON. Be specific about field mappings."#,
 
         info!("[SmartImporter] Sending sample to AI for analysis");
 
-        let response = self.ai_client.generate_suggestion(&prompt).await
+        let response = self
+            .ai_client
+            .generate_suggestion(&prompt)
+            .await
             .map_err(|e| ImportError::Other(format!("AI analysis failed: {}", e)))?;
 
         // Try to parse the AI response as JSON
@@ -148,10 +151,8 @@ Respond ONLY with valid JSON. Be specific about field mappings."#,
             _ => ImportFormat::Unknown,
         };
 
-        let suggested_mappings: Vec<(String, String)> = analysis
-            .suggested_mappings
-            .into_iter()
-            .collect();
+        let suggested_mappings: Vec<(String, String)> =
+            analysis.suggested_mappings.into_iter().collect();
 
         Ok(FormatAnalysis {
             format,
@@ -236,9 +237,12 @@ impl ImportConnector for SmartImporter {
         if let Ok(sample) = std::fs::read(file_path) {
             if sample.len() > 0 {
                 // Check if mostly text (heuristic: >80% printable ASCII/UTF-8)
-                let text_bytes = sample.iter()
+                let text_bytes = sample
+                    .iter()
                     .take(1000)
-                    .filter(|&&b| b >= 32 && b <= 126 || b == b'\n' || b == b'\r' || b == b'\t' || b > 127)
+                    .filter(|&&b| {
+                        b >= 32 && b <= 126 || b == b'\n' || b == b'\r' || b == b'\t' || b > 127
+                    })
                     .count();
 
                 return text_bytes as f32 / sample.len().min(1000) as f32 > 0.8;
@@ -249,7 +253,10 @@ impl ImportConnector for SmartImporter {
     }
 
     async fn parse(&self, file_path: &Path) -> Result<ParseResult, ImportError> {
-        info!("[SmartImporter] Starting AI-powered import for: {:?}", file_path);
+        info!(
+            "[SmartImporter] Starting AI-powered import for: {:?}",
+            file_path
+        );
 
         // Step 1: Read sample
         let sample = self.read_sample(file_path).await?;
@@ -263,10 +270,19 @@ impl ImportConnector for SmartImporter {
 
         // Step 3: Create metadata from analysis
         let mut metadata = HashMap::new();
-        metadata.insert("detected_format".to_string(), format!("{:?}", analysis.format));
+        metadata.insert(
+            "detected_format".to_string(),
+            format!("{:?}", analysis.format),
+        );
         metadata.insert("confidence".to_string(), analysis.confidence.to_string());
-        metadata.insert("structure_notes".to_string(), analysis.structure_notes.clone());
-        metadata.insert("record_separator".to_string(), analysis.record_separator.clone());
+        metadata.insert(
+            "structure_notes".to_string(),
+            analysis.structure_notes.clone(),
+        );
+        metadata.insert(
+            "record_separator".to_string(),
+            analysis.record_separator.clone(),
+        );
         metadata.insert("ai_analyzed".to_string(), "true".to_string());
 
         // Step 4: For preview, parse a few sample records

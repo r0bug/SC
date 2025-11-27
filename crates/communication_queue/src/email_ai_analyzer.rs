@@ -1,3 +1,4 @@
+use ai_middleware::SegmindClient;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -14,26 +15,29 @@ pub struct EmailAnalysis {
     pub reasoning: String,
 }
 
-/// Email AI analyzer using mock or real AI
+/// Email AI analyzer using mock or real AI via Segmind
 pub struct EmailAIAnalyzer {
     db_pool: Arc<sqlx::SqlitePool>,
+    ai_client: SegmindClient,
     use_real_ai: bool,
 }
 
 impl EmailAIAnalyzer {
     pub fn new(db_pool: Arc<sqlx::SqlitePool>) -> Self {
         // Check if AI is available (via SEGMIND_API_KEY or other AI service)
-        let use_real_ai = std::env::var("SEGMIND_API_KEY").is_ok()
-            || std::env::var("OPENAI_API_KEY").is_ok();
+        let api_key = std::env::var("SEGMIND_API_KEY").ok();
+        let use_real_ai = api_key.is_some();
+        let ai_client = SegmindClient::new(api_key);
 
         if use_real_ai {
-            info!("✅ Email AI analysis enabled");
+            info!("✅ Email AI analysis enabled (Segmind)");
         } else {
-            info!("ℹ️ Using mock AI analysis (set AI API key for real analysis)");
+            info!("ℹ️ Using mock AI analysis (set SEGMIND_API_KEY for real analysis)");
         }
 
         Self {
             db_pool,
+            ai_client,
             use_real_ai,
         }
     }
@@ -91,17 +95,92 @@ impl EmailAIAnalyzer {
         Ok(analysis)
     }
 
-    /// Analyze with real AI (placeholder for AI integration)
+    /// Analyze email with Segmind AI
     async fn analyze_with_ai(
         &self,
         from_address: &str,
         subject: &str,
         body: &str,
     ) -> Result<EmailAnalysis> {
-        // TODO: Integrate with ai_middleware crate for real AI analysis
-        // For now, use rule-based as fallback
-        warn!("Real AI analysis not yet implemented, using rules");
-        Ok(self.analyze_with_rules(from_address, subject, body))
+        // Build prompt for AI analysis
+        let prompt = format!(
+            r#"Analyze this email and rate its importance for a professional contact manager.
+
+From: {from_address}
+Subject: {subject}
+Body:
+{body}
+
+Respond with a JSON object containing:
+{{
+  "importance_score": <integer 0-10>,
+  "is_important": <boolean true if score >= 7>,
+  "is_urgent": <boolean if requires immediate attention>,
+  "summary": "<one sentence summary of the email>",
+  "reasoning": "<brief explanation of the score>"
+}}
+
+Consider: sender importance, urgency keywords, action required, questions asked, business relevance.
+Respond ONLY with valid JSON."#,
+            from_address = from_address,
+            subject = subject,
+            body = body.chars().take(1000).collect::<String>() // Limit body length for API
+        );
+
+        // Call Segmind AI
+        let response = match self.ai_client.generate_suggestion(&prompt).await {
+            Ok(resp) => resp,
+            Err(e) => {
+                warn!("AI analysis failed, falling back to rules: {}", e);
+                return Ok(self.analyze_with_rules(from_address, subject, body));
+            }
+        };
+
+        // Parse AI response
+        let analysis: EmailAnalysis = match self.parse_ai_response(&response.text) {
+            Ok(a) => a,
+            Err(e) => {
+                warn!("Failed to parse AI response, falling back to rules: {}", e);
+                return Ok(self.analyze_with_rules(from_address, subject, body));
+            }
+        };
+
+        info!("🤖 AI analysis complete: score={}, urgent={}",
+              analysis.importance_score, analysis.is_urgent);
+
+        Ok(analysis)
+    }
+
+    /// Parse AI response JSON into EmailAnalysis
+    fn parse_ai_response(&self, response: &str) -> Result<EmailAnalysis> {
+        // Try to extract JSON from markdown code blocks if present
+        let json_text = if response.contains("```json") {
+            response
+                .split("```json")
+                .nth(1)
+                .and_then(|s| s.split("```").next())
+                .unwrap_or(response)
+                .trim()
+        } else if response.contains("```") {
+            response
+                .split("```")
+                .nth(1)
+                .and_then(|s| s.split("```").next())
+                .unwrap_or(response)
+                .trim()
+        } else {
+            response.trim()
+        };
+
+        let parsed: serde_json::Value = serde_json::from_str(json_text)?;
+
+        Ok(EmailAnalysis {
+            importance_score: parsed["importance_score"].as_i64().unwrap_or(5) as i32,
+            is_important: parsed["is_important"].as_bool().unwrap_or(false),
+            is_urgent: parsed["is_urgent"].as_bool().unwrap_or(false),
+            summary: parsed["summary"].as_str().unwrap_or("").to_string(),
+            reasoning: parsed["reasoning"].as_str().unwrap_or("AI analysis").to_string(),
+        })
     }
 
     /// Rule-based importance analysis (fallback)

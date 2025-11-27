@@ -132,17 +132,27 @@ impl HtmlImporter {
                     // Try to extract common fields
                     let field_selectors = vec![
                         ("name", vec!["h1", "h2", "h3", ".name", "[class*='name']"]),
-                        ("email", vec!["a[href^='mailto:']", ".email", "[class*='email']"]),
-                        ("phone", vec!["a[href^='tel:']", ".phone", "[class*='phone']"]),
+                        (
+                            "email",
+                            vec!["a[href^='mailto:']", ".email", "[class*='email']"],
+                        ),
+                        (
+                            "phone",
+                            vec!["a[href^='tel:']", ".phone", "[class*='phone']"],
+                        ),
                         ("title", vec![".title", ".job-title", "[class*='title']"]),
-                        ("company", vec![".company", ".organization", "[class*='company']"]),
+                        (
+                            "company",
+                            vec![".company", ".organization", "[class*='company']"],
+                        ),
                     ];
 
                     for (field_name, selectors) in field_selectors {
                         for sel_str in selectors {
                             if let Ok(sel) = Selector::parse(sel_str) {
                                 if let Some(element) = card.select(&sel).next() {
-                                    let text = element.text().collect::<String>().trim().to_string();
+                                    let text =
+                                        element.text().collect::<String>().trim().to_string();
                                     if !text.is_empty() {
                                         // For mailto and tel links, extract the actual value
                                         let value = if sel_str.starts_with("a[href^='mailto:']") {
@@ -213,7 +223,11 @@ impl HtmlImporter {
                     Some("first_name")
                 }
                 _ if lower.contains("last") && lower.contains("name") => Some("last_name"),
-                _ if lower == "lastname" || lower == "lname" || lower == "surname" || lower == "family name" => {
+                _ if lower == "lastname"
+                    || lower == "lname"
+                    || lower == "surname"
+                    || lower == "family name" =>
+                {
                     Some("last_name")
                 }
                 _ if lower == "name" || lower == "full name" || lower == "fullname" => {
@@ -222,16 +236,29 @@ impl HtmlImporter {
                 _ if lower.contains("email") || lower == "e-mail" || lower == "mail" => {
                     Some("email")
                 }
-                _ if lower.contains("phone") || lower.contains("mobile") || lower.contains("cell") || lower == "telephone" => {
+                _ if lower.contains("phone")
+                    || lower.contains("mobile")
+                    || lower.contains("cell")
+                    || lower == "telephone" =>
+                {
                     Some("phone")
                 }
-                _ if lower.contains("company") || lower.contains("organization") || lower == "org" => {
+                _ if lower.contains("company")
+                    || lower.contains("organization")
+                    || lower == "org" =>
+                {
                     Some("organization")
                 }
-                _ if lower.contains("title") || lower.contains("position") || lower.contains("job") => {
+                _ if lower.contains("title")
+                    || lower.contains("position")
+                    || lower.contains("job") =>
+                {
                     Some("title")
                 }
-                _ if lower.contains("note") || lower.contains("comment") || lower.contains("description") => {
+                _ if lower.contains("note")
+                    || lower.contains("comment")
+                    || lower.contains("description") =>
+                {
                     Some("notes")
                 }
                 _ if lower.contains("address") || lower.contains("street") => Some("address"),
@@ -257,7 +284,8 @@ impl ImportConnector for HtmlImporter {
         ConnectorMetadata {
             id: "html".to_string(),
             name: "HTML File".to_string(),
-            description: "Import from HTML files with tables or structured contact cards".to_string(),
+            description: "Import from HTML files with tables or structured contact cards"
+                .to_string(),
             supported_extensions: vec!["html".to_string(), "htm".to_string()],
             supported_mime_types: vec!["text/html".to_string()],
             format: ImportFormat::Html,
@@ -294,7 +322,8 @@ impl ImportConnector for HtmlImporter {
 
         if rows.is_empty() {
             return Err(ImportError::Other(
-                "No structured data found in HTML file. Expected tables or contact cards.".to_string(),
+                "No structured data found in HTML file. Expected tables or contact cards."
+                    .to_string(),
             ));
         }
 
@@ -432,6 +461,9 @@ mod tests {
         assert_eq!(result.rows.len(), 2);
         assert_eq!(result.rows[0].get("name").unwrap(), "John Doe");
         assert_eq!(result.rows[0].get("email").unwrap(), "john@example.com");
-        assert_eq!(result.metadata.get("parse_method").unwrap(), "contact_cards");
+        assert_eq!(
+            result.metadata.get("parse_method").unwrap(),
+            "contact_cards"
+        );
     }
 }

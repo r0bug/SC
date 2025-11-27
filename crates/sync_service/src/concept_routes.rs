@@ -282,7 +282,7 @@ pub async fn list_concepts(
 /// GET /api/concepts/search
 pub async fn search_concepts(
     State(app_state): State<AppState>,
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     Json(query): Json<serde_json::Value>,
 ) -> Result<Json<Vec<Concept>>, (StatusCode, String)> {
     let repo = ConceptRepository::new(&app_state.pool);
@@ -299,5 +299,24 @@ pub async fn search_concepts(
         )
     })?;
 
-    Ok(Json(concepts))
+    // Filter concepts to only those created by the user or shared with them
+    let mut filtered_concepts = Vec::new();
+    for concept in concepts {
+        // User owns the concept
+        if concept.created_by == user.id {
+            filtered_concepts.push(concept);
+            continue;
+        }
+        // Check if user has read access via ACL
+        if app_state
+            .acl_service
+            .can_read(&user.id, ShareEntityType::Concept, &concept.id)
+            .await
+            .unwrap_or(false)
+        {
+            filtered_concepts.push(concept);
+        }
+    }
+
+    Ok(Json(filtered_concepts))
 }

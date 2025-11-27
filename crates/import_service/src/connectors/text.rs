@@ -24,7 +24,12 @@ impl TextImporter {
 
     /// Detect the delimiter used in the text file
     fn detect_delimiter(lines: &[String]) -> (char, f32) {
-        let delimiters = vec![('\t', "tab"), (',', "comma"), (';', "semicolon"), ('|', "pipe")];
+        let delimiters = vec![
+            ('\t', "tab"),
+            (',', "comma"),
+            (';', "semicolon"),
+            ('|', "pipe"),
+        ];
         let mut scores = Vec::new();
 
         for (delim, name) in delimiters {
@@ -51,7 +56,11 @@ impl TextImporter {
                 / counts.len() as f32;
 
             // Score: higher average count, lower variance is better
-            let score = if variance < 1.0 { avg } else { avg / variance.sqrt() };
+            let score = if variance < 1.0 {
+                avg
+            } else {
+                avg / variance.sqrt()
+            };
 
             scores.push((delim, score));
         }
@@ -138,7 +147,10 @@ impl TextImporter {
                 continue;
             }
 
-            let values: Vec<String> = line.split(delimiter).map(|v| v.trim().to_string()).collect();
+            let values: Vec<String> = line
+                .split(delimiter)
+                .map(|v| v.trim().to_string())
+                .collect();
 
             let mut record = HashMap::new();
             for (i, value) in values.iter().enumerate() {
@@ -271,7 +283,9 @@ impl TextImporter {
                     Some("last_name")
                 }
                 _ if lower == "name" => Some("first_name"),
-                _ if lower.contains("email") || lower == "e-mail" || lower == "mail" => Some("email"),
+                _ if lower.contains("email") || lower == "e-mail" || lower == "mail" => {
+                    Some("email")
+                }
                 _ if lower.contains("phone") || lower.contains("mobile") => Some("phone"),
                 _ if lower.contains("company") || lower.contains("organization") => {
                     Some("organization")
@@ -401,7 +415,11 @@ mod tests {
         assert_eq!(result.rows.len(), 2);
         assert_eq!(result.rows[0].get("First Name").unwrap(), "John");
         assert_eq!(result.rows[1].get("First Name").unwrap(), "Jane");
-        assert!(result.metadata.get("text_format").unwrap().contains("delimited"));
+        assert!(result
+            .metadata
+            .get("text_format")
+            .unwrap()
+            .contains("delimited"));
     }
 
     #[tokio::test]

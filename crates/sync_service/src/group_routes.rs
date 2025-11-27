@@ -200,12 +200,36 @@ pub async fn list_groups(
 ) -> Result<Json<Vec<Group>>, (StatusCode, &'static str)> {
     let repo = GroupRepository::new(&app_state.pool);
 
-    // TODO: Filter by groups user has access to via ACL
-    // For now, return all groups created by the user
-    let groups = repo
+    // Get groups created by the user
+    let mut groups = repo
         .list_by_creator(user.id)
         .await
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list groups"))?;
+
+    // Also include groups shared with the user via ACL
+    // Get all groups and filter by ACL access (using large limit for simplicity)
+    let all_groups = repo
+        .list(10000, 0)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list groups"))?;
+
+    let owned_ids: std::collections::HashSet<_> = groups.iter().map(|g| g.id).collect();
+
+    for group in all_groups {
+        // Skip if already in the list (owned by user)
+        if owned_ids.contains(&group.id) {
+            continue;
+        }
+        // Check if user has read access via ACL
+        if app_state
+            .acl_service
+            .can_read(&user.id, core_domain::ShareEntityType::Group, &group.id)
+            .await
+            .unwrap_or(false)
+        {
+            groups.push(group);
+        }
+    }
 
     Ok(Json(groups))
 }

@@ -1,9 +1,23 @@
 use crate::{AttachmentConfig, AttachmentError, StorageBackend, VirusScanner};
 use core_domain::{Attachment, AttachmentEntityType, ScanStatus};
+use image::ImageFormat;
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
+use std::io::Cursor;
 use std::sync::Arc;
 use uuid::Uuid;
+
+/// Default thumbnail size (width x height) - can be overridden by config
+const DEFAULT_THUMBNAIL_SIZE: u32 = 200;
+
+/// Image content types that support thumbnail generation
+const THUMBNAIL_SUPPORTED_TYPES: &[&str] = &[
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+];
 
 pub struct AttachmentService {
     config: AttachmentConfig,
@@ -61,6 +75,23 @@ impl AttachmentService {
         // Store file
         let storage_path = self.storage.store(data, &filename).await?;
 
+        // Generate thumbnail for images
+        let thumbnail_path = if self.config.generate_thumbnails && self.supports_thumbnail(&content_type) {
+            match self.generate_thumbnail(data, &filename).await {
+                Ok(Some(thumb_path)) => {
+                    tracing::debug!("Generated thumbnail: {}", thumb_path);
+                    Some(thumb_path)
+                }
+                Ok(None) => None,
+                Err(e) => {
+                    tracing::warn!("Failed to generate thumbnail: {}", e);
+                    None // Continue without thumbnail
+                }
+            }
+        } else {
+            None
+        };
+
         // Scan for viruses
         let scan_result = if self.config.enable_virus_scan {
             let path = std::path::Path::new(&storage_path);
@@ -87,7 +118,7 @@ impl AttachmentService {
             content_type,
             size_bytes,
             storage_path,
-            thumbnail_path: None, // TODO: Generate thumbnails for images
+            thumbnail_path,
             entity_type,
             entity_id,
             uploaded_by,
@@ -305,5 +336,77 @@ impl AttachmentService {
         .await?;
 
         Ok(())
+    }
+
+    /// Check if content type supports thumbnail generation
+    fn supports_thumbnail(&self, content_type: &str) -> bool {
+        THUMBNAIL_SUPPORTED_TYPES
+            .iter()
+            .any(|&t| content_type.to_lowercase().starts_with(t))
+    }
+
+    /// Generate a thumbnail for an image
+    async fn generate_thumbnail(
+        &self,
+        data: &[u8],
+        original_filename: &str,
+    ) -> Result<Option<String>, AttachmentError> {
+        // Load the image
+        let img = match image::load_from_memory(data) {
+            Ok(img) => img,
+            Err(e) => {
+                tracing::debug!("Could not decode image for thumbnail: {}", e);
+                return Ok(None);
+            }
+        };
+
+        // Create thumbnail maintaining aspect ratio
+        let size = self.config.thumbnail_size;
+        let thumbnail = img.thumbnail(size, size);
+
+        // Encode thumbnail as JPEG for consistent output
+        let mut thumbnail_data = Vec::new();
+        let mut cursor = Cursor::new(&mut thumbnail_data);
+
+        thumbnail
+            .write_to(&mut cursor, ImageFormat::Jpeg)
+            .map_err(|e| AttachmentError::Other(format!("Failed to encode thumbnail: {}", e)))?;
+
+        // Generate thumbnail filename
+        let thumb_filename = format!(
+            "thumb_{}_{}.jpg",
+            Uuid::new_v4(),
+            std::path::Path::new(original_filename)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("image")
+        );
+
+        // Store thumbnail
+        let thumb_path = self.storage.store(&thumbnail_data, &thumb_filename).await?;
+
+        tracing::info!(
+            "Generated thumbnail: {} ({}x{} -> {}x{})",
+            thumb_path,
+            img.width(),
+            img.height(),
+            thumbnail.width(),
+            thumbnail.height()
+        );
+
+        Ok(Some(thumb_path))
+    }
+
+    /// Download a thumbnail
+    pub async fn download_thumbnail(&self, attachment_id: Uuid) -> Result<Option<Vec<u8>>, AttachmentError> {
+        let attachment = self.get_attachment(attachment_id).await?;
+
+        match attachment.thumbnail_path {
+            Some(ref path) => {
+                let data = self.storage.retrieve(path).await?;
+                Ok(Some(data))
+            }
+            None => Ok(None),
+        }
     }
 }

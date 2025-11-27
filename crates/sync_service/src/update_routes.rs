@@ -122,7 +122,6 @@ pub async fn download_update(
     AuthUser(_user): AuthUser,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-
     let last_check = state.last_update_check.read().await;
 
     let info = last_check.as_ref().ok_or_else(|| {
@@ -172,7 +171,6 @@ pub async fn apply_update(
     AuthUser(_user): AuthUser,
     State(_state): State<AppState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-
     // This endpoint would typically trigger a graceful shutdown and restart
     // For safety, this should require elevated permissions or confirmation
 

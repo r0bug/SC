@@ -11,6 +11,19 @@ use uuid::Uuid;
 
 use crate::state::AppState;
 
+/// Get the default owner user ID for Twilio webhook-created contacts.
+/// This can be configured via the TWILIO_DEFAULT_OWNER_ID environment variable.
+fn get_webhook_owner_id() -> Uuid {
+    std::env::var("TWILIO_DEFAULT_OWNER_ID")
+        .ok()
+        .and_then(|s| Uuid::parse_str(&s).ok())
+        .unwrap_or_else(|| {
+            warn!("TWILIO_DEFAULT_OWNER_ID not set - using system user for webhook-created contacts");
+            // Use a deterministic "system" UUID instead of nil
+            Uuid::parse_str("ffffffff-ffff-ffff-ffff-ffffffffffff").unwrap()
+        })
+}
+
 /// Twilio webhook payload for incoming SMS
 /// See: https://www.twilio.com/docs/sms/twiml#twilios-request-to-your-application
 #[derive(Debug, Deserialize)]
@@ -48,51 +61,67 @@ pub async fn receive_sms(
     State(state): State<AppState>,
     Form(payload): Form<TwilioInboundSms>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    info!("📱 Received inbound SMS from {} to {}", payload.from, payload.to);
+    info!(
+        "📱 Received inbound SMS from {} to {}",
+        payload.from, payload.to
+    );
     info!("📄 Message: {}", payload.body);
 
     let contact_repo = ContactRepository::new(state.pool.as_ref());
     let sms_repo = SmsHistoryRepository::new(state.pool.as_ref());
 
-    // Try to find contact by phone number
-    let placeholder_user = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+    // Get the configurable webhook owner ID
+    let webhook_owner_id = get_webhook_owner_id();
 
-    let contact_id = match contact_repo.search(&payload.from, placeholder_user).await {
-        Ok(contacts) => {
-            if contacts.is_empty() {
-                // No contact found - create one automatically
-                info!("📇 Creating new contact for phone: {}", payload.from);
+    // First, try to find an existing contact by phone number (check across all users)
+    let contact_id = match contact_repo.get_by_phone(&payload.from).await {
+        Ok(Some(existing_contact)) => {
+            // Found existing contact - use it
+            info!(
+                "✅ Found existing contact: {} {}",
+                existing_contact.first_name,
+                existing_contact.last_name.as_deref().unwrap_or("")
+            );
+            Some(existing_contact.id)
+        }
+        Ok(None) => {
+            // No contact found - create one automatically
+            info!("📇 Creating new contact for phone: {}", payload.from);
 
-                let new_contact = core_domain::Contact {
-                    id: Uuid::new_v4(),
-                    first_name: format!("SMS Contact {}", &payload.from[..std::cmp::min(10, payload.from.len())]),
-                    last_name: None,
-                    email: None,
-                    phone: Some(payload.from.clone()),
-                    organization: None,
-                    title: None,
-                    notes: Some("Auto-created from inbound SMS".to_string()),
-                    social_handles: vec![],
-                    tags: vec![],
-                    projects: vec![],
-                    groups: vec![],
-                    created_at: Utc::now(),
-                    updated_at: Utc::now(),
-                    created_by: placeholder_user,
-                    version: 1,
-                    last_synced_at: None,
-                    metadata: serde_json::json!({"source": "twilio_inbound"}),
-                };
+            let new_contact = core_domain::Contact {
+                id: Uuid::new_v4(),
+                first_name: format!(
+                    "SMS Contact {}",
+                    &payload.from[..std::cmp::min(10, payload.from.len())]
+                ),
+                last_name: None,
+                email: None,
+                phone: Some(payload.from.clone()),
+                organization: None,
+                title: None,
+                notes: Some("Auto-created from inbound SMS".to_string()),
+                social_handles: vec![],
+                tags: vec![],
+                projects: vec![],
+                groups: vec![],
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                created_by: webhook_owner_id,
+                version: 1,
+                last_synced_at: None,
+                metadata: serde_json::json!({"source": "twilio_inbound"}),
+            };
 
-                contact_repo.create(&new_contact).await
-                    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create contact: {}", e)))?;
-
-                Some(new_contact.id)
-            } else {
-                // Contact found
-                let contact = &contacts[0];
-                info!("✅ Found existing contact: {} {}", contact.first_name, contact.last_name.as_deref().unwrap_or(""));
-                Some(contact.id)
+            match contact_repo.create(&new_contact).await {
+                Ok(_) => {
+                    // Create ACL for the new contact
+                    let _ = state.acl_service.create_acl(&webhook_owner_id, core_domain::ShareEntityType::Contact, &new_contact.id).await;
+                    Some(new_contact.id)
+                }
+                Err(e) => {
+                    warn!("⚠️ Failed to create contact: {}", e);
+                    None
+                }
             }
         }
         Err(e) => {
@@ -120,13 +149,25 @@ pub async fn receive_sms(
         source_file: Some(format!("twilio:{}", payload.to)),
     };
 
-    sms_repo.create(&sms_message).await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to store SMS: {}", e)))?;
+    sms_repo.create(&sms_message).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to store SMS: {}", e),
+        )
+    })?;
 
     info!("✅ SMS stored successfully with ID: {}", sms_message.id);
 
-    // TODO: Broadcast via WebSocket for real-time updates
-    // state.ws_broadcaster.broadcast(...)
+    // Broadcast via WebSocket for real-time updates
+    state
+        .ws_broadcaster
+        .broadcast(crate::websocket::BroadcastEvent::SmsReceived {
+            id: sms_message.id,
+            contact_id,
+            from: payload.from.clone(),
+            body: payload.body.clone(),
+        })
+        .await;
 
     // Respond to Twilio with TwiML (empty response = 200 OK, no reply)
     Ok((

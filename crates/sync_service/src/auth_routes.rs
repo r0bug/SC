@@ -37,6 +37,7 @@ pub async fn login(
 ) -> impl IntoResponse {
     let ip = audit::extract_ip_address(&headers);
     let user_agent = audit::extract_user_agent(&headers);
+    let email = req.email.clone();
 
     match app_state.auth_service.login(req).await {
         Ok(response) => {
@@ -49,8 +50,16 @@ pub async fn login(
             Ok(Json(response))
         }
         Err(err) => {
-            // TODO: Log failed login attempt (would need user_id from email lookup)
-            // For now, failed attempts are not logged due to lack of user_id
+            // Log failed login attempt
+            // Try to find the user by email to get their user_id for the audit log
+            let user_repo = UserRepository::new(&app_state.pool);
+            if let Ok(user) = user_repo.get_by_email(&email).await {
+                let _ = app_state
+                    .audit_service
+                    .log_login(user.id, false, ip.clone(), user_agent.clone())
+                    .await;
+            }
+            // Even if user doesn't exist, we've attempted logging
             Err(err)
         }
     }
@@ -125,14 +134,17 @@ pub struct UpdateProfileRequest {
 
 pub async fn update_current_user(
     State(app_state): State<AppState>,
+    headers: HeaderMap,
     AuthUser(user): AuthUser,
     Json(req): Json<UpdateProfileRequest>,
 ) -> Result<impl IntoResponse, AuthError> {
     let user_repo = local_store::repositories::UserRepository::new(&app_state.pool);
     let mut updated_user = user.clone();
+    let mut changes = serde_json::Map::new();
 
     if let Some(name) = req.name {
         crate::validation::validate_name(&name).map_err(|_| AuthError::InvalidCredentials)?;
+        changes.insert("name".to_string(), serde_json::json!(name));
         updated_user.name = name;
     }
 
@@ -143,10 +155,12 @@ pub async fn update_current_user(
                 return Err(AuthError::UserAlreadyExists);
             }
         }
+        changes.insert("email".to_string(), serde_json::json!(email));
         updated_user.email = email;
     }
 
     if let Some(preferences) = req.preferences {
+        changes.insert("preferences".to_string(), serde_json::json!("updated"));
         updated_user.preferences = preferences;
     }
 
@@ -155,6 +169,22 @@ pub async fn update_current_user(
         .update(&updated_user)
         .await
         .map_err(|_| AuthError::InternalError)?;
+
+    // Audit log: profile updated
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_operation(
+            core_domain::ShareEntityType::Contact, // Using Contact as placeholder for user events
+            user.id,
+            core_domain::AuditAction::Update,
+            user.id,
+            serde_json::json!({"event": "profile_updated", "changes": changes}),
+            ip,
+            user_agent,
+        )
+        .await;
 
     Ok(Json(serde_json::json!({
         "id": updated_user.id,
@@ -178,6 +208,7 @@ pub struct ChangePasswordRequest {
 
 pub async fn change_password(
     State(app_state): State<AppState>,
+    headers: HeaderMap,
     AuthUser(user): AuthUser,
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<impl IntoResponse, AuthError> {
@@ -185,6 +216,23 @@ pub async fn change_password(
         .auth_service
         .change_password(user.id, &req.current_password, &req.new_password)
         .await?;
+
+    // Audit log: password changed
+    let ip = audit::extract_ip_address(&headers);
+    let user_agent = audit::extract_user_agent(&headers);
+    let _ = app_state
+        .audit_service
+        .log_operation(
+            core_domain::ShareEntityType::Contact, // Using Contact as placeholder for user events
+            user.id,
+            core_domain::AuditAction::Update,
+            user.id,
+            serde_json::json!({"event": "password_changed"}),
+            ip,
+            user_agent,
+        )
+        .await;
+
     Ok(Json(serde_json::json!({
         "message": "Password changed successfully"
     })))

@@ -65,7 +65,9 @@ pub async fn import_command(
             info!("Importing from CSV: {}", csv_path);
             let path = PathBuf::from(csv_path);
             let user_id = get_user_id()?;
-            let result = import_service.import_file(&path, None, false, user_id).await?;
+            let result = import_service
+                .import_file(&path, None, false, user_id)
+                .await?;
 
             if result.success {
                 if let Some(summary) = result.summary {
@@ -86,7 +88,9 @@ pub async fn import_command(
             info!("Importing from vCard: {}", vcard_path);
             let path = PathBuf::from(vcard_path);
             let user_id = get_user_id()?;
-            let _result = import_service.import_file(&path, None, false, user_id).await?;
+            let _result = import_service
+                .import_file(&path, None, false, user_id)
+                .await?;
             println!("vCard import completed");
         }
 
@@ -138,7 +142,10 @@ pub async fn list_command(limit: i64, only_named: bool) -> Result<()> {
         let repo = ContactRepository::new(store.pool());
         let user_id = get_user_id()?;
 
-        let mut contacts = repo.list(limit, 0, user_id).await.map_err(|e| anyhow::anyhow!(e))?;
+        let mut contacts = repo
+            .list(limit, 0, user_id)
+            .await
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         // Apply filtering
         if only_named {
@@ -165,7 +172,10 @@ pub async fn search_command(query: &str) -> Result<()> {
     let repo = ContactRepository::new(store.pool());
     let user_id = get_user_id()?;
 
-    let contacts = repo.search(query, user_id).await.map_err(|e| anyhow::anyhow!(e))?;
+    let contacts = repo
+        .search(query, user_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("Found {} contacts:", contacts.len());
     for contact in contacts {
@@ -214,7 +224,7 @@ pub async fn add_command(
         let store = LocalStore::new("sqlite:./data/contacts.db").await?;
         let repo = ContactRepository::new(store.pool());
 
-        let placeholder_user_id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+        let user_id = get_user_id()?;
 
         let contact = Contact {
             id: Uuid::new_v4(),
@@ -231,7 +241,7 @@ pub async fn add_command(
             groups: vec![],
             created_at: Utc::now(),
             updated_at: Utc::now(),
-            created_by: placeholder_user_id,
+            created_by: user_id,
             version: 1,
             last_synced_at: None,
             metadata: serde_json::json!({}),
@@ -253,8 +263,7 @@ pub async fn note_command(contact_id: &str, title: String, content: String) -> R
 
     let contact_uuid = Uuid::parse_str(contact_id)?;
 
-    // Use a placeholder user ID for CLI operations
-    let placeholder_user_id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+    let user_id = get_user_id()?;
 
     let note = Note {
         id: Uuid::new_v4(),
@@ -265,7 +274,7 @@ pub async fn note_command(contact_id: &str, title: String, content: String) -> R
         attachment_ids: vec![],
         created_at: Utc::now(),
         updated_at: Utc::now(),
-        created_by: placeholder_user_id,
+        created_by: user_id,
         version: 1,
         last_synced_at: None,
     };
@@ -389,14 +398,13 @@ pub async fn share_command(entity_type: &str, entity_id: &str, email: &str) -> R
         _ => anyhow::bail!("Invalid entity type"),
     };
 
-    // Use a placeholder user ID for CLI operations
-    let placeholder_user_id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+    let user_id = get_user_id()?;
 
     let invite = ShareInvite {
         id: Uuid::new_v4(),
         entity_type: share_type,
         entity_id: entity_uuid,
-        shared_by: placeholder_user_id,
+        shared_by: user_id,
         shared_with_email: email.to_string(),
         shared_with_user: None,
         permissions: vec![Permission::Read],
@@ -528,7 +536,10 @@ pub async fn merge_duplicates_command(dry_run: bool, phone: Option<String>) -> R
         return Ok(());
     }
 
-    println!("Found {} phone numbers with duplicates:\n", filtered_duplicates.len());
+    println!(
+        "Found {} phone numbers with duplicates:\n",
+        filtered_duplicates.len()
+    );
 
     let mut total_merges = 0;
     let mut total_duplicates_removed = 0;
@@ -538,10 +549,13 @@ pub async fn merge_duplicates_command(dry_run: bool, phone: Option<String>) -> R
         println!("  {} duplicate contacts found:", contacts.len());
 
         for (idx, contact) in contacts.iter().enumerate() {
-            let name = format!("{} {}",
+            let name = format!(
+                "{} {}",
                 contact.first_name,
                 contact.last_name.as_deref().unwrap_or("")
-            ).trim().to_string();
+            )
+            .trim()
+            .to_string();
 
             println!("    {}. {} (ID: {})", idx + 1, name, contact.id);
             if let Some(email) = &contact.email {
@@ -559,11 +573,17 @@ pub async fn merge_duplicates_command(dry_run: bool, phone: Option<String>) -> R
         }
 
         if dry_run {
-            println!("  [DRY RUN] Would merge {} duplicates into the oldest contact\n", contacts.len() - 1);
+            println!(
+                "  [DRY RUN] Would merge {} duplicates into the oldest contact\n",
+                contacts.len() - 1
+            );
             total_duplicates_removed += contacts.len() - 1;
         } else {
             // Ask user which contact to keep (default: oldest = first one)
-            print!("  Which contact to keep? [1-{}] (default: 1 - oldest): ", contacts.len());
+            print!(
+                "  Which contact to keep? [1-{}] (default: 1 - oldest): ",
+                contacts.len()
+            );
             io::stdout().flush()?;
 
             let mut input = String::new();
@@ -583,20 +603,35 @@ pub async fn merge_duplicates_command(dry_run: bool, phone: Option<String>) -> R
             };
 
             let keep_contact = &contacts[keep_idx];
-            println!("  Keeping: {} (ID: {})",
-                format!("{} {}", keep_contact.first_name, keep_contact.last_name.as_deref().unwrap_or("")).trim(),
+            println!(
+                "  Keeping: {} (ID: {})",
+                format!(
+                    "{} {}",
+                    keep_contact.first_name,
+                    keep_contact.last_name.as_deref().unwrap_or("")
+                )
+                .trim(),
                 keep_contact.id
             );
 
             // Merge all other contacts into the kept one
             for (idx, contact) in contacts.iter().enumerate() {
                 if idx != keep_idx {
-                    print!("  Merging {} into kept contact... ",
-                        format!("{} {}", contact.first_name, contact.last_name.as_deref().unwrap_or("")).trim()
+                    print!(
+                        "  Merging {} into kept contact... ",
+                        format!(
+                            "{} {}",
+                            contact.first_name,
+                            contact.last_name.as_deref().unwrap_or("")
+                        )
+                        .trim()
                     );
                     io::stdout().flush()?;
 
-                    match contact_repo.merge_contacts(keep_contact.id, contact.id).await {
+                    match contact_repo
+                        .merge_contacts(keep_contact.id, contact.id)
+                        .await
+                    {
                         Ok(stats) => {
                             println!("Done!");
                             println!("    SMS messages: {}", stats.sms_messages_relinked);
@@ -621,7 +656,10 @@ pub async fn merge_duplicates_command(dry_run: bool, phone: Option<String>) -> R
 
     if dry_run {
         println!("\n[DRY RUN] Summary:");
-        println!("  Would remove {} duplicate contacts", total_duplicates_removed);
+        println!(
+            "  Would remove {} duplicate contacts",
+            total_duplicates_removed
+        );
         println!("\nRun without --dry-run to actually perform the merges");
     } else {
         println!("\nMerge complete!");
@@ -702,9 +740,7 @@ pub async fn backup_command(output: Option<String>) -> Result<()> {
     let mut backups: Vec<_> = fs::read_dir(&backup_dir)?
         .filter_map(|entry| entry.ok())
         .filter(|entry| {
-            entry.file_name()
-                .to_string_lossy()
-                .starts_with("backup_")
+            entry.file_name().to_string_lossy().starts_with("backup_")
                 && entry.file_name().to_string_lossy().ends_with(".tar.gz")
         })
         .collect();
@@ -753,14 +789,8 @@ pub async fn restore_command(backup_file: String, force: bool) -> Result<()> {
     println!("\nRestoring from backup...");
 
     // Stop any running services (best effort)
-    let _ = Command::new("pkill")
-        .arg("-f")
-        .arg("sync_service")
-        .output();
-    let _ = Command::new("pkill")
-        .arg("-f")
-        .arg("worker")
-        .output();
+    let _ = Command::new("pkill").arg("-f").arg("sync_service").output();
+    let _ = Command::new("pkill").arg("-f").arg("worker").output();
 
     println!("✓ Stopped running services");
 
@@ -769,10 +799,7 @@ pub async fn restore_command(backup_file: String, force: bool) -> Result<()> {
 
     // Extract backup
     let mut tar_cmd = Command::new("tar");
-    tar_cmd
-        .arg("-xzf")
-        .arg(&backup_path)
-        .current_dir(".");
+    tar_cmd.arg("-xzf").arg(&backup_path).current_dir(".");
 
     let output = tar_cmd.output()?;
 

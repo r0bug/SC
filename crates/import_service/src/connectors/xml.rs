@@ -46,9 +46,7 @@ impl XmlImporter {
                     depth -= 1;
                 }
                 Ok(Event::Eof) => break,
-                Err(e) => {
-                    return Err(ImportError::Other(format!("XML parse error: {}", e)))
-                }
+                Err(e) => return Err(ImportError::Other(format!("XML parse error: {}", e))),
                 _ => {}
             }
             buf.clear();
@@ -184,34 +182,59 @@ impl XmlImporter {
             let last_part = field.split('.').last().unwrap_or(field).to_lowercase();
 
             let suggested_target = match () {
-                _ if last_part.contains("first") && last_part.contains("name") => Some("first_name"),
+                _ if last_part.contains("first") && last_part.contains("name") => {
+                    Some("first_name")
+                }
                 _ if last_part == "firstname" || last_part == "fname" || last_part == "given" => {
                     Some("first_name")
                 }
                 _ if last_part.contains("last") && last_part.contains("name") => Some("last_name"),
-                _ if last_part == "lastname" || last_part == "lname" || last_part == "surname" || last_part == "family" => {
+                _ if last_part == "lastname"
+                    || last_part == "lname"
+                    || last_part == "surname"
+                    || last_part == "family" =>
+                {
                     Some("last_name")
                 }
-                _ if last_part == "name" && !field_lower.contains("first") && !field_lower.contains("last") => {
+                _ if last_part == "name"
+                    && !field_lower.contains("first")
+                    && !field_lower.contains("last") =>
+                {
                     Some("first_name")
                 }
                 _ if last_part.contains("email") || last_part == "mail" => Some("email"),
-                _ if last_part.contains("phone") || last_part.contains("mobile") || last_part.contains("tel") => {
+                _ if last_part.contains("phone")
+                    || last_part.contains("mobile")
+                    || last_part.contains("tel") =>
+                {
                     Some("phone")
                 }
-                _ if last_part.contains("company") || last_part.contains("organization") || last_part == "org" => {
+                _ if last_part.contains("company")
+                    || last_part.contains("organization")
+                    || last_part == "org" =>
+                {
                     Some("organization")
                 }
-                _ if last_part.contains("title") || last_part.contains("position") || last_part.contains("job") => {
+                _ if last_part.contains("title")
+                    || last_part.contains("position")
+                    || last_part.contains("job") =>
+                {
                     Some("title")
                 }
-                _ if last_part.contains("note") || last_part.contains("comment") || last_part.contains("description") => {
+                _ if last_part.contains("note")
+                    || last_part.contains("comment")
+                    || last_part.contains("description") =>
+                {
                     Some("notes")
                 }
-                _ if last_part.contains("address") || last_part.contains("street") => Some("address"),
+                _ if last_part.contains("address") || last_part.contains("street") => {
+                    Some("address")
+                }
                 _ if last_part == "city" => Some("city"),
                 _ if last_part == "state" || last_part == "province" => Some("state"),
-                _ if last_part.contains("zip") || last_part.contains("postal") => Some("postal_code"),
+                _ if last_part.contains("zip") || last_part.contains("postal") => {
+                    Some("postal_code")
+                }
                 _ if last_part == "country" => Some("country"),
                 _ => None,
             };
@@ -231,7 +254,8 @@ impl ImportConnector for XmlImporter {
         ConnectorMetadata {
             id: "xml".to_string(),
             name: "XML File".to_string(),
-            description: "Import from generic XML files with automatic record pattern detection".to_string(),
+            description: "Import from generic XML files with automatic record pattern detection"
+                .to_string(),
             supported_extensions: vec!["xml".to_string()],
             supported_mime_types: vec!["application/xml".to_string(), "text/xml".to_string()],
             format: ImportFormat::Xml,
@@ -276,9 +300,7 @@ impl ImportConnector for XmlImporter {
                     }
                 }
                 Ok(Event::Eof) => break,
-                Err(e) => {
-                    return Err(ImportError::Other(format!("XML parse error: {}", e)))
-                }
+                Err(e) => return Err(ImportError::Other(format!("XML parse error: {}", e))),
                 _ => {}
             }
             buf.clear();
@@ -374,9 +396,13 @@ mod tests {
         assert_eq!(result.rows.len(), 2);
         assert_eq!(result.rows[0].get("name").unwrap(), "John Doe");
         // Attributes on nested elements are prefixed with element.attribute
-        assert!(result.rows[0].get("contact@email").is_some() || result.rows[0].get("email").is_some());
+        assert!(
+            result.rows[0].get("contact@email").is_some() || result.rows[0].get("email").is_some()
+        );
         // Check that we got the email value one way or another
-        let has_email = result.rows[0].values().any(|v| v.contains("john@example.com"));
+        let has_email = result.rows[0]
+            .values()
+            .any(|v| v.contains("john@example.com"));
         assert!(has_email, "Expected to find john@example.com in record");
         assert_eq!(result.metadata.get("record_element").unwrap(), "person");
     }
@@ -405,6 +431,9 @@ mod tests {
 
         assert_eq!(result.rows.len(), 1);
         assert_eq!(result.rows[0].get("personal.firstname").unwrap(), "John");
-        assert_eq!(result.rows[0].get("contact.email").unwrap(), "john@example.com");
+        assert_eq!(
+            result.rows[0].get("contact.email").unwrap(),
+            "john@example.com"
+        );
     }
 }

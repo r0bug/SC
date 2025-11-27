@@ -12,7 +12,8 @@ use uuid::Uuid;
 pub struct GoogleContactsImporter;
 
 impl GoogleContactsImporter {
-    pub fn parse_csv(file_path: &Path) -> Result<Vec<Contact>> {
+    /// Parse Google Contacts CSV file with a specific user_id for ownership
+    pub fn parse_csv_with_user(file_path: &Path, user_id: Uuid) -> Result<Vec<Contact>> {
         info!("Parsing Google Contacts CSV from {:?}", file_path);
 
         let file = File::open(file_path)?;
@@ -24,7 +25,7 @@ impl GoogleContactsImporter {
         for result in reader.deserialize::<GoogleContactRow>() {
             match result {
                 Ok(row) => {
-                    if let Some(contact) = Self::row_to_contact(row) {
+                    if let Some(contact) = Self::row_to_contact(row, user_id) {
                         contacts.push(contact);
                     } else {
                         skipped += 1;
@@ -46,7 +47,12 @@ impl GoogleContactsImporter {
         Ok(contacts)
     }
 
-    fn row_to_contact(row: GoogleContactRow) -> Option<Contact> {
+    /// Parse Google Contacts CSV file (uses nil UUID for backwards compatibility)
+    pub fn parse_csv(file_path: &Path) -> Result<Vec<Contact>> {
+        Self::parse_csv_with_user(file_path, Uuid::nil())
+    }
+
+    fn row_to_contact(row: GoogleContactRow, user_id: Uuid) -> Option<Contact> {
         // Skip if no meaningful data
         let has_name = !row.first_name.is_empty() || !row.last_name.is_empty();
         let has_email = !row.email_1_value.is_empty();
@@ -103,7 +109,7 @@ impl GoogleContactsImporter {
             groups: vec![],
             created_at: Utc::now(),
             updated_at: Utc::now(),
-            created_by: Uuid::nil(),
+            created_by: user_id,
             version: 1,
             last_synced_at: None,
             metadata,
@@ -172,8 +178,17 @@ mod tests {
 
     #[test]
     fn test_clean_phone() {
-        assert_eq!(GoogleContactsImporter::clean_phone("+1-509-952-7982"), "+15099527982");
-        assert_eq!(GoogleContactsImporter::clean_phone("509-952-7982"), "5099527982");
-        assert_eq!(GoogleContactsImporter::clean_phone("+1 (509) 952-7982"), "+15099527982");
+        assert_eq!(
+            GoogleContactsImporter::clean_phone("+1-509-952-7982"),
+            "+15099527982"
+        );
+        assert_eq!(
+            GoogleContactsImporter::clean_phone("509-952-7982"),
+            "5099527982"
+        );
+        assert_eq!(
+            GoogleContactsImporter::clean_phone("+1 (509) 952-7982"),
+            "+15099527982"
+        );
     }
 }

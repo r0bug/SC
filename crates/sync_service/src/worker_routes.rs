@@ -23,7 +23,10 @@ fn validate_worker_secret(headers: &HeaderMap) -> Result<(), (StatusCode, &'stat
     // Enforce minimum length for security
     if expected_secret.len() < 32 {
         tracing::error!("WORKER_SECRET must be at least 32 characters long for security");
-        return Err((StatusCode::SERVICE_UNAVAILABLE, "Worker authentication not properly configured"));
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Worker authentication not properly configured",
+        ));
     }
 
     let provided_secret = headers
@@ -45,7 +48,10 @@ fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 #[derive(Debug, Deserialize)]
@@ -150,7 +156,10 @@ pub async fn batch_update_communication_status(
 
         // Persist each status update to the database
         let domain_status = update.status.to_domain();
-        match repo.update_status(update.communication_id, domain_status, attempted_at).await {
+        match repo
+            .update_status(update.communication_id, domain_status, attempted_at)
+            .await
+        {
             Ok(_) => processed += 1,
             Err(e) => {
                 tracing::error!(

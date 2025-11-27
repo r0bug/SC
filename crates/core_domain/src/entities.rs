@@ -441,10 +441,10 @@ pub struct Communication {
     pub communication_type: CommunicationType,
     pub direction: CommunicationDirection,
     pub timestamp: DateTime<Utc>,
-    pub content: Option<String>,        // Message body for SMS/email, description for calls
-    pub duration_seconds: Option<i32>,  // For calls
-    pub phone_number: Option<String>,   // Normalized phone number for linking
-    pub thread_id: Option<String>,      // Thread/conversation identifier for grouping
+    pub content: Option<String>, // Message body for SMS/email, description for calls
+    pub duration_seconds: Option<i32>, // For calls
+    pub phone_number: Option<String>, // Normalized phone number for linking
+    pub thread_id: Option<String>, // Thread/conversation identifier for grouping
     pub status: CommunicationHistoryStatus,
     pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
