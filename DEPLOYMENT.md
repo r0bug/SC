@@ -40,7 +40,7 @@ Complete guide for deploying SagensContact Alpha (Phase 6) on a fresh machine.
 
 ### For Building from Source
 
-- **Rust 1.75+**: Required for compiling binaries
+- **Rust 1.83+**: Required for compiling binaries
   ```bash
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
   source ~/.cargo/env
@@ -62,7 +62,7 @@ Complete guide for deploying SagensContact Alpha (Phase 6) on a fresh machine.
 
 - **PostgreSQL 15+**: For production sync service
 - **MinIO/S3**: For attachment storage backend
-- **ClamAV**: For real virus scanning (mock in alpha)
+- **ClamAV**: For virus scanning (set `VIRUS_SCANNER_ENABLED=true`)
 - **Redis**: For distributed caching and job queue
 
 ## Building from Source
@@ -198,17 +198,17 @@ api_key = ""  # Leave empty for mock mode
 api_base_url = "https://api.segmind.com/v1"
 model = "llama-3.1-8b-instruct"
 
-# Email Configuration (MOCKED in alpha)
+# Email Configuration (set real values for SMTP sending)
 [email]
 smtp_host = "smtp.example.com"
 smtp_port = 587
 smtp_user = "user@example.com"
-smtp_password = "placeholder"
+smtp_password = "your-password"
 
-# SMS Configuration (MOCKED in alpha)
+# SMS Configuration (set real values for Twilio sending)
 [sms]
-twilio_account_sid = "placeholder"
-twilio_auth_token = "placeholder"
+twilio_account_sid = "your-sid"
+twilio_auth_token = "your-token"
 twilio_phone_number = "+1234567890"
 
 # Attachment Storage
@@ -216,7 +216,7 @@ twilio_phone_number = "+1234567890"
 backend = "local"  # "local" or "s3"
 local_path = "./data/attachments"
 max_size_mb = 100
-enable_scan = true  # Uses mock scanner in alpha
+enable_scan = true  # Set VIRUS_SCANNER_ENABLED=true for ClamAV
 
 # S3 Configuration (Beta)
 [storage.s3]

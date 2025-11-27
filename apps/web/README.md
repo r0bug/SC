@@ -1,21 +1,29 @@
-# Web App (SvelteKit SSR)
+# Web App (SvelteKit)
 
-## Status: TODO (Beta)
+## Status: Implemented
 
-This directory will contain the SvelteKit SSR web application for mobile and browser access.
+Full-featured SvelteKit web application for contact management.
 
-## Planned Setup
+## Quick Start
 
 ```bash
-# Create SvelteKit project
-npm create svelte@latest
+# Install dependencies
+pnpm install
 
-# Choose:
-# - Template: Skeleton project
-# - TypeScript: Yes
-# - ESLint, Prettier: Yes
-# - Playwright: Yes (for E2E tests)
+# Run dev server (requires sync_service on port 3000)
+pnpm dev
+
+# Build for production
+pnpm build
+
+# Preview production build
+pnpm preview
+
+# Run Playwright tests
+pnpm test
 ```
+
+Visit http://localhost:3001 after starting the dev server.
 
 ## Architecture
 
@@ -23,43 +31,65 @@ npm create svelte@latest
 apps/web/
 ├── src/
 │   ├── routes/
-│   │   ├── +page.svelte        # Home / contacts list
-│   │   ├── +layout.svelte      # App shell
+│   │   ├── +page.svelte           # Home / redirect to dashboard
+│   │   ├── +layout.svelte         # App shell with navigation
+│   │   ├── auth/
+│   │   │   └── login/             # Login page
+│   │   ├── dashboard/             # Dashboard with statistics
 │   │   ├── contacts/
-│   │   │   ├── +page.svelte    # Contact list
-│   │   │   └── [id]/
-│   │   │       └── +page.svelte # Contact detail
-│   │   ├── projects/
-│   │   ├── notes/
-│   │   ├── share/
-│   │   │   └── accept/[token]/ # Accept share invite
-│   │   ├── login/
-│   │   └── api/                # API routes (proxy to sync_service)
+│   │   │   ├── +page.svelte       # Contact list with search
+│   │   │   ├── new/               # Create contact
+│   │   │   └── [id]/              # Contact detail
+│   │   ├── projects/              # Project management
+│   │   ├── notes/                 # Notes list
+│   │   ├── communications/        # Communication queue
+│   │   ├── import/                # Import wizard
+│   │   └── settings/              # User settings
 │   ├── lib/
-│   │   ├── components/         # UI components
-│   │   ├── stores/             # Svelte stores
-│   │   ├── api/                # API client
-│   │   └── types/              # TypeScript types
+│   │   ├── components/            # UI components
+│   │   ├── stores/                # Svelte stores
+│   │   ├── api/
+│   │   │   └── client.ts          # Type-safe API client
+│   │   └── types/                 # TypeScript types
 │   └── app.html
-├── static/                     # Static assets
-├── tests/                      # Playwright E2E tests
+├── tests/
+│   ├── web-flows.test.ts          # Core workflow tests
+│   └── api-integration.test.ts    # API integration tests
+├── static/                        # Static assets
 ├── package.json
 └── svelte.config.js
 ```
 
-## API Integration
+## Features
 
-Web app communicates with `sync_service`:
+### Implemented
+
+- **Contact Management**: List, search, create, edit, delete contacts
+- **Contact Detail**: Full contact info with notes and AI suggestions
+- **Import**: CSV, vCard, and social media exports (LinkedIn, Twitter, Facebook, Instagram)
+- **Communications**: Queue email and SMS messages
+- **Projects**: Group contacts by project
+- **Notes**: Attach notes to contacts and projects
+- **Dashboard**: Statistics and recent activity
+- **Settings**: Configuration options
+- **Search**: Full-text search across contacts
+- **Responsive**: Mobile, tablet, and desktop layouts
+
+### API Integration
+
+The web app communicates with `sync_service` on port 3000:
 
 ```typescript
-// src/lib/api/contacts.ts
+// src/lib/api/client.ts
+const API_BASE = 'http://localhost:3000/api';
+
 export async function listContacts(limit = 50): Promise<Contact[]> {
-  const response = await fetch('http://localhost:3000/api/contacts?limit=' + limit);
+  const response = await fetch(`${API_BASE}/contacts?limit=${limit}`);
   return response.json();
 }
 
 export async function searchContacts(query: string): Promise<Contact[]> {
-  const response = await fetch('http://localhost:3000/api/contacts/search', {
+  const response = await fetch(`${API_BASE}/contacts/search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query }),
@@ -68,7 +98,7 @@ export async function searchContacts(query: string): Promise<Contact[]> {
 }
 ```
 
-## WebSocket for Real-time Updates
+### WebSocket Real-time Updates
 
 ```typescript
 // src/lib/ws.ts
@@ -80,66 +110,64 @@ ws.onmessage = (event) => {
 };
 ```
 
-## Responsive Design
+## Playwright E2E Tests
 
-Mobile-first CSS with breakpoints:
-- Mobile: 320px - 768px
-- Tablet: 768px - 1024px
-- Desktop: 1024px+
+Located in `tests/`:
 
-## Authentication (Beta)
+### web-flows.test.ts
+- Authentication flows
+- Contact CRUD operations
+- Search functionality
+- Notes management
 
-```typescript
-// src/routes/login/+page.svelte
-// JWT-based auth with httpOnly cookies
-// Protect routes with +page.server.ts guards
+### api-integration.test.ts
+- API health checks
+- Contact import flow
+- Communication tabs
+- Attachment management
+- Performance benchmarks
+- Responsive design tests
+- Accessibility tests
+
+Run tests:
+```bash
+pnpm test        # Run all tests
+pnpm test:ui     # Interactive mode
 ```
 
-## Features (Planned)
+## Development
 
-### Public Routes
-- `/login` - Authentication
-- `/share/accept/[token]` - Accept share invite (no login required)
+### Environment Variables
 
-### Protected Routes
-- `/` - Dashboard
-- `/contacts` - Contact list with search
-- `/contacts/[id]` - Contact detail
-- `/contacts/import` - Import wizard
-- `/projects` - Project list
-- `/notes` - Notes list
-- `/communication` - Communication queue
-- `/settings` - User settings
+Create `.env` file:
+```bash
+PUBLIC_API_URL=http://localhost:3000
+```
 
-## Development Commands (Future)
+### Building
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Run dev server
+# Development
 pnpm dev
 
-# Build for production
+# Production build
 pnpm build
 
-# Preview production build
+# Preview production
 pnpm preview
-
-# Run E2E tests
-pnpm test:e2e
 ```
 
 ## Deployment
 
-### Self-hosted
+### Self-hosted (Node adapter)
+
 ```bash
-# Build adapter-node
 pnpm build
 node build/index.js
 ```
 
 ### Docker
+
 ```dockerfile
 FROM node:20-alpine
 WORKDIR /app
@@ -148,36 +176,33 @@ EXPOSE 3001
 CMD ["node", "index.js"]
 ```
 
-### Vercel/Netlify
-Use respective adapters:
-- `@sveltejs/adapter-vercel`
-- `@sveltejs/adapter-netlify`
+### Static Hosting
 
-## PWA Support (Future)
+Configure static adapter in `svelte.config.js`:
+```javascript
+import adapter from '@sveltejs/adapter-static';
 
-Add service worker for offline capabilities:
-- Cache static assets
-- Queue API calls when offline
-- Background sync when online
-
-## Playwright E2E Tests (Planned)
-
-```typescript
-// tests/import-workflow.spec.ts
-import { test, expect } from '@playwright/test';
-
-test('import and share workflow', async ({ page }) => {
-  await page.goto('/login');
-  await page.fill('[name="email"]', 'test@example.com');
-  await page.fill('[name="password"]', 'password');
-  await page.click('button[type="submit"]');
-
-  await page.goto('/contacts/import');
-  await page.setInputFiles('[type="file"]', 'sample_data/contacts.csv');
-  await page.click('button:has-text("Import")');
-
-  await expect(page.locator('text=John Doe')).toBeVisible();
-
-  // Continue with share workflow...
-});
+export default {
+  kit: {
+    adapter: adapter({
+      pages: 'build',
+      assets: 'build',
+      fallback: 'index.html'
+    })
+  }
+};
 ```
+
+## Responsive Design
+
+Mobile-first CSS with breakpoints:
+- Mobile: 320px - 768px
+- Tablet: 768px - 1024px
+- Desktop: 1024px+
+
+## Authentication
+
+JWT-based authentication with httpOnly cookies:
+- Login via `/auth/login`
+- Protected routes check session
+- Logout clears session cookie

@@ -1,186 +1,211 @@
 # Security Notes
 
-## ⚠️ Alpha Security Warnings
+## Security Status
 
-This alpha release has the following security limitations:
+### Implemented Security Features
 
-### 1. Plaintext Credential Storage
+#### 1. Encrypted Credential Vault
+**Status:** Implemented
 
-**Issue:** Legacy setups still rely on `config/credentials.toml` in plaintext, but an encrypted vault is now available.
+The `secure_vault` crate provides AES-256-GCM encrypted credential storage:
+```bash
+# Encrypt credentials
+cargo run -p secure_vault --features cli --bin vault_tool -- \
+  encrypt --input config/credentials.env --output config/credentials.vault \
+  --key "your-master-key"
 
-**Risk:** Anyone with filesystem access can read API keys, database passwords, SMTP credentials, etc.
+# Use at runtime
+export SAGENSCONTACT_VAULT_FILE="config/credentials.vault"
+export SAGENSCONTACT_VAULT_KEY="your-master-key"
+```
 
-**Mitigation (Beta):**
-- macOS: Integrate with Keychain via `security` command
-- Linux: Use GNOME Keyring or KWallet
-- Cross-platform: Support HashiCorp Vault
-- Environment variables for containerized deployments
+#### 2. Audit Logging
+**Status:** Implemented
 
-**Current Workaround:**
-- Prefer the encrypted vault (`secure_vault` + `config/credentials.env`) with `SAGENSCONTACT_VAULT_FILE` and `SAGENSCONTACT_VAULT_KEY` set.
-- Only fall back to plaintext TOML for local development and guard the file with `chmod 600` if you must keep it around.
+Comprehensive audit logging for security events:
+- All CRUD operations on entities
+- Authentication attempts (login success/failure)
+- Share invite creation and acceptance
+- File upload/download events
+- ACL changes
 
-### 2. No Authentication/Authorization
+Logs stored in `audit_logs` table with user_id, action, entity_type, entity_id, and metadata.
 
-**Issue:** Sync service has no auth layer. Any client can access any endpoint.
+#### 3. ACL Enforcement
+**Status:** Implemented
 
-**Risk:** Unauthorized data access, modification, deletion.
+Fine-grained access control on all API routes:
+- Resource-level permissions (Read, Write, Delete, Share, Admin)
+- Per-entity ACL enforcement
+- Owner and shared access checks
 
-**Mitigation (Beta):**
-- Implement JWT-based authentication
-- Add per-user database isolation
-- Enforce RBAC for sharing features
-- Add API key authentication for service-to-service calls
+#### 4. Input Validation
+**Status:** Implemented
 
-**Current Workaround:**
-- Run sync service on localhost only
-- Use firewall rules to block external access
-- Deploy in trusted network environments only
+Comprehensive validation:
+- File upload: type, size, extension, MIME type verification
+- Password strength requirements
+- Email format validation
+- Phone number format validation
+- Path traversal prevention
 
-### 3. No Encryption at Rest
+#### 5. Virus Scanning
+**Status:** Implemented
 
-**Issue:** SQLite database stores all data in plaintext.
+ClamAV integration for file uploads:
+```bash
+# Enable ClamAV scanning
+export VIRUS_SCANNER_ENABLED=true
+export CLAMAV_SOCKET_PATH=/var/run/clamav/clamd.sock
+export VIRUS_SCANNER_STRICT=true  # Fail if ClamAV unavailable
+```
 
-**Risk:** Anyone with filesystem access can read contacts, notes, communication history.
+Files are streamed through ClamAV's INSTREAM protocol. Infected files are automatically rejected and deleted.
 
-**Mitigation (Beta):**
-- Enable SQLCipher for encrypted SQLite
-- Encrypt sensitive fields (email, phone) with application-level encryption
-- Use OS-level full-disk encryption as baseline
+#### 6. External Service Integration
+**Status:** Implemented (configurable)
 
-**Current Workaround:**
-- Use full-disk encryption (FileVault on macOS, LUKS on Linux)
-- Avoid storing highly sensitive information in alpha
+Real external services available with configuration:
+- **Email**: SMTP integration (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`)
+- **SMS**: Twilio integration (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`)
+- **AI**: Segmind API (`SEGMIND_API_KEY`)
 
-### 4. No TLS/HTTPS
+Without configuration, services operate in fallback mode (logging only).
 
+---
+
+## Remaining Security Gaps
+
+### 1. No TLS/HTTPS
 **Issue:** Sync service uses unencrypted HTTP and WebSocket.
 
-**Risk:** Network sniffing can intercept all API calls, including sensitive contact data.
+**Risk:** Network sniffing can intercept API calls.
 
-**Mitigation (Beta):**
-- Enable TLS for Axum server
-- Use wss:// for WebSocket connections
-- Generate self-signed certs for development, Let's Encrypt for production
-
-**Current Workaround:**
-- Use sync service on localhost only
+**Mitigation:**
+- Run sync service behind a reverse proxy (nginx, Caddy) with TLS
+- Use localhost-only binding for development
 - Use VPN or SSH tunnel for remote access
 
-### 5. Mock External Services
+### 2. No Encryption at Rest
+**Issue:** SQLite database stores data in plaintext.
 
-**Issue:** Email, SMS, social, AI adapters return fake responses.
+**Risk:** Filesystem access exposes all contact data.
 
-**Risk:** Users may think communications were actually sent.
+**Mitigation:**
+- Use OS-level full-disk encryption (FileVault, LUKS)
+- SQLCipher integration planned for future release
 
-**Mitigation (Beta):**
-- Implement real SMTP for email
-- Integrate Twilio/AWS SNS for SMS
-- Add OAuth2 for social platforms (Twitter, LinkedIn)
-- Connect to real Segmind API
+### 3. Limited Authentication
+**Issue:** Single-user JWT authentication only.
 
-**Current Workaround:**
-- Clearly log "[MOCK]" prefix in all mock adapter outputs
-- Document mock behavior in README
+**Risk:** No multi-user isolation, no OAuth2 support.
 
-### 6. No Input Validation
+**Mitigation:**
+- Run in trusted environment
+- Full authentication system planned for beta
 
-**Issue:** Limited validation on API inputs.
+---
 
-**Risk:** SQL injection (mitigated by sqlx parameterization), XSS in web UI, path traversal for attachments.
+## Security Configuration
 
-**Mitigation (Beta):**
-- Add comprehensive input validation with validator crate
-- Sanitize HTML content in notes
-- Validate file upload extensions and MIME types
-- Stream every upload through ClamAV (INSTREAM) and block infected files
+### Recommended Production Setup
 
-**Current Workaround:**
-- ClamAV integration is live; set `VIRUS_SCANNER_ENABLED=true` and point `CLAMAV_SOCKET_PATH` at your `clamd` socket to enforce scanning.
-- For purely local testing, you can toggle `VIRUS_SCANNER_ENABLED=false` to fall back to the mock scanner.
+```bash
+# 1. Use encrypted vault for credentials
+export SAGENSCONTACT_VAULT_FILE="config/credentials.vault"
+export SAGENSCONTACT_VAULT_KEY="strong-master-key"
 
-### 7. No Audit Logging
+# 2. Enable virus scanning
+export VIRUS_SCANNER_ENABLED=true
+export CLAMAV_SOCKET_PATH=/var/run/clamav/clamd.sock
+export VIRUS_SCANNER_STRICT=true
 
-**Issue:** No logging of security-relevant events.
+# 3. Run behind TLS reverse proxy
+# Example nginx config:
+# server {
+#     listen 443 ssl;
+#     ssl_certificate /path/to/cert.pem;
+#     ssl_certificate_key /path/to/key.pem;
+#     location / {
+#         proxy_pass http://127.0.0.1:3000;
+#     }
+# }
 
-**Risk:** Cannot detect or investigate unauthorized access, data breaches.
+# 4. Bind to localhost only
+export BIND_ADDRESS=127.0.0.1:3000
+```
 
-**Mitigation (Beta):**
-- Add audit log table for all CRUD operations
-- Log authentication attempts
-- Track share invite acceptances
-- Implement log aggregation for production
+---
 
-**Current Workaround:**
-- Review application logs manually
-- Monitor database file access times
-
-### 8. Dependency Vulnerabilities
-
-**Issue:** Rust and npm dependencies may have known CVEs.
-
-**Risk:** Exploitable vulnerabilities in third-party code.
-
-**Mitigation (Beta):**
-- Run `cargo audit` and `pnpm audit` in CI
-- Enable Dependabot or Renovate for automated updates
-- Pin dependency versions with security patches
-
-**Current Workaround:**
-- Manually run `cargo audit` before releases
-- Keep Rust toolchain updated
-
-## Threat Model (Beta/Production)
+## Threat Model
 
 ### Assets
 - Contact data (PII: names, emails, phones, addresses)
 - Notes and attachments (potentially sensitive documents)
 - Communication history
 - Share permissions
+- Credentials and API keys
 
-### Threats
-1. **Unauthorized Access**: Attacker gains access to database file
-2. **Network Interception**: Man-in-the-middle attack on sync traffic
-3. **Credential Theft**: API keys or passwords stolen from config files
-4. **Malicious Attachments**: Virus or malware uploaded via note attachments
-5. **Account Takeover**: Attacker compromises user credentials (beta+)
-6. **Data Exfiltration**: Attacker syncs contact data to external server
+### Threats & Mitigations
 
-### Controls
+| Threat | Mitigation |
+|--------|------------|
+| Unauthorized API access | ACL enforcement, audit logging |
+| Credential theft | Encrypted vault |
+| Malicious file upload | ClamAV scanning, file type validation |
+| SQL injection | SQLx parameterized queries |
+| XSS attacks | Input sanitization |
+| Network interception | TLS via reverse proxy |
+| Database file theft | Full-disk encryption (OS level) |
+
+---
+
+## Security Controls Checklist
+
+- [x] Encrypted credential storage (secure_vault)
+- [x] ACL enforcement on all routes
+- [x] Audit logging
+- [x] Input validation and sanitization
+- [x] Virus scanning (ClamAV)
+- [x] File upload validation (type, size, extension)
+- [x] Password strength requirements
+- [x] CORS configuration
+- [ ] TLS/HTTPS (use reverse proxy)
 - [ ] Encryption at rest (SQLCipher)
-- [ ] Encryption in transit (TLS)
-- [ ] Secure credential storage (OS keychain)
-- [ ] Authentication (JWT, OAuth2)
-- [ ] Authorization (RBAC)
-- [ ] Input validation and sanitization
-- [ ] Virus scanning on file uploads
-- [ ] Audit logging
+- [ ] Multi-user authentication (OAuth2)
 - [ ] Rate limiting
-- [ ] Security headers (CSP, HSTS, X-Frame-Options)
+- [ ] Security headers (CSP, HSTS)
+
+---
 
 ## Compliance Considerations
 
 For production use, consider:
-- **GDPR**: Right to access, right to deletion, data portability, consent management
+- **GDPR**: Right to access, right to deletion, data portability
 - **CCPA**: Privacy policy, opt-out mechanisms
-- **HIPAA**: If handling health information, requires encryption, audit logs, BAA
-- **SOC 2**: For hosted/SaaS, requires security controls documentation
+- **HIPAA**: Encryption, audit logs, BAA (if handling health info)
+- **SOC 2**: Security controls documentation
 
-## Security Checklist for Beta
-
-- [ ] Remove plaintext credential files
-- [ ] Implement secure credential vault
-- [ ] Add user authentication
-- [ ] Enable TLS for sync service
-- [ ] Encrypt sensitive database fields
-- [ ] Add input validation
-- [ ] Implement virus scanning
-- [ ] Add audit logging
-- [ ] Run security audit / penetration test
-- [ ] Document incident response plan
+---
 
 ## Reporting Security Issues
 
-For security concerns, contact: [security@sagenscontact.example] (placeholder for alpha)
+For security concerns, please report responsibly:
+1. Do not disclose publicly until fixed
+2. Provide clear reproduction steps
+3. Allow reasonable time for patching
 
-Do not disclose security issues publicly until coordinated disclosure timeline.
+---
+
+## Development Security
+
+```bash
+# Run security audit on Rust dependencies
+cargo audit
+
+# Run security audit on npm dependencies
+cd apps/web && pnpm audit
+
+# Check for outdated dependencies
+cargo outdated
+```

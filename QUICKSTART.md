@@ -7,16 +7,16 @@
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source $HOME/.cargo/env
-rustup default 1.75.0
+rustup default stable
 ```
 
 Verify installation:
 ```bash
-rustc --version  # Should show 1.75.0 or higher
+rustc --version  # Should show 1.83.0 or higher
 cargo --version
 ```
 
-### 2. Install Node.js (For future web/desktop apps)
+### 2. Install Node.js (For Web UI)
 
 **macOS:**
 ```bash
@@ -64,7 +64,6 @@ This will take 5-10 minutes on first build (downloads dependencies and compiles)
 
 ```bash
 mkdir -p data
-cp config/credentials.toml.example config/credentials.toml
 ```
 
 ### Step 4: Import Sample Data
@@ -135,12 +134,13 @@ Then visit: http://localhost:3001
 Features:
 - Contact list with search
 - Contact detail pages with notes
-- Communication forms (Email/SMS mock)
-- AI suggestions (mock)
+- Import page with format selection
+- Communication forms (Email/SMS)
+- AI suggestions
 
 ## Start Background Worker (Optional)
 
-Processes queued communications every 30 seconds (mocked).
+Processes queued communications every 30 seconds.
 
 In a separate terminal:
 
@@ -157,11 +157,11 @@ cargo run --release --bin worker
 # CSV (with field mapping preview)
 ./target/release/sagenscontact import --csv sample_data/contacts.csv
 
-# vCard (placeholder - not yet implemented)
-./target/release/sagenscontact import --vcard sample_data/contacts.vcf
+# vCard
+./target/release/sagenscontact import --vcard contacts.vcf
 
-# SMS (placeholder - not yet implemented)
-./target/release/sagenscontact import --sms sample_data/sms_export.json
+# Social media exports (LinkedIn, Twitter, Facebook, Instagram)
+./target/release/sagenscontact import --json linkedin_connections.json
 ```
 
 ### Manage Contacts
@@ -182,12 +182,12 @@ cargo run --release --bin worker
 ./target/release/sagenscontact note <CONTACT_ID> "Meeting Notes" "Discussed project timeline"
 ```
 
-### Queue Communications (Mock)
+### Queue Communications
 ```bash
-# Email
+# Email (requires SMTP config for real sending)
 ./target/release/sagenscontact communicate <CONTACT_ID> email "Hello from CLI"
 
-# SMS
+# SMS (requires Twilio config for real sending)
 ./target/release/sagenscontact communicate <CONTACT_ID> sms "Quick message"
 ```
 
@@ -196,10 +196,39 @@ cargo run --release --bin worker
 ./target/release/sagenscontact share contact <CONTACT_ID> recipient@example.com
 ```
 
-### AI Suggestions (Mock)
+### AI Suggestions
 ```bash
+# Requires SEGMIND_API_KEY for real AI, otherwise returns mock suggestions
 ./target/release/sagenscontact suggest <CONTACT_ID>
 ```
+
+---
+
+## Service Configuration
+
+Enable real services by setting environment variables:
+
+```bash
+# Email (SMTP)
+export SMTP_HOST=smtp.example.com
+export SMTP_USER=user@example.com
+export SMTP_PASSWORD=password
+export SMTP_FROM=noreply@example.com
+
+# SMS (Twilio)
+export TWILIO_ACCOUNT_SID=your-sid
+export TWILIO_AUTH_TOKEN=your-token
+export TWILIO_PHONE_NUMBER=+1234567890
+
+# AI (Segmind)
+export SEGMIND_API_KEY=your-api-key
+
+# Virus Scanning (ClamAV)
+export VIRUS_SCANNER_ENABLED=true
+export CLAMAV_SOCKET_PATH=/var/run/clamav/clamd.sock
+```
+
+Without these variables, services run in fallback mode (logging only).
 
 ---
 
@@ -253,12 +282,11 @@ cargo build --bin sagenscontact
 
 ## Next Steps
 
-1. ✅ Complete Quick Start above
-2. 📖 Read [README.md](README.md) for full feature overview
-3. 🏗️ Review [ARCHITECTURE.md](ARCHITECTURE.md) for system design
-4. 🔒 Review [SECURITY_NOTES.md](SECURITY_NOTES.md) for alpha limitations
-5. 🧪 Read [TESTING.md](TESTING.md) for test strategy
-6. 🎬 Follow [WORKFLOW_DEMOS.md](WORKFLOW_DEMOS.md) for full demo scenario
+1. Read [README.md](README.md) for full feature overview
+2. Review [ARCHITECTURE.md](ARCHITECTURE.md) for system design
+3. Review [SECURITY_NOTES.md](SECURITY_NOTES.md) for security considerations
+4. Read [TESTING.md](TESTING.md) for test strategy
+5. Follow [WORKFLOW_DEMOS.md](WORKFLOW_DEMOS.md) for demo scenarios
 
 ---
 
@@ -278,39 +306,9 @@ cargo watch -x 'build --bin sagenscontact'
 
 ---
 
-## Project Status
-
-✅ **Completed (Alpha):**
-- Core domain entities
-- SQLite local storage with foreign key enforcement
-- CLI with CSV import (field mapping + preview), search, CRUD
-- Mock AI suggestions (Segmind)
-- Mock communication adapters (Email/SMS/Social)
-- Background worker binary for queue processing
-- Sync service API with live database integration
-- Web UI with contacts, notes, and communication screens
-- Type-safe API client library
-- Sample data (CSV/vCard/SMS)
-- Documentation (README, Architecture, Security, Testing, Workflow)
-
-⏳ **TODO (Beta):**
-- Desktop app (Tauri + SvelteKit)
-- Complete web UI (projects detail, sharing, settings)
-- vCard/SMS import parsing
-- Secure credential vault
-- Real external service integrations
-- Authentication/authorization
-- Offline-first sync with conflict resolution
-- E2E tests with Playwright
-- Production deployment guides
-
----
-
 ## Support
 
 For issues or questions:
 - Check [TESTING.md](TESTING.md) for known issues
 - Review [ARCHITECTURE.md](ARCHITECTURE.md) for design decisions
-- Read [SECURITY_NOTES.md](SECURITY_NOTES.md) for alpha limitations
-
-This is an alpha release. Expect rough edges and missing features!
+- Read [SECURITY_NOTES.md](SECURITY_NOTES.md) for security considerations

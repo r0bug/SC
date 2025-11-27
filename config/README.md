@@ -1,85 +1,146 @@
 # Configuration
 
-## Setup
+## Encrypted Vault (Recommended)
 
-### Encrypted Vault (Recommended)
+The secure vault provides AES-256-GCM encrypted credential storage:
 
-1. Copy `credentials.env.example` to `credentials.env` and populate it with your real secrets in `KEY=value` format.
-2. Run the vault utility to encrypt the file:
+### Setup
 
+1. Create credentials file from template:
+   ```bash
+   cp credentials.env.example credentials.env
+   ```
+
+2. Edit `credentials.env` with your real credentials:
+   ```bash
+   # Database
+   DATABASE_URL=sqlite:./data/sagenscontact.db
+
+   # Email (SMTP)
+   SMTP_HOST=smtp.example.com
+   SMTP_PORT=587
+   SMTP_USER=user@example.com
+   SMTP_PASSWORD=your-password
+   SMTP_FROM=noreply@example.com
+
+   # SMS (Twilio)
+   TWILIO_ACCOUNT_SID=your-sid
+   TWILIO_AUTH_TOKEN=your-token
+   TWILIO_PHONE_NUMBER=+1234567890
+
+   # AI (Segmind)
+   SEGMIND_API_KEY=your-api-key
+
+   # Storage (S3/MinIO)
+   S3_ENDPOINT_URL=http://localhost:9000
+   S3_ACCESS_KEY_ID=minioadmin
+   S3_SECRET_ACCESS_KEY=minioadmin
+   S3_BUCKET=attachments
+   ```
+
+3. Encrypt the file:
    ```bash
    cargo run -p secure_vault --features cli --bin vault_tool -- \
      encrypt --input config/credentials.env --output config/credentials.vault \
      --key "choose-a-strong-master-key"
    ```
 
-3. Set the following environment variables for every process (sync service, worker, CLI, desktop app):
-
+4. Set environment variables for runtime:
    ```bash
-   export SAGENSCONTACT_VAULT_FILE="/path/to/config/credentials.vault"
+   export SAGENSCONTACT_VAULT_FILE="$PWD/config/credentials.vault"
    export SAGENSCONTACT_VAULT_KEY="choose-a-strong-master-key"
    ```
 
-4. Start the application. The vault loader injects the decrypted values into the process environment before any configuration is read.
+5. Start the application. Credentials are decrypted and injected automatically.
 
-Need to audit the contents? Run:
+### Decrypt for Audit
 
 ```bash
 cargo run -p secure_vault --features cli --bin vault_tool -- \
   decrypt --input config/credentials.vault --key "master-key"
 ```
 
-### Legacy Plaintext Mode
-
-1. Copy `credentials.toml.example` to `credentials.toml`
-2. Replace placeholder values with actual credentials (development/test only)
-
-## Alpha Version Notice
-
-⚠️ **IMPORTANT**: This alpha version uses placeholder credentials stored in plain text files.
-These are NOT SECURE and should only be used for development and testing.
-
-### Current Capabilities
-
-- Encrypted credential vault with PBKDF2 + AES-GCM using `secure_vault`
-- Plaintext TOML configuration for compatibility (development only)
-- Environment variable overrides for CI/CD
-
-### Future Roadmap (Beta+)
-
-- Integration with system keychain (macOS Keychain, GNOME Keyring, Windows Credential Store)
-- Vault support (HashiCorp Vault, AWS Secrets Manager)
-- Encrypted credential storage
-- Multi-factor authentication support
-- OAuth2/OIDC integration for social platforms
-
-## Configuration Files
-
-### credentials.toml
-Main credential store with sections:
-- `[database]` - Database connection strings
-- `[segmind]` - AI service credentials
-- `[email]` - SMTP configuration
-- `[sms]` - SMS provider settings
-- `[social]` - Social media API credentials
-- `[storage]` - File storage configuration (local/MinIO)
-- `[sync]` - Sync service endpoints
-
-## Migration to Secure Vault
-
-When migrating to beta, follow these steps:
-
-1. Choose vault backend (keychain/Vault/cloud secrets)
-2. Migrate credentials using the provided migration script (TBD)
-3. Update application configuration to use vault URLs instead of file paths
-4. Remove credentials.toml from filesystem
-5. Verify secure credential access
-
 ## Environment Variables
 
-For CI/CD and containerized deployments, credentials can be overridden via environment variables:
+All services can be configured via environment variables:
 
+### Database
 ```bash
-SAGENSCONTACT_DATABASE_URL="sqlite:./contacts.db"
-SAGENSCONTACT_SEGMIND_API_KEY="your_key_here"
+DATABASE_URL=sqlite:./data/sagenscontact.db
+# Or for PostgreSQL:
+DATABASE_URL=postgres://user:pass@localhost/sagenscontact
 ```
+
+### Email (SMTP)
+```bash
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=user@example.com
+SMTP_PASSWORD=password
+SMTP_FROM=noreply@example.com
+```
+
+### SMS (Twilio)
+```bash
+TWILIO_ACCOUNT_SID=your-sid
+TWILIO_AUTH_TOKEN=your-token
+TWILIO_PHONE_NUMBER=+1234567890
+```
+
+### AI (Segmind)
+```bash
+SEGMIND_API_KEY=your-api-key
+```
+
+### Virus Scanning (ClamAV)
+```bash
+VIRUS_SCANNER_ENABLED=true
+CLAMAV_SOCKET_PATH=/var/run/clamav/clamd.sock
+VIRUS_SCANNER_STRICT=true
+```
+
+### Storage (S3/MinIO)
+```bash
+S3_ENDPOINT_URL=http://localhost:9000
+S3_REGION=us-east-1
+S3_ACCESS_KEY_ID=minioadmin
+S3_SECRET_ACCESS_KEY=minioadmin
+S3_BUCKET=attachments
+```
+
+### Cache (Redis)
+```bash
+REDIS_URL=redis://localhost:6379
+```
+
+### Server
+```bash
+PORT=3000
+BIND_ADDRESS=127.0.0.1:3000
+RUST_LOG=info
+```
+
+## Legacy Plaintext Mode (Development Only)
+
+For local development without encryption:
+
+1. Copy template: `cp credentials.toml.example credentials.toml`
+2. Edit with placeholder or test credentials
+3. Protect the file: `chmod 600 credentials.toml`
+
+**Warning:** Do not use plaintext credentials in production.
+
+## Service Fallback Behavior
+
+Without configuration, services operate in fallback mode:
+
+| Service | Without Config |
+|---------|---------------|
+| Email | Logs to console |
+| SMS | Logs to console |
+| AI | Returns mock suggestions |
+| Virus Scan | Basic file check only |
+| Storage | Local filesystem |
+| Cache | In-memory (moka) |
+
+This allows development and testing without external service dependencies.
