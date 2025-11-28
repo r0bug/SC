@@ -26,6 +26,9 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 # Storage backends
 aws-sdk-s3 = { version = "1", optional = true }
 
+# Virus scanning
+clamav-client = { version = "0.5", optional = true }
+
 # Database
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "postgres", "chrono", "uuid"] }
 
@@ -39,3 +42,4 @@ tempfile = "3"
 default = ["local-storage"]
 local-storage = []
 s3-storage = ["aws-sdk-s3"]
+clamav = ["clamav-client"]

@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SagensContact",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "identifier": "com.sagenscontact.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "pnpm run dev",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "pnpm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -18,11 +18,12 @@
         "minWidth": 900,
         "minHeight": 600,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "center": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:* https://localhost:* ws://localhost:* wss://localhost:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {
@@ -35,8 +36,45 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "category": "Productivity",
+    "shortDescription": "Portable contact management system",
+    "longDescription": "SagensContact is a portable, multi-platform contact management system with offline-first capabilities and optional cloud sync. Features include SMS/vCard import, AI suggestions, and secure communication tracking.",
+    "copyright": "© 2024 SagensContact",
+    "publisher": "SagensContact",
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": true
+      },
+      "deb": {
+        "depends": ["libsqlite3-0"]
+      },
+      "rpm": {
+        "depends": ["sqlite"]
+      }
+    },
     "macOS": {
-      "minimumSystemVersion": "10.15"
+      "minimumSystemVersion": "10.15",
+      "dmg": {
+        "appPosition": { "x": 180, "y": 170 },
+        "applicationFolderPosition": { "x": 480, "y": 170 },
+        "windowSize": { "width": 660, "height": 400 }
+      },
+      "hardenedRuntime": true,
+      "entitlements": null
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "timestampUrl": null,
+      "wix": null,
+      "nsis": {
+        "license": null,
+        "installerIcon": "icons/icon.ico",
+        "headerImage": null,
+        "sidebarImage": null,
+        "installMode": "currentUser",
+        "languages": ["English"],
+        "displayLanguageSelector": false
+      }
     }
   },
   "plugins": {}
