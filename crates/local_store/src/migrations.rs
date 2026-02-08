@@ -105,16 +105,20 @@ CREATE TABLE IF NOT EXISTS contact_groups (
     PRIMARY KEY (contact_id, group_id)
 );
 
--- Concepts
+-- Concepts (enhanced with hierarchy support)
 CREATE TABLE IF NOT EXISTS concepts (
     id UUID PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
+    parent_id UUID REFERENCES concepts(id) ON DELETE SET NULL,
     tags JSONB NOT NULL DEFAULT '[]',
+    metadata JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     created_by UUID NOT NULL REFERENCES users(id)
 );
+CREATE INDEX IF NOT EXISTS idx_concepts_parent ON concepts(parent_id);
+CREATE INDEX IF NOT EXISTS idx_concepts_name ON concepts(name);
 
 CREATE TABLE IF NOT EXISTS concept_contacts (
     concept_id UUID NOT NULL REFERENCES concepts(id) ON DELETE CASCADE,
@@ -436,6 +440,126 @@ CREATE INDEX IF NOT EXISTS idx_email_history_from ON email_history(from_address)
 CREATE INDEX IF NOT EXISTS idx_email_history_timestamp ON email_history(timestamp);
 CREATE INDEX IF NOT EXISTS idx_email_history_thread ON email_history(thread_id);
 CREATE INDEX IF NOT EXISTS idx_email_history_message_id ON email_history(message_id);
+
+-- Email Triage Sessions table (PostgreSQL)
+CREATE TABLE IF NOT EXISTS email_triage_sessions (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id),
+    server TEXT NOT NULL,
+    folder TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    total_fetched INTEGER DEFAULT 0,
+    total_analyzed INTEGER DEFAULT 0,
+    total_categorized INTEGER DEFAULT 0,
+    current_block INTEGER DEFAULT 0,
+    block_size INTEGER DEFAULT 25,
+    discovered_domains JSONB DEFAULT '[]',
+    approved_domains JSONB DEFAULT '[]',
+    denied_domains JSONB DEFAULT '[]',
+    error_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_email_triage_user ON email_triage_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_triage_status ON email_triage_sessions(status);
+
+-- ============================================================
+-- Concept Graph Schema (Phase 2) - PostgreSQL
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS concept_keywords (
+    id UUID PRIMARY KEY,
+    concept_id UUID NOT NULL REFERENCES concepts(id) ON DELETE CASCADE,
+    keyword TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_concept_keywords_keyword ON concept_keywords(keyword);
+CREATE INDEX IF NOT EXISTS idx_concept_keywords_concept ON concept_keywords(concept_id);
+
+CREATE TABLE IF NOT EXISTS relationship_types (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    is_core BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL
+);
+
+INSERT INTO relationship_types (id, name, description, is_core, created_at) VALUES
+    ('00000000-0000-0000-0000-000000000001', 'WANT', 'Entity wants/is looking for the target', true, NOW()),
+    ('00000000-0000-0000-0000-000000000002', 'HAVE', 'Entity has/possesses the target', true, NOW()),
+    ('00000000-0000-0000-0000-000000000003', 'IS', 'Entity is categorized as the target', true, NOW()),
+    ('00000000-0000-0000-0000-000000000004', 'TRADE', 'Entity is willing to trade the target', true, NOW()),
+    ('00000000-0000-0000-0000-000000000005', 'SELL', 'Entity is selling the target', true, NOW()),
+    ('00000000-0000-0000-0000-000000000006', 'BUY', 'Entity wants to buy the target', true, NOW()),
+    ('00000000-0000-0000-0000-000000000007', 'GATEKEEPER', 'Entity is a gatekeeper for the target', true, NOW()),
+    ('00000000-0000-0000-0000-000000000008', 'LOCATED_AT', 'Entity is located at the target location', true, NOW()),
+    ('00000000-0000-0000-0000-000000000009', 'TAGGED_WITH', 'Entity is tagged with the target concept', true, NOW()),
+    ('00000000-0000-0000-0000-00000000000a', 'MEMBER_OF', 'Entity is a member of the target group/concept', true, NOW())
+ON CONFLICT (name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS entity_relationships (
+    id UUID PRIMARY KEY,
+    source_type TEXT NOT NULL,
+    source_id UUID NOT NULL,
+    relationship_type_id UUID NOT NULL REFERENCES relationship_types(id),
+    target_type TEXT NOT NULL,
+    target_id UUID NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL,
+    created_by UUID NOT NULL REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_entity_rel_source ON entity_relationships(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_entity_rel_target ON entity_relationships(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_entity_rel_type ON entity_relationships(relationship_type_id);
+
+CREATE TABLE IF NOT EXISTS picks (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'upcoming',
+    date_start TIMESTAMPTZ,
+    date_end TIMESTAMPTZ,
+    recurrence JSONB,
+    metadata JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    created_by UUID NOT NULL REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_picks_status ON picks(status);
+CREATE INDEX IF NOT EXISTS idx_picks_created_by ON picks(created_by);
+
+CREATE TABLE IF NOT EXISTS locations (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    address TEXT,
+    city TEXT,
+    state TEXT,
+    zip TEXT,
+    coordinates_lat DOUBLE PRECISION,
+    coordinates_lng DOUBLE PRECISION,
+    metadata JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    created_by UUID NOT NULL REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_locations_created_by ON locations(created_by);
+
+CREATE TABLE IF NOT EXISTS communication_concepts (
+    id UUID PRIMARY KEY,
+    communication_type TEXT NOT NULL,
+    communication_id UUID NOT NULL,
+    concept_id UUID NOT NULL REFERENCES concepts(id) ON DELETE CASCADE,
+    detection_method TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'suggested',
+    confidence REAL,
+    reviewed_at TIMESTAMPTZ,
+    reviewed_by UUID REFERENCES users(id),
+    created_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_comm_concepts_comm ON communication_concepts(communication_type, communication_id);
+CREATE INDEX IF NOT EXISTS idx_comm_concepts_concept ON communication_concepts(concept_id);
+CREATE INDEX IF NOT EXISTS idx_comm_concepts_status ON communication_concepts(status);
 "#;
 
 /// Legacy schema constant for backwards compatibility
@@ -556,17 +680,22 @@ CREATE TABLE IF NOT EXISTS contact_groups (
     FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
 );
 
--- Concepts
+-- Concepts (enhanced with hierarchy support)
 CREATE TABLE IF NOT EXISTS concepts (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
+    parent_id TEXT,
     tags TEXT NOT NULL DEFAULT '[]',
+    metadata TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     created_by TEXT NOT NULL,
+    FOREIGN KEY (parent_id) REFERENCES concepts(id) ON DELETE SET NULL,
     FOREIGN KEY (created_by) REFERENCES users(id)
 );
+CREATE INDEX IF NOT EXISTS idx_concepts_parent ON concepts(parent_id);
+CREATE INDEX IF NOT EXISTS idx_concepts_name ON concepts(name);
 
 CREATE TABLE IF NOT EXISTS concept_contacts (
     concept_id TEXT NOT NULL,
@@ -817,6 +946,90 @@ CREATE TABLE IF NOT EXISTS ai_suggestions (
     FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
 );
 
+-- SMS History table for imported Android SMS/MMS (SQLite)
+CREATE TABLE IF NOT EXISTS sms_history (
+    id TEXT PRIMARY KEY,
+    contact_id TEXT,
+    phone_number TEXT NOT NULL,
+    contact_name TEXT,
+    message_date INTEGER NOT NULL,
+    message_type INTEGER NOT NULL,
+    subject TEXT,
+    body TEXT NOT NULL,
+    readable_date TEXT NOT NULL,
+    thread_id INTEGER,
+    read_status INTEGER NOT NULL DEFAULT 1,
+    subscription_id TEXT,
+    imported_at TEXT NOT NULL,
+    imported_by TEXT NOT NULL,
+    source_file TEXT,
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sms_history_contact ON sms_history(contact_id);
+CREATE INDEX IF NOT EXISTS idx_sms_history_phone ON sms_history(phone_number);
+CREATE INDEX IF NOT EXISTS idx_sms_history_date ON sms_history(message_date);
+CREATE INDEX IF NOT EXISTS idx_sms_history_thread ON sms_history(thread_id);
+
+-- Email History table for imported IMAP emails (SQLite)
+CREATE TABLE IF NOT EXISTS email_history (
+    id TEXT PRIMARY KEY,
+    contact_id TEXT,
+    from_address TEXT NOT NULL,
+    from_name TEXT,
+    to_address TEXT NOT NULL,
+    cc TEXT,
+    bcc TEXT,
+    subject TEXT NOT NULL,
+    body_text TEXT,
+    body_html TEXT,
+    message_date INTEGER NOT NULL,
+    message_type INTEGER NOT NULL DEFAULT 1,
+    message_id TEXT,
+    in_reply_to TEXT,
+    email_references TEXT,
+    read_status INTEGER DEFAULT 0,
+    has_attachments INTEGER DEFAULT 0,
+    folder TEXT,
+    imported_at TEXT NOT NULL,
+    imported_by TEXT NOT NULL,
+    source_server TEXT,
+    importance_score INTEGER,
+    is_important INTEGER DEFAULT 0,
+    is_urgent INTEGER DEFAULT 0,
+    ai_summary TEXT,
+    ai_analysis TEXT,
+    ai_analyzed_at TEXT,
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_email_history_contact ON email_history(contact_id);
+CREATE INDEX IF NOT EXISTS idx_email_history_from ON email_history(from_address);
+CREATE INDEX IF NOT EXISTS idx_email_history_date ON email_history(message_date);
+CREATE INDEX IF NOT EXISTS idx_email_history_message_id ON email_history(message_id);
+
+-- Email Triage Sessions table (tracks interactive import wizard state)
+CREATE TABLE IF NOT EXISTS email_triage_sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    server TEXT NOT NULL,
+    folder TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    total_fetched INTEGER DEFAULT 0,
+    total_analyzed INTEGER DEFAULT 0,
+    total_categorized INTEGER DEFAULT 0,
+    current_block INTEGER DEFAULT 0,
+    block_size INTEGER DEFAULT 25,
+    discovered_domains TEXT DEFAULT '[]',
+    approved_domains TEXT DEFAULT '[]',
+    denied_domains TEXT DEFAULT '[]',
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_email_triage_user ON email_triage_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_triage_status ON email_triage_sessions(status);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_api_token ON users(api_token);
@@ -854,4 +1067,206 @@ CREATE INDEX IF NOT EXISTS idx_ai_insights_entity ON ai_insights(entity_type, en
 CREATE INDEX IF NOT EXISTS idx_ai_insights_created_by ON ai_insights(created_by);
 CREATE INDEX IF NOT EXISTS idx_ai_interactions_user ON ai_interactions(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_interactions_entity ON ai_interactions(entity_type, entity_id);
+
+-- ============================================================
+-- Concept Graph Schema (Phase 2)
+-- ============================================================
+
+-- Enhanced concepts table: add hierarchy support
+-- Note: existing concepts table is kept, we ALTER to add parent_id and metadata
+-- For fresh installs the CREATE TABLE above handles it; for upgrades we need ALTER
+-- Using a separate approach: drop old concept linking tables, add new ones
+
+-- Add parent_id to concepts for hierarchy (Military > WWII > Medals)
+-- SQLite doesn't support ADD COLUMN IF NOT EXISTS, so we use a workaround
+CREATE TABLE IF NOT EXISTS _concepts_migration_check (done INTEGER);
+INSERT OR IGNORE INTO _concepts_migration_check VALUES (0);
+
+-- Concept keywords for procedural detection from communications
+CREATE TABLE IF NOT EXISTS concept_keywords (
+    id TEXT PRIMARY KEY,
+    concept_id TEXT NOT NULL,
+    keyword TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (concept_id) REFERENCES concepts(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_concept_keywords_keyword ON concept_keywords(keyword);
+CREATE INDEX IF NOT EXISTS idx_concept_keywords_concept ON concept_keywords(concept_id);
+
+-- Relationship types (WANT, HAVE, TRADE, IS + custom)
+CREATE TABLE IF NOT EXISTS relationship_types (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    is_core INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+-- Seed core relationship types
+INSERT OR IGNORE INTO relationship_types (id, name, description, is_core, created_at) VALUES
+    ('00000000-0000-0000-0000-000000000001', 'WANT', 'Entity wants/is looking for the target', 1, '2025-01-01T00:00:00+00:00'),
+    ('00000000-0000-0000-0000-000000000002', 'HAVE', 'Entity has/possesses the target', 1, '2025-01-01T00:00:00+00:00'),
+    ('00000000-0000-0000-0000-000000000003', 'IS', 'Entity is categorized as the target', 1, '2025-01-01T00:00:00+00:00'),
+    ('00000000-0000-0000-0000-000000000004', 'TRADE', 'Entity is willing to trade the target', 1, '2025-01-01T00:00:00+00:00'),
+    ('00000000-0000-0000-0000-000000000005', 'SELL', 'Entity is selling the target', 1, '2025-01-01T00:00:00+00:00'),
+    ('00000000-0000-0000-0000-000000000006', 'BUY', 'Entity wants to buy the target', 1, '2025-01-01T00:00:00+00:00'),
+    ('00000000-0000-0000-0000-000000000007', 'GATEKEEPER', 'Entity is a gatekeeper for the target', 1, '2025-01-01T00:00:00+00:00'),
+    ('00000000-0000-0000-0000-000000000008', 'LOCATED_AT', 'Entity is located at the target location', 1, '2025-01-01T00:00:00+00:00'),
+    ('00000000-0000-0000-0000-000000000009', 'TAGGED_WITH', 'Entity is tagged with the target concept', 1, '2025-01-01T00:00:00+00:00'),
+    ('00000000-0000-0000-0000-00000000000a', 'MEMBER_OF', 'Entity is a member of the target group/concept', 1, '2025-01-01T00:00:00+00:00');
+
+-- Universal typed edges: entity_relationships
+CREATE TABLE IF NOT EXISTS entity_relationships (
+    id TEXT PRIMARY KEY,
+    source_type TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    relationship_type_id TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    metadata TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    FOREIGN KEY (relationship_type_id) REFERENCES relationship_types(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_entity_rel_source ON entity_relationships(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_entity_rel_target ON entity_relationships(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_entity_rel_type ON entity_relationships(relationship_type_id);
+
+-- Picks (buying opportunities - estate sales, drop-in sellers, etc.)
+CREATE TABLE IF NOT EXISTS picks (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    status TEXT NOT NULL DEFAULT 'upcoming',
+    date_start TEXT,
+    date_end TEXT,
+    recurrence TEXT,
+    metadata TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_picks_status ON picks(status);
+CREATE INDEX IF NOT EXISTS idx_picks_created_by ON picks(created_by);
+CREATE INDEX IF NOT EXISTS idx_picks_date_start ON picks(date_start);
+
+-- Locations (physical places)
+CREATE TABLE IF NOT EXISTS locations (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    address TEXT,
+    city TEXT,
+    state TEXT,
+    zip TEXT,
+    coordinates_lat REAL,
+    coordinates_lng REAL,
+    metadata TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_locations_created_by ON locations(created_by);
+CREATE INDEX IF NOT EXISTS idx_locations_city ON locations(city);
+
+-- Communication concept detection (link comms to concepts with confirm/deny)
+CREATE TABLE IF NOT EXISTS communication_concepts (
+    id TEXT PRIMARY KEY,
+    communication_type TEXT NOT NULL,
+    communication_id TEXT NOT NULL,
+    concept_id TEXT NOT NULL,
+    detection_method TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'suggested',
+    confidence REAL,
+    reviewed_at TEXT,
+    reviewed_by TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_comm_concepts_comm ON communication_concepts(communication_type, communication_id);
+CREATE INDEX IF NOT EXISTS idx_comm_concepts_concept ON communication_concepts(concept_id);
+CREATE INDEX IF NOT EXISTS idx_comm_concepts_status ON communication_concepts(status);
+
+-- Concept matcher groups: criteria in same group are AND'd; different groups are OR'd (DNF)
+CREATE TABLE IF NOT EXISTS concept_matcher_groups (
+    id TEXT PRIMARY KEY,
+    concept_id TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    FOREIGN KEY (concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_matcher_groups_concept ON concept_matcher_groups(concept_id);
+
+-- Individual matchers within a group
+CREATE TABLE IF NOT EXISTS concept_matchers (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    element_type TEXT NOT NULL,
+    match_value TEXT NOT NULL,
+    match_mode TEXT NOT NULL DEFAULT 'contains',
+    negate INTEGER NOT NULL DEFAULT 0,
+    case_sensitive INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (group_id) REFERENCES concept_matcher_groups(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_matchers_group ON concept_matchers(group_id);
+"#;
+
+/// Upgrade migrations that add columns to existing tables.
+/// These use ALTER TABLE which fails with "duplicate column" on fresh installs
+/// (where the CREATE TABLE already includes the columns). The migration runner
+/// ignores those errors.
+pub const UPGRADE_MIGRATIONS: &str = r#"
+ALTER TABLE email_history ADD COLUMN importance_score INTEGER;
+ALTER TABLE email_history ADD COLUMN is_important INTEGER DEFAULT 0;
+ALTER TABLE email_history ADD COLUMN is_urgent INTEGER DEFAULT 0;
+ALTER TABLE email_history ADD COLUMN ai_summary TEXT;
+ALTER TABLE email_history ADD COLUMN ai_analysis TEXT;
+ALTER TABLE email_history ADD COLUMN ai_analyzed_at TEXT;
+CREATE INDEX IF NOT EXISTS idx_email_history_ai_analyzed ON email_history(ai_analyzed_at);
+CREATE TABLE IF NOT EXISTS imap_accounts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    server TEXT NOT NULL,
+    port INTEGER NOT NULL DEFAULT 993,
+    username TEXT NOT NULL,
+    password TEXT NOT NULL,
+    default_folder TEXT NOT NULL DEFAULT 'INBOX',
+    max_emails INTEGER NOT NULL DEFAULT 500,
+    last_fetched_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_imap_accounts_user ON imap_accounts(user_id);
+CREATE TABLE IF NOT EXISTS concept_matcher_groups (
+    id TEXT PRIMARY KEY,
+    concept_id TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    FOREIGN KEY (concept_id) REFERENCES concepts(id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_matcher_groups_concept ON concept_matcher_groups(concept_id);
+CREATE TABLE IF NOT EXISTS concept_matchers (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    element_type TEXT NOT NULL,
+    match_value TEXT NOT NULL,
+    match_mode TEXT NOT NULL DEFAULT 'contains',
+    negate INTEGER NOT NULL DEFAULT 0,
+    case_sensitive INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (group_id) REFERENCES concept_matcher_groups(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_matchers_group ON concept_matchers(group_id);
 "#;

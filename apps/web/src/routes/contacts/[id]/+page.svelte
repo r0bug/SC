@@ -25,7 +25,7 @@
 	let formTags: string[] = [];
 	let formSocialHandles: { platform: string; handle: string }[] = [];
 
-	$: contactId = $page.params.id;
+	$: contactId = $page.params.id as string;
 
 	onMount(async () => {
 		await loadContact();
@@ -53,7 +53,7 @@
 
 			// Load related data with graceful error handling
 			try {
-				notes = await api.getNotes('Contact', contactId);
+				notes = await api.getContactNotes(contactId);
 			} catch (e) {
 				console.warn('Failed to load notes:', e);
 				notes = [];
@@ -69,7 +69,7 @@
 
 			try {
 				const allGroups = await api.getGroups();
-				groups = allGroups.filter(g => g.members.includes(contactId));
+				groups = allGroups.filter(g => g.contact_ids.includes(contactId));
 			} catch (e) {
 				console.warn('Failed to load groups:', e);
 				groups = [];
@@ -77,7 +77,7 @@
 
 			try {
 				const allEvents = await api.getEvents();
-				events = allEvents.filter(e => e.participants?.includes(contactId));
+				events = allEvents.filter(e => e.contacts.includes(contactId));
 			} catch (e) {
 				console.warn('Failed to load events:', e);
 				events = [];
@@ -91,9 +91,10 @@
 			}
 
 			resetForm();
-		} catch (error) {
+		} catch (error: unknown) {
 			console.error('Failed to load contact:', error);
-			alert(`Error loading contact: ${error.message}`);
+			const message = error instanceof Error ? error.message : String(error);
+			alert(`Error loading contact: ${message}`);
 			goto('/contacts');
 		} finally {
 			loading = false;
@@ -370,7 +371,7 @@
 								{#each groups as group}
 									<div class="related-item">
 										<a href="/groups/{group.id}">{group.name}</a>
-										<span class="meta">{group.members.length} members</span>
+										<span class="meta">{group.contact_ids.length} members</span>
 									</div>
 								{/each}
 							</div>

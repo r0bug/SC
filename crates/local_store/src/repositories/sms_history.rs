@@ -106,6 +106,21 @@ impl<'a> SmsHistoryRepository<'a> {
         Ok(count)
     }
 
+    /// List all SMS messages (for bulk operations like retroactive scanning)
+    pub async fn list_all(&self) -> DomainResult<Vec<SmsMessage>> {
+        let rows = sqlx::query_as::<_, SmsMessageRow>(
+            "SELECT id, contact_id, phone_number, contact_name, message_date, message_type,
+             subject, body, readable_date, thread_id, read_status, subscription_id,
+             imported_at, imported_by, source_file
+             FROM sms_history ORDER BY message_date DESC",
+        )
+        .fetch_all(self.pool)
+        .await
+        .map_err(|e| DomainError::Internal(format!("Failed to list all SMS: {}", e)))?;
+
+        rows.into_iter().map(|row| row.try_into()).collect()
+    }
+
     /// Get all SMS messages for a contact
     pub async fn get_by_contact(&self, contact_id: Uuid) -> DomainResult<Vec<SmsMessage>> {
         let rows = sqlx::query_as::<_, SmsMessageRow>(
@@ -165,6 +180,36 @@ impl<'a> SmsHistoryRepository<'a> {
         Ok(count.0)
     }
 
+    /// Get all unique phone numbers that have no linked contact
+    pub async fn get_unlinked_senders(&self) -> DomainResult<Vec<UnlinkedSmsSender>> {
+        let rows = sqlx::query_as::<_, UnlinkedSmsSenderRow>(
+            r#"
+            SELECT
+                phone_number,
+                contact_name,
+                COUNT(*) as message_count,
+                MAX(message_date) as last_message_date
+            FROM sms_history
+            WHERE contact_id IS NULL
+            GROUP BY phone_number
+            ORDER BY message_count DESC
+            "#,
+        )
+        .fetch_all(self.pool)
+        .await
+        .map_err(|e| DomainError::Internal(format!("Failed to fetch unlinked SMS senders: {}", e)))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| UnlinkedSmsSender {
+                phone_number: r.phone_number,
+                contact_name: r.contact_name,
+                message_count: r.message_count,
+                last_message_date: r.last_message_date,
+            })
+            .collect())
+    }
+
     /// Update contact_id for messages with a specific phone number (used after creating contact)
     pub async fn link_messages_to_contact(
         &self,
@@ -201,6 +246,22 @@ struct SmsMessageRow {
     imported_at: String,
     imported_by: String,
     source_file: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UnlinkedSmsSender {
+    pub phone_number: String,
+    pub contact_name: Option<String>,
+    pub message_count: i64,
+    pub last_message_date: i64,
+}
+
+#[derive(Debug, FromRow)]
+struct UnlinkedSmsSenderRow {
+    phone_number: String,
+    contact_name: Option<String>,
+    message_count: i64,
+    last_message_date: i64,
 }
 
 impl TryFrom<SmsMessageRow> for SmsMessage {

@@ -26,6 +26,7 @@ fn get_webhook_owner_id() -> Uuid {
 
 /// Twilio webhook payload for incoming SMS
 /// See: https://www.twilio.com/docs/sms/twiml#twilios-request-to-your-application
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct TwilioInboundSms {
     #[serde(rename = "MessageSid")]

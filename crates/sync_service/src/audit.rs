@@ -396,6 +396,124 @@ impl AuditService {
         .await
     }
 
+    /// Log pick operations
+    pub async fn log_pick_create(
+        &self,
+        pick_id: Uuid,
+        user_id: Uuid,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> DomainResult<()> {
+        self.log_operation(
+            ShareEntityType::Pick,
+            pick_id,
+            AuditAction::Create,
+            user_id,
+            serde_json::json!({"action": "pick_created"}),
+            ip,
+            user_agent,
+        )
+        .await
+    }
+
+    pub async fn log_pick_update(
+        &self,
+        pick_id: Uuid,
+        user_id: Uuid,
+        changes: serde_json::Value,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> DomainResult<()> {
+        self.log_operation(
+            ShareEntityType::Pick,
+            pick_id,
+            AuditAction::Update,
+            user_id,
+            changes,
+            ip,
+            user_agent,
+        )
+        .await
+    }
+
+    pub async fn log_pick_delete(
+        &self,
+        pick_id: Uuid,
+        user_id: Uuid,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> DomainResult<()> {
+        self.log_operation(
+            ShareEntityType::Pick,
+            pick_id,
+            AuditAction::Delete,
+            user_id,
+            serde_json::json!({"action": "pick_deleted"}),
+            ip,
+            user_agent,
+        )
+        .await
+    }
+
+    /// Log location operations
+    pub async fn log_location_create(
+        &self,
+        location_id: Uuid,
+        user_id: Uuid,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> DomainResult<()> {
+        self.log_operation(
+            ShareEntityType::Location,
+            location_id,
+            AuditAction::Create,
+            user_id,
+            serde_json::json!({"action": "location_created"}),
+            ip,
+            user_agent,
+        )
+        .await
+    }
+
+    pub async fn log_location_update(
+        &self,
+        location_id: Uuid,
+        user_id: Uuid,
+        changes: serde_json::Value,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> DomainResult<()> {
+        self.log_operation(
+            ShareEntityType::Location,
+            location_id,
+            AuditAction::Update,
+            user_id,
+            changes,
+            ip,
+            user_agent,
+        )
+        .await
+    }
+
+    pub async fn log_location_delete(
+        &self,
+        location_id: Uuid,
+        user_id: Uuid,
+        ip: Option<String>,
+        user_agent: Option<String>,
+    ) -> DomainResult<()> {
+        self.log_operation(
+            ShareEntityType::Location,
+            location_id,
+            AuditAction::Delete,
+            user_id,
+            serde_json::json!({"action": "location_deleted"}),
+            ip,
+            user_agent,
+        )
+        .await
+    }
+
     /// Log authentication events (login, logout, failed attempts)
     /// Uses Contact entity type as placeholder since auth events don't fit entity model
     pub async fn log_login(
@@ -460,6 +578,7 @@ impl AuditService {
     }
 
     /// Retrieve audit logs for an entity
+    #[allow(dead_code)]
     pub async fn get_entity_audit_trail(
         &self,
         entity_type: ShareEntityType,
@@ -473,6 +592,7 @@ impl AuditService {
     }
 
     /// Retrieve audit logs for a user
+    #[allow(dead_code)]
     pub async fn get_user_audit_trail(
         &self,
         user_id: Uuid,

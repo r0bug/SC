@@ -71,6 +71,24 @@
 				</a>
 			</div>
 			<div class="nav-section">
+				<h3>Concept Graph</h3>
+				<a href="/concepts" class:active={$page.url.pathname.startsWith('/concepts')}>
+					🧠 Concepts
+				</a>
+				<a href="/picks" class:active={$page.url.pathname.startsWith('/picks')}>
+					🛒 Picks
+				</a>
+				<a href="/locations" class:active={$page.url.pathname.startsWith('/locations')}>
+					📍 Locations
+				</a>
+				<a href="/matches" class:active={$page.url.pathname.startsWith('/matches')}>
+					🔗 Matches
+				</a>
+				<a href="/labels" class:active={$page.url.pathname.startsWith('/labels')}>
+					🏷 Labels
+				</a>
+			</div>
+			<div class="nav-section">
 				<h3>Engage</h3>
 				<a href="/communications" class:active={$page.url.pathname.startsWith('/communications')}>
 					📧 Communications
@@ -78,8 +96,29 @@
 				<a href="/shares" class:active={$page.url.pathname.startsWith('/shares')}>
 					🤝 Shares
 				</a>
-				<a href="/import" class:active={$page.url.pathname.startsWith('/import')}>
+				<a href="/import" class:active={$page.url.pathname === '/import'}>
 					📥 Import
+				</a>
+				<a href="/sms-import" class:active={$page.url.pathname.startsWith('/sms-import')}>
+					💬 SMS Import
+				</a>
+				<a href="/sms-history" class:active={$page.url.pathname.startsWith('/sms-history')}>
+					📱 SMS History
+				</a>
+				<a href="/email-import" class:active={$page.url.pathname.startsWith('/email-import')}>
+					📨 Email Import
+				</a>
+				<a href="/email-history" class:active={$page.url.pathname.startsWith('/email-history')}>
+					📧 Email History
+				</a>
+				<a href="/email-triage" class:active={$page.url.pathname.startsWith('/email-triage')}>
+					🤖 AI Email Triage
+				</a>
+				<a href="/email-domains" class:active={$page.url.pathname.startsWith('/email-domains')}>
+					🏷 Email Domains
+				</a>
+				<a href="/email-explorer" class:active={$page.url.pathname.startsWith('/email-explorer')}>
+					🔬 Email Explorer
 				</a>
 			</div>
 			<div class="nav-section">

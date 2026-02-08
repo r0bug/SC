@@ -19,6 +19,8 @@ impl<'a> ResourceAclRepository<'a> {
             ShareEntityType::CalendarEvent => "CalendarEvent",
             ShareEntityType::Group => "Group",
             ShareEntityType::Concept => "Concept",
+            ShareEntityType::Pick => "Pick",
+            ShareEntityType::Location => "Location",
         };
 
         sqlx::query(
@@ -65,6 +67,8 @@ impl<'a> ResourceAclRepository<'a> {
             ShareEntityType::CalendarEvent => "CalendarEvent",
             ShareEntityType::Group => "Group",
             ShareEntityType::Concept => "Concept",
+            ShareEntityType::Pick => "Pick",
+            ShareEntityType::Location => "Location",
         };
 
         let row = sqlx::query_as::<_, ResourceAclRow>(
@@ -91,6 +95,8 @@ impl<'a> ResourceAclRepository<'a> {
             ShareEntityType::CalendarEvent => "CalendarEvent",
             ShareEntityType::Group => "Group",
             ShareEntityType::Concept => "Concept",
+            ShareEntityType::Pick => "Pick",
+            ShareEntityType::Location => "Location",
         };
 
         sqlx::query(
@@ -155,6 +161,8 @@ impl From<ResourceAclRow> for ResourceAcl {
             "CalendarEvent" => ShareEntityType::CalendarEvent,
             "Group" => ShareEntityType::Group,
             "Concept" => ShareEntityType::Concept,
+            "Pick" => ShareEntityType::Pick,
+            "Location" => ShareEntityType::Location,
             _ => ShareEntityType::Contact,
         };
 

@@ -24,6 +24,7 @@ fn get_import_user_id() -> Uuid {
         })
 }
 
+#[allow(dead_code)]
 pub async fn import_csv(path: &str, store: &LocalStore) -> Result<()> {
     let file = File::open(path)?;
     let mut reader = Reader::from_reader(file);
@@ -116,6 +117,7 @@ pub async fn import_csv(path: &str, store: &LocalStore) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn build_field_mapping(headers: &csv::StringRecord) -> Result<HashMap<String, String>> {
     let mut map = HashMap::new();
 
@@ -147,6 +149,7 @@ fn build_field_mapping(headers: &csv::StringRecord) -> Result<HashMap<String, St
     Ok(map)
 }
 
+#[allow(dead_code)]
 fn parse_csv_record(
     record: &csv::StringRecord,
     headers: &csv::StringRecord,
@@ -207,6 +210,7 @@ fn parse_csv_record(
     })
 }
 
+#[allow(dead_code)]
 pub async fn import_vcard(path: &str, _store: &LocalStore) -> Result<()> {
     let content = std::fs::read_to_string(path)?;
     println!("\n📇 vCard Import");

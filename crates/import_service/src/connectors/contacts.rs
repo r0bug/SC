@@ -170,7 +170,7 @@ impl ImportConnector for AppleContactsConnector {
     async fn parse(&self, file_path: &Path) -> Result<ParseResult, ImportError> {
         let content = std::fs::read_to_string(file_path)?;
         let mut rows = Vec::new();
-        let mut warnings = Vec::new();
+        let warnings = Vec::new();
         let mut current = HashMap::new();
 
         for line in content.lines() {

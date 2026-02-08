@@ -12,7 +12,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone)]
@@ -139,6 +139,7 @@ pub fn create_rate_limiter(config: RateLimitConfig) -> RateLimiter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_rate_limiter() {

@@ -4,10 +4,12 @@ use axum::{
 };
 use tracing::info;
 
+#[allow(dead_code)]
 pub async fn ws_handler(ws: WebSocketUpgrade) -> Response {
     ws.on_upgrade(handle_socket)
 }
 
+#[allow(dead_code)]
 async fn handle_socket(mut socket: WebSocket) {
     info!("WebSocket connection established");
 

@@ -229,6 +229,8 @@ pub enum ShareEntityType {
     CalendarEvent,
     Group,
     Concept,
+    Pick,
+    Location,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -339,12 +341,311 @@ pub struct Concept {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
-    pub related_contacts: Vec<Uuid>,
-    pub related_projects: Vec<Uuid>,
-    pub tags: Vec<String>,
+    pub parent_id: Option<Uuid>,
+    pub keywords: Vec<ConceptKeyword>,
+    pub metadata: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub created_by: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConceptKeyword {
+    pub id: Uuid,
+    pub concept_id: Uuid,
+    pub keyword: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelationshipType {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_core: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum EntityType {
+    Contact,
+    Pick,
+    Event,
+    Location,
+    Concept,
+}
+
+impl std::fmt::Display for EntityType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EntityType::Contact => write!(f, "contact"),
+            EntityType::Pick => write!(f, "pick"),
+            EntityType::Event => write!(f, "event"),
+            EntityType::Location => write!(f, "location"),
+            EntityType::Concept => write!(f, "concept"),
+        }
+    }
+}
+
+impl std::str::FromStr for EntityType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "contact" => Ok(EntityType::Contact),
+            "pick" => Ok(EntityType::Pick),
+            "event" => Ok(EntityType::Event),
+            "location" => Ok(EntityType::Location),
+            "concept" => Ok(EntityType::Concept),
+            _ => Err(format!("Unknown entity type: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntityRelationship {
+    pub id: Uuid,
+    pub source_type: EntityType,
+    pub source_id: Uuid,
+    pub relationship_type_id: Uuid,
+    pub relationship_type_name: Option<String>,
+    pub target_type: EntityType,
+    pub target_id: Uuid,
+    pub metadata: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub created_by: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PickStatus {
+    Upcoming,
+    Active,
+    Past,
+    Recurring,
+}
+
+impl std::fmt::Display for PickStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PickStatus::Upcoming => write!(f, "upcoming"),
+            PickStatus::Active => write!(f, "active"),
+            PickStatus::Past => write!(f, "past"),
+            PickStatus::Recurring => write!(f, "recurring"),
+        }
+    }
+}
+
+impl std::str::FromStr for PickStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "upcoming" => Ok(PickStatus::Upcoming),
+            "active" => Ok(PickStatus::Active),
+            "past" => Ok(PickStatus::Past),
+            "recurring" => Ok(PickStatus::Recurring),
+            _ => Err(format!("Unknown pick status: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Pick {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub status: PickStatus,
+    pub date_start: Option<DateTime<Utc>>,
+    pub date_end: Option<DateTime<Utc>>,
+    pub recurrence: Option<serde_json::Value>,
+    pub metadata: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub created_by: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Location {
+    pub id: Uuid,
+    pub name: String,
+    pub address: Option<String>,
+    pub city: Option<String>,
+    pub state: Option<String>,
+    pub zip: Option<String>,
+    pub coordinates_lat: Option<f64>,
+    pub coordinates_lng: Option<f64>,
+    pub metadata: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub created_by: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum DetectionMethod {
+    Keyword,
+    Ai,
+    Manual,
+    Rule,
+}
+
+impl std::fmt::Display for DetectionMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DetectionMethod::Keyword => write!(f, "keyword"),
+            DetectionMethod::Ai => write!(f, "ai"),
+            DetectionMethod::Manual => write!(f, "manual"),
+            DetectionMethod::Rule => write!(f, "rule"),
+        }
+    }
+}
+
+impl std::str::FromStr for DetectionMethod {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "keyword" => Ok(DetectionMethod::Keyword),
+            "ai" => Ok(DetectionMethod::Ai),
+            "manual" => Ok(DetectionMethod::Manual),
+            "rule" => Ok(DetectionMethod::Rule),
+            _ => Err(format!("Unknown detection method: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SuggestionStatus {
+    Suggested,
+    Confirmed,
+    Denied,
+}
+
+impl std::fmt::Display for SuggestionStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SuggestionStatus::Suggested => write!(f, "suggested"),
+            SuggestionStatus::Confirmed => write!(f, "confirmed"),
+            SuggestionStatus::Denied => write!(f, "denied"),
+        }
+    }
+}
+
+impl std::str::FromStr for SuggestionStatus {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "suggested" => Ok(SuggestionStatus::Suggested),
+            "confirmed" => Ok(SuggestionStatus::Confirmed),
+            "denied" => Ok(SuggestionStatus::Denied),
+            _ => Err(format!("Unknown suggestion status: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommunicationConcept {
+    pub id: Uuid,
+    pub communication_type: String,
+    pub communication_id: Uuid,
+    pub concept_id: Uuid,
+    pub detection_method: DetectionMethod,
+    pub status: SuggestionStatus,
+    pub confidence: Option<f32>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub reviewed_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+// --- Concept Matcher types for criteria-based label detection ---
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConceptMatcherGroup {
+    pub id: Uuid,
+    pub concept_id: Uuid,
+    pub position: i32,
+    pub matchers: Vec<ConceptMatcher>,
+    pub created_at: DateTime<Utc>,
+    pub created_by: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConceptMatcher {
+    pub id: Uuid,
+    pub group_id: Uuid,
+    pub element_type: MatcherElementType,
+    pub match_value: String,
+    pub match_mode: MatchMode,
+    pub negate: bool,
+    pub case_sensitive: bool,
+    pub position: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum MatcherElementType {
+    Sender,
+    Receiver,
+    Subject,
+    Body,
+    AttachmentName,
+    AnyText,
+}
+
+impl std::fmt::Display for MatcherElementType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MatcherElementType::Sender => write!(f, "sender"),
+            MatcherElementType::Receiver => write!(f, "receiver"),
+            MatcherElementType::Subject => write!(f, "subject"),
+            MatcherElementType::Body => write!(f, "body"),
+            MatcherElementType::AttachmentName => write!(f, "attachment_name"),
+            MatcherElementType::AnyText => write!(f, "any_text"),
+        }
+    }
+}
+
+impl std::str::FromStr for MatcherElementType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "sender" => Ok(MatcherElementType::Sender),
+            "receiver" => Ok(MatcherElementType::Receiver),
+            "subject" => Ok(MatcherElementType::Subject),
+            "body" => Ok(MatcherElementType::Body),
+            "attachment_name" => Ok(MatcherElementType::AttachmentName),
+            "any_text" => Ok(MatcherElementType::AnyText),
+            _ => Err(format!("Unknown matcher element type: {}", s)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum MatchMode {
+    Contains,
+    Exact,
+    StartsWith,
+    EndsWith,
+}
+
+impl std::fmt::Display for MatchMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MatchMode::Contains => write!(f, "contains"),
+            MatchMode::Exact => write!(f, "exact"),
+            MatchMode::StartsWith => write!(f, "starts_with"),
+            MatchMode::EndsWith => write!(f, "ends_with"),
+        }
+    }
+}
+
+impl std::str::FromStr for MatchMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "contains" => Ok(MatchMode::Contains),
+            "exact" => Ok(MatchMode::Exact),
+            "starts_with" => Ok(MatchMode::StartsWith),
+            "ends_with" => Ok(MatchMode::EndsWith),
+            _ => Err(format!("Unknown match mode: {}", s)),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -12,8 +12,13 @@
 	let onlyWithNames = false;
 	let searchTimeout: number | undefined;
 
+	// Reconciliation state
+	let unlinkedCount = 0;
+	let reconciling = false;
+	let reconcileMessage = '';
+
 	onMount(async () => {
-		await loadContacts();
+		await Promise.all([loadContacts(), loadUnlinkedStats()]);
 	});
 
 	async function loadContacts() {
@@ -25,6 +30,36 @@
 			console.error('Failed to load contacts:', error);
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadUnlinkedStats() {
+		try {
+			const stats = await api.getUnlinkedStats();
+			unlinkedCount = stats.total_unlinked_senders;
+		} catch (error) {
+			console.error('Failed to load unlinked stats:', error);
+		}
+	}
+
+	async function discoverContacts() {
+		reconciling = true;
+		reconcileMessage = '';
+		try {
+			const result = await api.reconcileContacts();
+			const parts: string[] = [];
+			if (result.contacts_created > 0) parts.push(`${result.contacts_created} contacts created`);
+			if (result.contacts_matched > 0) parts.push(`${result.contacts_matched} existing contacts matched`);
+			if (result.email_messages_linked > 0) parts.push(`${result.email_messages_linked} emails linked`);
+			if (result.sms_messages_linked > 0) parts.push(`${result.sms_messages_linked} SMS linked`);
+			reconcileMessage = parts.length > 0 ? parts.join(', ') : 'No new contacts to discover';
+			// Refresh contacts and stats
+			await Promise.all([loadContacts(), loadUnlinkedStats()]);
+		} catch (error) {
+			console.error('Failed to reconcile contacts:', error);
+			reconcileMessage = 'Failed to discover contacts. Please try again.';
+		} finally {
+			reconciling = false;
 		}
 	}
 
@@ -104,8 +139,30 @@
 			<h1>Contacts</h1>
 			<p class="subtitle">Manage your contacts and relationships</p>
 		</div>
-		<a href="/contacts/new" class="btn btn-primary">+ Add Contact</a>
+		<div class="header-actions">
+			{#if unlinkedCount > 0}
+				<button
+					class="btn btn-discover"
+					on:click={discoverContacts}
+					disabled={reconciling}
+				>
+					{#if reconciling}
+						Discovering...
+					{:else}
+						Discover Contacts ({unlinkedCount} unlinked)
+					{/if}
+				</button>
+			{/if}
+			<a href="/contacts/new" class="btn btn-primary">+ Add Contact</a>
+		</div>
 	</div>
+
+	{#if reconcileMessage}
+		<div class="reconcile-message card">
+			<p>{reconcileMessage}</p>
+			<button class="dismiss-btn" on:click={() => reconcileMessage = ''}>&times;</button>
+		</div>
+	{/if}
 
 	<div class="filters card">
 		<div class="search-row">
@@ -135,7 +192,14 @@
 	{:else if contacts.length === 0}
 		<div class="empty card">
 			<p>No contacts found.</p>
-			<a href="/contacts/new" class="btn btn-primary">Create your first contact</a>
+			{#if unlinkedCount > 0}
+				<p class="empty-hint">You have {unlinkedCount} unlinked senders from your emails and messages.</p>
+				<button class="btn btn-primary" on:click={discoverContacts} disabled={reconciling}>
+					{reconciling ? 'Discovering...' : 'Discover Contacts'}
+				</button>
+			{:else}
+				<a href="/contacts/new" class="btn btn-primary">Create your first contact</a>
+			{/if}
 		</div>
 	{:else}
 		<div class="contact-grid">
@@ -161,13 +225,13 @@
 						</div>
 					</div>
 					{#if contact.organization}
-						<p class="contact-field">🏢 {contact.organization}</p>
+						<p class="contact-field">{contact.organization}</p>
 					{/if}
 					{#if contact.email}
-						<p class="contact-field">✉️ {contact.email}</p>
+						<p class="contact-field">{contact.email}</p>
 					{/if}
 					{#if contact.phone}
-						<p class="contact-field">📞 {contact.phone}</p>
+						<p class="contact-field">{contact.phone}</p>
 					{/if}
 					{#if contact.tags.length > 0}
 						<div class="tags">
@@ -195,9 +259,67 @@
 		margin-bottom: 2rem;
 	}
 
+	.header-actions {
+		display: flex;
+		gap: 0.75rem;
+		align-items: center;
+	}
+
 	.subtitle {
 		color: var(--gray-600);
 		margin-top: 0.25rem;
+	}
+
+	.btn-discover {
+		padding: 0.625rem 1.25rem;
+		background: var(--gray-100, #f3f4f6);
+		color: var(--gray-800, #1f2937);
+		border: 1px solid var(--gray-300, #d1d5db);
+		border-radius: 6px;
+		font-size: 0.875rem;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.btn-discover:hover:not(:disabled) {
+		background: var(--gray-200, #e5e7eb);
+	}
+
+	.btn-discover:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.reconcile-message {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 1rem 1.5rem;
+		margin-bottom: 1.5rem;
+		background: #f0fdf4;
+		border: 1px solid #bbf7d0;
+		border-radius: 6px;
+	}
+
+	.reconcile-message p {
+		margin: 0;
+		color: #166534;
+		font-size: 0.875rem;
+	}
+
+	.dismiss-btn {
+		background: none;
+		border: none;
+		font-size: 1.25rem;
+		color: #166534;
+		cursor: pointer;
+		padding: 0 0.25rem;
+	}
+
+	.empty-hint {
+		color: var(--gray-500);
+		font-size: 0.875rem;
+		margin-bottom: 1rem;
 	}
 
 	.filters {

@@ -91,8 +91,8 @@ pub async fn import_sms_xml_streaming(path: &str, store: &LocalStore) -> Result<
     println!("\n⏳ Starting streaming import...");
     println!("   Processing in batches of 1000...\n");
 
-    let contact_repo = ContactRepository::new(store.pool());
-    let comm_repo = local_store::repositories::CommunicationRepository::new(store.pool());
+    let _contact_repo = ContactRepository::new(store.pool());
+    let _comm_repo = local_store::repositories::CommunicationRepository::new(store.pool());
     let parser = StreamingAndroidParser::new(1000);
 
     let stats = parser
@@ -107,6 +107,7 @@ pub async fn import_sms_xml_streaming(path: &str, store: &LocalStore) -> Result<
 
                 let mut batch_contacts = 0;
                 let mut batch_communications = 0;
+                #[allow(unused_variables, unused_assignments)]
                 let mut batch_failed = 0;
 
                 for (contact, communications) in batch {
@@ -202,8 +203,8 @@ pub async fn import_calls_xml_streaming(path: &str, store: &LocalStore) -> Resul
 
     println!("\n⏳ Starting streaming import...");
 
-    let contact_repo = ContactRepository::new(store.pool());
-    let comm_repo = local_store::repositories::CommunicationRepository::new(store.pool());
+    let _contact_repo = ContactRepository::new(store.pool());
+    let _comm_repo = local_store::repositories::CommunicationRepository::new(store.pool());
     let parser = StreamingAndroidParser::new(1000);
 
     let stats = parser
@@ -213,6 +214,7 @@ pub async fn import_calls_xml_streaming(path: &str, store: &LocalStore) -> Resul
             async move {
                 let mut batch_contacts = 0;
                 let mut batch_communications = 0;
+                #[allow(unused_variables, unused_assignments)]
                 let mut batch_failed = 0;
 
                 for (contact, communications) in batch {

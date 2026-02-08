@@ -10,7 +10,7 @@
 	let loading = true;
 	let error = '';
 
-	$: eventId = $page.params.id;
+	$: eventId = $page.params.id as string;
 
 	onMount(async () => {
 		await loadEvent();

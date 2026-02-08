@@ -17,22 +17,48 @@ impl LocalStore {
     }
 
     async fn run_migrations(pool: &DbPool) -> Result<()> {
-        // Run the appropriate schema for the backend
-        let schema_sql = schema();
+        // Run the appropriate base schema for the backend
+        Self::execute_sql(pool, schema(), false).await?;
 
-        // Split schema into individual statements and execute each
-        // This handles the difference between SQLite (which supports multi-statement)
-        // and PostgreSQL (which sometimes needs individual execution)
-        for statement in schema_sql.split(';') {
+        // Run upgrade migrations (ALTER TABLE statements for existing databases).
+        // On fresh installs these will fail with "duplicate column" since the
+        // CREATE TABLE already includes the columns — that's expected and ignored.
+        Self::execute_sql(pool, crate::migrations::UPGRADE_MIGRATIONS, true).await?;
+
+        Ok(())
+    }
+
+    /// Execute a block of SQL statements separated by ';'.
+    /// If `tolerate_alter_errors` is true, ALTER TABLE "duplicate column" errors
+    /// are silently ignored (for upgrade migrations on fresh installs).
+    async fn execute_sql(pool: &DbPool, sql: &str, tolerate_alter_errors: bool) -> Result<()> {
+        // Strip SQL comment lines first (before splitting on ';')
+        // to avoid ';' inside comments creating bogus statements
+        let cleaned: String = sql
+            .lines()
+            .filter(|line| !line.trim().starts_with("--"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        for statement in cleaned.split(';') {
             let trimmed = statement.trim();
-            if !trimmed.is_empty() && !trimmed.starts_with("--") {
-                sqlx::query(trimmed)
-                    .execute(pool)
-                    .await
-                    .map_err(|e| {
-                        tracing::error!("Migration failed for statement: {}", trimmed);
-                        e
-                    })?;
+            if !trimmed.is_empty() {
+                match sqlx::query(trimmed).execute(pool).await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        let err_msg = e.to_string();
+                        // ALTER TABLE ADD COLUMN fails with "duplicate column" on
+                        // fresh installs where CREATE TABLE already included the column.
+                        // This is expected and safe to ignore.
+                        let is_alter_table = trimmed.to_uppercase().starts_with("ALTER TABLE");
+                        if tolerate_alter_errors && is_alter_table && err_msg.contains("duplicate column") {
+                            tracing::debug!("Skipping already-applied migration: {}", trimmed);
+                        } else {
+                            tracing::error!("Migration failed for statement: {}", trimmed);
+                            return Err(e.into());
+                        }
+                    }
+                }
             }
         }
         Ok(())

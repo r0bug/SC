@@ -6,15 +6,19 @@ use axum::Json;
 pub const MAX_NAME_LENGTH: usize = 100;
 pub const MAX_EMAIL_LENGTH: usize = 255;
 pub const MAX_QUERY_LENGTH: usize = 1000;
+#[allow(dead_code)]
 pub const MAX_MESSAGE_LENGTH: usize = 10000;
 pub const MAX_DESCRIPTION_LENGTH: usize = 5000;
 pub const MAX_TITLE_LENGTH: usize = 200;
 pub const MAX_LOCATION_LENGTH: usize = 500;
 pub const MAX_FILENAME_LENGTH: usize = 255;
 pub const MAX_PAGINATION_LIMIT: i64 = 1000;
+#[allow(dead_code)]
 pub const MAX_REQUEST_BODY_SIZE: usize = 10 * 1024 * 1024; // 10MB
 pub const MAX_ATTACHMENT_SIZE: usize = 100 * 1024 * 1024; // 100MB
+#[allow(dead_code)]
 pub const MAX_TAG_LENGTH: usize = 50;
+#[allow(dead_code)]
 pub const MAX_TAGS_COUNT: usize = 50;
 pub const MAX_CONTACTS_COUNT: usize = 1000;
 
@@ -255,6 +259,7 @@ pub fn validate_location(location: &str) -> Result<(), ValidationError> {
 }
 
 /// Validate a filename
+#[allow(dead_code)]
 pub fn validate_filename(filename: &str) -> Result<(), ValidationError> {
     if filename.is_empty() {
         return Err(ValidationError("Filename cannot be empty".to_string()));
@@ -281,6 +286,7 @@ pub fn validate_filename(filename: &str) -> Result<(), ValidationError> {
 }
 
 /// Validate file size
+#[allow(dead_code)]
 pub fn validate_file_size(size: usize, max_size: usize) -> Result<(), ValidationError> {
     if size > max_size {
         return Err(ValidationError(format!(
@@ -295,6 +301,7 @@ pub fn validate_file_size(size: usize, max_size: usize) -> Result<(), Validation
 }
 
 /// Allowed file extensions for uploads (security whitelist)
+#[allow(dead_code)]
 const ALLOWED_EXTENSIONS: &[&str] = &[
     // Images
     "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", // Documents
@@ -307,6 +314,7 @@ const ALLOWED_EXTENSIONS: &[&str] = &[
 ];
 
 /// Validate file type based on extension and MIME type
+#[allow(dead_code)]
 pub fn validate_file_type(filename: &str, content_type: &str) -> Result<(), ValidationError> {
     // Extract file extension
     let extension = std::path::Path::new(filename)
@@ -359,6 +367,7 @@ pub fn validate_file_type(filename: &str, content_type: &str) -> Result<(), Vali
 }
 
 /// Validate a tag
+#[allow(dead_code)]
 pub fn validate_tag(tag: &str) -> Result<(), ValidationError> {
     if tag.is_empty() {
         return Err(ValidationError("Tag cannot be empty".to_string()));
@@ -379,6 +388,7 @@ pub fn validate_tag(tag: &str) -> Result<(), ValidationError> {
 }
 
 /// Validate a list of tags
+#[allow(dead_code)]
 pub fn validate_tags(tags: &[String]) -> Result<(), ValidationError> {
     if tags.len() > MAX_TAGS_COUNT {
         return Err(ValidationError(format!(
@@ -443,7 +453,7 @@ mod tests {
 
     #[test]
     fn test_validate_password() {
-        assert!(validate_password("password123").is_ok());
+        assert!(validate_password("S3cur3P@ssXyz").is_ok());
         assert!(validate_password("short").is_err());
         assert!(validate_password(&"a".repeat(129)).is_err());
     }

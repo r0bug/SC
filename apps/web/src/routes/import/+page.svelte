@@ -91,7 +91,7 @@
 			preview = await api.previewImport(file, 10);
 
 			// Auto-select connector if detected
-			selectedConnector = connectors.find(c => c.id === preview?.connector_id) || null;
+			selectedConnector = connectors.find(c => c.id === preview?.connector?.id) || null;
 
 			// Auto-populate field mappings from detected fields
 			if (preview.detected_fields) {
@@ -102,7 +102,7 @@
 				});
 			}
 
-			if (preview.validation_errors.length > 0) {
+			if (preview.validation_errors && preview.validation_errors.length > 0) {
 				toasts.warning(
 					`Found ${preview.validation_errors.length} validation issue(s) in your file.`,
 					'Validation Warnings'
@@ -134,13 +134,14 @@
 
 		try {
 			importing = true;
-			config.connector_id = preview.connector_id;
+			config.connector_id = preview.connector?.id;
 
 			const jobResponse = await api.executeImport(file, config);
 			currentJob = {
 				id: jobResponse.job_id,
+				user_id: '',
 				file_name: file.name,
-				connector_id: preview.connector_id,
+				connector_id: preview.connector?.id || '',
 				status: jobResponse.status,
 				progress: { current: 0, total: preview.total_rows, phase: 'Starting...' },
 				created_at: jobResponse.created_at,
@@ -323,7 +324,7 @@
 					<div class="preview-summary">
 						<div class="summary-item">
 							<span class="label">File:</span>
-							<span class="value">{preview.file_name}</span>
+							<span class="value">{file?.name || 'Unknown'}</span>
 						</div>
 						<div class="summary-item">
 							<span class="label">Total Rows:</span>
@@ -331,11 +332,11 @@
 						</div>
 						<div class="summary-item">
 							<span class="label">Connector:</span>
-							<span class="value">{selectedConnector?.name || preview.connector_id}</span>
+							<span class="value">{selectedConnector?.name || preview.connector?.name || 'Unknown'}</span>
 						</div>
 					</div>
 
-					{#if preview.validation_errors.length > 0}
+					{#if preview.validation_errors && preview.validation_errors.length > 0}
 						<div class="validation-errors">
 							<h3>⚠️ Validation Errors ({preview.validation_errors.length})</h3>
 							<div class="error-list">
@@ -358,10 +359,8 @@
 							<h3>ℹ️ Warnings ({preview.warnings.length})</h3>
 							<div class="warning-list">
 								{#each preview.warnings.slice(0, 5) as warning}
-									<div class="warning-item {warning.severity ? `severity-${warning.severity.toLowerCase()}` : ''}">
-										<span class="warning-row">Row {warning.row}</span>
-										<span class="warning-field">{warning.field}</span>
-										<span class="warning-message">{warning.warning}</span>
+									<div class="warning-item">
+										<span class="warning-message">{warning}</span>
 									</div>
 								{/each}
 								{#if preview.warnings.length > 5}
@@ -375,7 +374,7 @@
 					<div class="field-mappings">
 						<h3>Field Mappings</h3>
 						<div class="mappings-grid">
-							{#each preview.detected_fields as field}
+							{#each preview.detected_fields || [] as field}
 								<div class="mapping-item">
 									<label>{field.field_name}</label>
 									<select
@@ -465,7 +464,7 @@
 						<button
 							on:click={executeImport}
 							class="btn btn-primary"
-							disabled={preview.validation_errors.length > 0}
+							disabled={preview.validation_errors && preview.validation_errors.length > 0}
 						>
 							{config.dry_run ? 'Preview Import' : 'Start Import'}
 						</button>
@@ -488,8 +487,7 @@
 
 				<div class="job-progress">
 					<ProgressBar
-						value={currentJob.progress.current}
-						max={currentJob.progress.total}
+						progress={currentJob.progress.total > 0 ? (currentJob.progress.current / currentJob.progress.total) * 100 : 0}
 					/>
 					<p class="progress-phase">{currentJob.progress.phase}</p>
 					<p class="progress-text">

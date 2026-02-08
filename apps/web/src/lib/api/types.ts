@@ -53,12 +53,19 @@ export interface Concept {
 	id: string;
 	name: string;
 	description?: string;
-	related_contacts: string[];
-	related_projects: string[];
-	tags: string[];
+	parent_id?: string;
+	keywords: ConceptKeyword[];
+	metadata: Record<string, any>;
 	created_at: string;
 	updated_at: string;
 	created_by: string;
+}
+
+export interface ConceptKeyword {
+	id: string;
+	concept_id: string;
+	keyword: string;
+	created_at: string;
 }
 
 export interface Project {
@@ -184,8 +191,82 @@ export interface ShareInvite {
 	expires_at?: string;
 }
 
-export type ShareEntityType = 'Contact' | 'Project' | 'Note' | 'CalendarEvent' | 'Group';
+export type ShareEntityType = 'Contact' | 'Project' | 'Note' | 'CalendarEvent' | 'Group' | 'Pick' | 'Location';
 export type Permission = 'Read' | 'Write' | 'Share' | 'Delete';
+
+// Concept Graph types
+export type PickStatus = 'Upcoming' | 'Active' | 'Past' | 'Recurring';
+export type EntityType = 'Contact' | 'Pick' | 'Event' | 'Location' | 'Concept';
+export type DetectionMethod = 'Keyword' | 'Ai' | 'Manual';
+export type SuggestionStatus = 'Suggested' | 'Confirmed' | 'Denied';
+
+export interface Pick {
+	id: string;
+	name: string;
+	description?: string;
+	status: PickStatus;
+	date_start?: string;
+	date_end?: string;
+	recurrence?: any;
+	metadata: Record<string, any>;
+	created_at: string;
+	updated_at: string;
+	created_by: string;
+}
+
+export interface Location {
+	id: string;
+	name: string;
+	address?: string;
+	city?: string;
+	state?: string;
+	zip?: string;
+	coordinates_lat?: number;
+	coordinates_lng?: number;
+	metadata: Record<string, any>;
+	created_at: string;
+	updated_at: string;
+	created_by: string;
+}
+
+export interface RelationshipType {
+	id: string;
+	name: string;
+	description?: string;
+	is_core: boolean;
+	created_at: string;
+}
+
+export interface EntityRelationship {
+	id: string;
+	source_type: EntityType;
+	source_id: string;
+	relationship_type_id: string;
+	relationship_type_name?: string;
+	target_type: EntityType;
+	target_id: string;
+	metadata: Record<string, any>;
+	created_at: string;
+	created_by: string;
+}
+
+export interface CommunicationConcept {
+	id: string;
+	communication_type: string;
+	communication_id: string;
+	concept_id: string;
+	detection_method: DetectionMethod;
+	status: SuggestionStatus;
+	confidence?: number;
+	reviewed_at?: string;
+	reviewed_by?: string;
+	created_at: string;
+}
+
+export interface MatchResult {
+	want: EntityRelationship;
+	haves: EntityRelationship[];
+}
 
 export interface AiInsight {
 	id: string;
@@ -299,6 +380,7 @@ export interface JobResponse {
 
 export interface ImportJob {
 	id: string;
+	user_id: string;
 	file_name: string;
 	connector_id: string;
 	status: JobStatus;

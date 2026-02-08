@@ -63,13 +63,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_auth_service_signup_login() {
+        std::env::set_var("JWT_SECRET", "test-secret-key-for-integration-tests-only-32chars!");
         let pool = setup_test_db().await;
         let auth_service = AuthService::new(pool);
 
         // Test signup
         let signup_req = SignupRequest {
             email: "test@example.com".to_string(),
-            password: "SecurePassword123!".to_string(),
+            password: "S3cur3P@ssXyz99".to_string(),
             name: "Test User".to_string(),
         };
 
@@ -85,7 +86,7 @@ mod tests {
         // Test login
         let login_req = LoginRequest {
             email: "test@example.com".to_string(),
-            password: "SecurePassword123!".to_string(),
+            password: "S3cur3P@ssXyz99".to_string(),
         };
 
         let login_result = auth_service.login(login_req).await;

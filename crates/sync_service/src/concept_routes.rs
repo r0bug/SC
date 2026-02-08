@@ -4,7 +4,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use core_domain::{Concept, Permission, ShareEntityType};
+use core_domain::{Concept, ConceptKeyword, Permission, ShareEntityType};
 use local_store::repositories::ConceptRepository;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -13,9 +13,14 @@ use uuid::Uuid;
 pub struct CreateConceptRequest {
     pub name: String,
     pub description: Option<String>,
-    pub related_contacts: Vec<Uuid>,
-    pub related_projects: Vec<Uuid>,
-    pub tags: Vec<String>,
+    pub parent_id: Option<Uuid>,
+    pub keywords: Option<Vec<String>>,
+    pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct KeywordRequest {
+    pub keyword: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -83,29 +88,31 @@ pub async fn create_concept(
         validation::validate_description(d)
     })
     .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
-    validation::validate_uuid_list(
-        &req.related_contacts,
-        validation::MAX_CONTACTS_COUNT,
-        "related contacts",
-    )
-    .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
-    validation::validate_uuid_list(
-        &req.related_projects,
-        validation::MAX_CONTACTS_COUNT,
-        "related projects",
-    )
-    .map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
-    validation::validate_tags(&req.tags).map_err(|e| (StatusCode::BAD_REQUEST, e.0))?;
+
+    let now = chrono::Utc::now();
+    let concept_id = Uuid::new_v4();
+
+    let keywords: Vec<ConceptKeyword> = req
+        .keywords
+        .unwrap_or_default()
+        .into_iter()
+        .map(|kw| ConceptKeyword {
+            id: Uuid::new_v4(),
+            concept_id,
+            keyword: kw,
+            created_at: now,
+        })
+        .collect();
 
     let concept = Concept {
-        id: Uuid::new_v4(),
+        id: concept_id,
         name: req.name,
         description: req.description,
-        related_contacts: req.related_contacts,
-        related_projects: req.related_projects,
-        tags: req.tags,
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
+        parent_id: req.parent_id,
+        keywords,
+        metadata: req.metadata.unwrap_or_else(|| serde_json::json!({})),
+        created_at: now,
+        updated_at: now,
         created_by: user.id,
     };
 
@@ -164,6 +171,87 @@ pub async fn get_concept(
     Ok(Json(ConceptResponse { concept }))
 }
 
+/// GET /api/concepts/:id/children
+pub async fn list_children(
+    State(app_state): State<AppState>,
+    AuthUser(_user): AuthUser,
+    Path(parent_id): Path<Uuid>,
+) -> Result<Json<Vec<Concept>>, (StatusCode, &'static str)> {
+    let repo = ConceptRepository::new(&app_state.pool);
+    let children = repo
+        .list_children(parent_id)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list children"))?;
+
+    Ok(Json(children))
+}
+
+/// POST /api/concepts/:id/keywords
+pub async fn add_keyword(
+    State(app_state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(concept_id): Path<Uuid>,
+    Json(req): Json<KeywordRequest>,
+) -> Result<Json<ConceptKeyword>, (StatusCode, &'static str)> {
+    let repo = ConceptRepository::new(&app_state.pool);
+    let concept = repo
+        .get_by_id(concept_id)
+        .await
+        .map_err(|_| (StatusCode::NOT_FOUND, "Concept not found"))?;
+
+    ensure_concept_permission(
+        &app_state,
+        &user.id,
+        &concept.id,
+        concept.created_by,
+        Permission::Write,
+    )
+    .await
+    .map_err(|code| (code, "Access denied"))?;
+
+    let keyword = ConceptKeyword {
+        id: Uuid::new_v4(),
+        concept_id,
+        keyword: req.keyword,
+        created_at: chrono::Utc::now(),
+    };
+
+    repo.add_keyword(concept_id, &keyword)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to add keyword"))?;
+
+    Ok(Json(keyword))
+}
+
+/// DELETE /api/concepts/:id/keywords/:keyword_id
+pub async fn remove_keyword(
+    State(app_state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path((concept_id, keyword_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<serde_json::Value>, (StatusCode, &'static str)> {
+    let repo = ConceptRepository::new(&app_state.pool);
+    let concept = repo
+        .get_by_id(concept_id)
+        .await
+        .map_err(|_| (StatusCode::NOT_FOUND, "Concept not found"))?;
+
+    ensure_concept_permission(
+        &app_state,
+        &user.id,
+        &concept.id,
+        concept.created_by,
+        Permission::Write,
+    )
+    .await
+    .map_err(|code| (code, "Access denied"))?;
+
+    repo.remove_keyword(keyword_id)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to remove keyword"))?;
+
+    Ok(Json(serde_json::json!({ "message": "Keyword removed" })))
+}
+
 /// PUT /api/concepts/:id
 pub async fn update_concept(
     State(app_state): State<AppState>,
@@ -188,21 +276,33 @@ pub async fn update_concept(
     .await
     .map_err(|code| (code, "Access denied"))?;
 
+    let now = chrono::Utc::now();
+
     // Track changes for audit log
     let changes = serde_json::json!({
         "name": req.name,
         "description": req.description,
-        "related_contacts": req.related_contacts,
-        "related_projects": req.related_projects,
-        "tags": req.tags
+        "parent_id": req.parent_id,
     });
 
     concept.name = req.name;
     concept.description = req.description;
-    concept.related_contacts = req.related_contacts;
-    concept.related_projects = req.related_projects;
-    concept.tags = req.tags;
-    concept.updated_at = chrono::Utc::now();
+    concept.parent_id = req.parent_id;
+    if let Some(metadata) = req.metadata {
+        concept.metadata = metadata;
+    }
+    if let Some(kw_strings) = req.keywords {
+        concept.keywords = kw_strings
+            .into_iter()
+            .map(|kw| ConceptKeyword {
+                id: Uuid::new_v4(),
+                concept_id: concept.id,
+                keyword: kw,
+                created_at: now,
+            })
+            .collect();
+    }
+    concept.updated_at = now;
 
     repo.update(&concept).await.map_err(|_| {
         (
@@ -279,7 +379,7 @@ pub async fn list_concepts(
     Ok(Json(concepts))
 }
 
-/// GET /api/concepts/search
+/// POST /api/concepts/search
 pub async fn search_concepts(
     State(app_state): State<AppState>,
     AuthUser(user): AuthUser,

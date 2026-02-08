@@ -6,9 +6,9 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use core_domain::{Contact, ShareEntityType, SocialHandle};
+use core_domain::{Contact, ShareEntityType};
 use import_service::{
-    create_default_registry, ConnectorMetadata, DeduplicationConfig, DeduplicationEngine,
+    create_default_registry, ConnectorMetadata,
     DuplicateStrategy, MatchCriteria,
 };
 use local_store::repositories::ContactRepository;
@@ -181,8 +181,10 @@ pub async fn execute_import(
         .clone()
         .unwrap_or_else(|| "auto".to_string());
 
+    let user_id = _user.id;
     let job = ImportJob {
         id: job_id,
+        user_id,
         file_name: file_name.clone(),
         connector_id: connector_id.clone(),
         status: JobStatus::Pending,
@@ -206,7 +208,6 @@ pub async fn execute_import(
     // Spawn background task with user_id for proper ownership
     let state_clone = state.clone();
     let request_clone = request.clone();
-    let user_id = _user.id;
     tokio::spawn(async move {
         process_import(state_clone, job_id, file_data, file_name, request_clone, user_id).await;
     });
@@ -220,38 +221,41 @@ pub async fn execute_import(
 
 /// GET /api/import/jobs/:job_id - Get job status
 pub async fn get_job_status(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(job_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let jobs = state.import_jobs.read().await;
     let job = jobs
         .iter()
-        .find(|j| j.id == job_id)
+        .find(|j| j.id == job_id && j.user_id == user.id)
         .cloned()
         .ok_or_else(|| (StatusCode::NOT_FOUND, "Job not found".to_string()))?;
 
     Ok(Json(job))
 }
 
-/// GET /api/import/jobs - List all import jobs
+/// GET /api/import/jobs - List import jobs for the authenticated user
 pub async fn list_jobs(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let jobs = state.import_jobs.read().await;
-    let job_list: Vec<_> = jobs.iter().cloned().collect();
+    let job_list: Vec<_> = jobs.iter().filter(|j| j.user_id == user.id).cloned().collect();
     Ok(Json(job_list))
 }
 
-/// POST /api/import/jobs/:job_id/cancel - Cancel an import job
+/// POST /api/import/jobs/:job_id/cancel - Cancel an import job owned by the authenticated user
 pub async fn cancel_job(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     Path(job_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let mut jobs = state.import_jobs.write().await;
     if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
+        if job.user_id != user.id {
+            return Err((StatusCode::NOT_FOUND, "Job not found".to_string()));
+        }
         job.status = JobStatus::Cancelled;
         job.updated_at = chrono::Utc::now();
         Ok(Json(serde_json::json!({"status": "cancelled"})))
@@ -523,14 +527,16 @@ fn normalize_phone(phone: &str) -> String {
     phone.chars().filter(|c| c.is_ascii_digit()).collect()
 }
 
-/// GET /api/import/history - Get import history from database
+/// GET /api/import/history - Get import history from database for the authenticated user
 pub async fn get_import_history(
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> impl IntoResponse {
     // Build parameterized query to prevent SQL injection
-    let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM import_logs WHERE 1=1");
+    // Always scope to the authenticated user
+    let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM import_logs WHERE user_id = ");
+    query_builder.push_bind(user.id.to_string());
 
     // Apply filters with parameterized values
     if let Some(status) = params.get("status") {

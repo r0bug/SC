@@ -38,10 +38,10 @@
 
 			await api.createEvent({
 				title,
-				description: description || null,
-				location: location || null,
+				description: description || undefined,
+				location: location || undefined,
 				start_time: startDateTime,
-				end_time: endDateTime,
+				end_time: endDateTime || undefined,
 				all_day: false
 			});
 

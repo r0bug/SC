@@ -14,6 +14,11 @@ Pure Rust domain models with no external dependencies:
 - AI: AiInteraction (logging with feedback/cache/retry tracking)
 - Search: SearchHistory (enriched with result_ids, privacy_mode, metadata)
 - Attachment: Attachment with ScanStatus, checksum verification, encryption flag
+- Email: EmailMessage, ImapAccount, EmailTriageSession
+- SMS: SmsMessage, SmsConversation
+- Concept Graph: Concept, CommunicationConcept, ConceptMatcherGroup, ConceptMatcher
+- Detection: DetectionMethod (Keyword, Ai, Manual, Rule), MatcherElementType, MatchMode
+- Contact Intelligence: Relationship, Location, Pick
 
 **Design Principles:**
 - Domain-driven design
@@ -60,6 +65,18 @@ Axum-based REST API with WebSocket support:
 - `GET /api/import/preview` - Import preview
 - `POST /api/import` - Execute import
 - `GET /ws` - WebSocket upgrade
+- **Email:** `/api/imap-accounts`, `/api/emails`, `/api/email-import`
+- **SMS:** `/api/sms`, `/api/android-import`
+- **Email Triage:** `/api/email-triage`
+- **Concepts:** `/api/concepts`, `/api/concepts/:id/matchers`, `/api/concepts/:id/scan`
+- **Labels:** `/api/labels`, `/api/labels/:id`, `/api/labels/scan-all`
+- **Communication Concepts:** `/api/communication-concepts`
+- **Matches:** `/api/matches`
+- **Manual Domains:** `/api/manual-domains`
+- **Reconciliation:** `/api/reconciliation`
+- **Relationships:** `/api/relationships`
+- **Locations:** `/api/locations`
+- **Picks:** `/api/picks`
 
 ### Communication Queue (`communication_queue`)
 Background job processing for outbound communications:
@@ -299,6 +316,29 @@ Key tables:
 - `search_history` - Enriched search tracking
   - Fields: query, filters, result_count, result_ids
   - Privacy: privacy_mode (boolean)
+
+**Email Tables:**
+- `imap_accounts` - IMAP account credentials and sync state
+- `email_messages` - Full email content with headers, body, attachments
+- `email_triage_sessions` - AI-powered domain discovery sessions
+
+**SMS Tables:**
+- `sms_messages` - SMS message content and metadata
+- `sms_conversations` - SMS conversation threads
+
+**Concept Graph Tables:**
+- `concepts` - Named concepts/domains for categorization
+- `communication_concepts` - Links between communications and concepts (with status, confidence, detection_method)
+- `concept_matcher_groups` - Matcher criteria groups (OR'd together in DNF)
+- `concept_matchers` - Individual matchers within groups (AND'd together)
+  - element_type: sender, receiver, subject, body, attachment_name, any_text
+  - match_mode: contains, exact, starts_with, ends_with
+  - Boolean: negate flag for NOT logic
+
+**Contact Intelligence Tables:**
+- `relationships` - Contact-to-contact relationships with types
+- `locations` - Contact locations/addresses
+- `picks` - User selections on AI-generated suggestions
 
 ## Security Architecture
 

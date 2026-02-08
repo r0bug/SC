@@ -60,8 +60,10 @@ pub fn init_metrics() -> PrometheusHandle {
 }
 
 /// Application metrics
+#[allow(dead_code)]
 pub struct Metrics;
 
+#[allow(dead_code)]
 impl Metrics {
     /// Record HTTP request
     pub fn record_http_request(method: &str, path: &str, status: u16, duration: f64) {
@@ -170,10 +172,12 @@ impl Metrics {
 }
 
 /// Timer for measuring operation duration
+#[allow(dead_code)]
 pub struct Timer {
     start: Instant,
 }
 
+#[allow(dead_code)]
 impl Timer {
     pub fn new() -> Self {
         Self {

@@ -1,13 +1,9 @@
 use anyhow::{anyhow, Result};
-use chrono::{DateTime, Utc};
-use core_domain::{
-    Communication, CommunicationDirection, CommunicationHistoryStatus, CommunicationType,
-};
-use local_store::repositories::CommunicationRepository;
+use chrono::Utc;
+use local_store::repositories::{SmsHistoryRepository, SmsMessage};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use local_store::DbPool;
 use std::io::BufRead;
 use uuid::Uuid;
@@ -264,220 +260,169 @@ pub fn parse_mms_xml<R: BufRead>(reader: R) -> Result<Vec<MmsRecord>> {
     Ok(messages)
 }
 
-/// Insert call records into database
+/// Helper: look up a contact by phone number
+async fn find_contact_by_phone(pool: &DbPool, phone: &str) -> Option<Uuid> {
+    let contact_id: Option<String> =
+        sqlx::query_scalar("SELECT id FROM contacts WHERE phone = ? LIMIT 1")
+            .bind(phone)
+            .fetch_optional(pool)
+            .await
+            .ok()?;
+    contact_id.and_then(|id| Uuid::parse_str(&id).ok())
+}
+
+/// Insert call records into database (calls still go to communications table, but no longer skip unmatched)
 pub async fn insert_calls(
     pool: &DbPool,
     calls: Vec<CallRecord>,
     user_id: &str,
     source_file: &str,
 ) -> Result<(usize, usize)> {
-    let comm_repo = CommunicationRepository::new(pool);
+    let sms_repo = SmsHistoryRepository::new(pool);
+    let now = Utc::now();
     let mut inserted = 0;
     let mut skipped = 0;
 
-    for call in calls {
-        // Try to match phone number to existing contact
-        let contact_id: Option<String> =
-            sqlx::query_scalar("SELECT id FROM contacts WHERE phone = ? LIMIT 1")
-                .bind(&call.phone_number)
-                .fetch_optional(pool)
-                .await?;
+    // Process in batches of 500
+    for chunk in calls.chunks(500) {
+        let mut batch: Vec<SmsMessage> = Vec::with_capacity(chunk.len());
 
-        // Skip if no contact found
-        let contact_uuid = match contact_id {
-            Some(id) => Uuid::parse_str(&id).unwrap(),
-            None => {
-                skipped += 1;
-                continue;
+        for call in chunk {
+            let contact_id = find_contact_by_phone(pool, &call.phone_number).await;
+
+            batch.push(SmsMessage {
+                id: Uuid::parse_str(&call.id).unwrap_or_else(|_| Uuid::new_v4()),
+                contact_id,
+                phone_number: call.phone_number.clone(),
+                contact_name: call.contact_name.clone(),
+                message_date: call.call_date,
+                message_type: call.call_type + 100, // offset to distinguish calls from SMS (101=incoming, 102=outgoing, 103=missed)
+                subject: None,
+                body: format!("Call duration: {}s", call.duration),
+                readable_date: call.readable_date.clone(),
+                thread_id: None,
+                read_status: 1,
+                subscription_id: call.subscription_id.clone(),
+                imported_at: now,
+                imported_by: user_id.to_string(),
+                source_file: Some(source_file.to_string()),
+            });
+        }
+
+        match sms_repo.batch_create(&batch).await {
+            Ok(count) => inserted += count,
+            Err(e) => {
+                tracing::warn!("Failed to insert call batch: {}", e);
+                skipped += batch.len();
             }
-        };
-
-        // Convert call_type: 1=incoming, 2=outgoing, 3=missed
-        let direction = match call.call_type {
-            2 => CommunicationDirection::Outbound,
-            3 => CommunicationDirection::Missed,
-            _ => CommunicationDirection::Inbound,
-        };
-
-        // Convert timestamp from milliseconds
-        let timestamp = DateTime::from_timestamp_millis(call.call_date).unwrap_or_else(Utc::now);
-
-        let communication = Communication {
-            id: Uuid::parse_str(&call.id).unwrap_or_else(|_| Uuid::new_v4()),
-            contact_id: contact_uuid,
-            communication_type: CommunicationType::Call,
-            direction,
-            timestamp,
-            content: Some(format!("Duration: {}s", call.duration)),
-            duration_seconds: Some(call.duration as i32),
-            phone_number: Some(call.phone_number.clone()),
-            thread_id: Some(call.phone_number.clone()),
-            status: CommunicationHistoryStatus::Completed,
-            metadata: json!({
-                "call_type": call.call_type,
-                "contact_name": call.contact_name,
-                "readable_date": call.readable_date,
-                "subscription_id": call.subscription_id,
-                "source_file": source_file,
-                "imported_by": user_id,
-            }),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-
-        match comm_repo.create_communication(&communication).await {
-            Ok(_) => inserted += 1,
-            Err(_) => skipped += 1,
         }
     }
 
     Ok((inserted, skipped))
 }
 
-/// Insert SMS records into database
+/// Insert SMS records into sms_history table (stores ALL messages, even without matching contacts)
 pub async fn insert_sms(
     pool: &DbPool,
     messages: Vec<SmsRecord>,
     user_id: &str,
     source_file: &str,
 ) -> Result<(usize, usize)> {
-    let comm_repo = CommunicationRepository::new(pool);
+    let sms_repo = SmsHistoryRepository::new(pool);
+    let now = Utc::now();
     let mut inserted = 0;
     let mut skipped = 0;
 
-    for sms in messages {
-        // Try to match phone number to existing contact
-        let contact_id: Option<String> =
-            sqlx::query_scalar("SELECT id FROM contacts WHERE phone = ? LIMIT 1")
-                .bind(&sms.phone_number)
-                .fetch_optional(pool)
-                .await?;
+    // Process in batches of 500 for memory efficiency
+    for chunk in messages.chunks(500) {
+        let mut batch: Vec<SmsMessage> = Vec::with_capacity(chunk.len());
 
-        // Skip if no contact found
-        let contact_uuid = match contact_id {
-            Some(id) => Uuid::parse_str(&id).unwrap(),
-            None => {
-                skipped += 1;
-                continue;
+        for sms in chunk {
+            let contact_id = find_contact_by_phone(pool, &sms.phone_number).await;
+
+            batch.push(SmsMessage {
+                id: Uuid::parse_str(&sms.id).unwrap_or_else(|_| Uuid::new_v4()),
+                contact_id,
+                phone_number: sms.phone_number.clone(),
+                contact_name: sms.contact_name.clone(),
+                message_date: sms.message_date,
+                message_type: sms.message_type,
+                subject: sms.subject.clone(),
+                body: sms.body.clone(),
+                readable_date: sms.readable_date.clone(),
+                thread_id: sms.thread_id.map(|t| t as i32),
+                read_status: sms.read_status,
+                subscription_id: sms.subscription_id.clone(),
+                imported_at: now,
+                imported_by: user_id.to_string(),
+                source_file: Some(source_file.to_string()),
+            });
+        }
+
+        match sms_repo.batch_create(&batch).await {
+            Ok(count) => inserted += count,
+            Err(e) => {
+                tracing::warn!("Failed to insert SMS batch: {}", e);
+                skipped += batch.len();
             }
-        };
-
-        // Convert message_type: 1=received, 2=sent, 3=draft, 4=outbox, 5=failed, 6=queued
-        let direction = if sms.message_type == 2 {
-            CommunicationDirection::Outbound
-        } else {
-            CommunicationDirection::Inbound
-        };
-
-        // Convert timestamp from milliseconds
-        let timestamp = DateTime::from_timestamp_millis(sms.message_date).unwrap_or_else(Utc::now);
-
-        let communication = Communication {
-            id: Uuid::parse_str(&sms.id).unwrap_or_else(|_| Uuid::new_v4()),
-            contact_id: contact_uuid,
-            communication_type: CommunicationType::Sms,
-            direction,
-            timestamp,
-            content: Some(sms.body.clone()),
-            duration_seconds: None,
-            phone_number: Some(sms.phone_number.clone()),
-            thread_id: sms.thread_id.map(|t| t.to_string()),
-            status: CommunicationHistoryStatus::Completed,
-            metadata: json!({
-                "message_type": sms.message_type,
-                "contact_name": sms.contact_name,
-                "subject": sms.subject,
-                "readable_date": sms.readable_date,
-                "read_status": sms.read_status,
-                "subscription_id": sms.subscription_id,
-                "source_file": source_file,
-                "imported_by": user_id,
-            }),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-
-        match comm_repo.create_communication(&communication).await {
-            Ok(_) => inserted += 1,
-            Err(_) => skipped += 1,
         }
     }
 
     Ok((inserted, skipped))
 }
 
-/// Insert MMS records into database
+/// Insert MMS records into sms_history table (stores ALL messages, even without matching contacts)
 pub async fn insert_mms(
     pool: &DbPool,
     messages: Vec<MmsRecord>,
     user_id: &str,
     source_file: &str,
 ) -> Result<(usize, usize)> {
-    let comm_repo = CommunicationRepository::new(pool);
+    let sms_repo = SmsHistoryRepository::new(pool);
+    let now = Utc::now();
     let mut inserted = 0;
     let mut skipped = 0;
 
-    for mms in messages {
-        // Try to match phone number to existing contact
-        let contact_id: Option<String> =
-            sqlx::query_scalar("SELECT id FROM contacts WHERE phone = ? LIMIT 1")
-                .bind(&mms.phone_number)
-                .fetch_optional(pool)
-                .await?;
+    // Process in batches of 500 for memory efficiency
+    for chunk in messages.chunks(500) {
+        let mut batch: Vec<SmsMessage> = Vec::with_capacity(chunk.len());
 
-        // Skip if no contact found
-        let contact_uuid = match contact_id {
-            Some(id) => Uuid::parse_str(&id).unwrap(),
-            None => {
-                skipped += 1;
-                continue;
+        for mms in chunk {
+            let contact_id = find_contact_by_phone(pool, &mms.phone_number).await;
+
+            // Combine MMS parts into body text
+            let body_parts: Vec<String> = mms.parts.iter().filter_map(|p| p.text.clone()).collect();
+            let body = if body_parts.is_empty() {
+                "[MMS media message]".to_string()
+            } else {
+                body_parts.join("\n")
+            };
+
+            batch.push(SmsMessage {
+                id: Uuid::parse_str(&mms.id).unwrap_or_else(|_| Uuid::new_v4()),
+                contact_id,
+                phone_number: mms.phone_number.clone(),
+                contact_name: mms.contact_name.clone(),
+                message_date: mms.message_date,
+                message_type: mms.message_type,
+                subject: mms.subject.clone(),
+                body,
+                readable_date: mms.readable_date.clone(),
+                thread_id: mms.thread_id.map(|t| t as i32),
+                read_status: mms.read_status,
+                subscription_id: mms.subscription_id.clone(),
+                imported_at: now,
+                imported_by: user_id.to_string(),
+                source_file: Some(source_file.to_string()),
+            });
+        }
+
+        match sms_repo.batch_create(&batch).await {
+            Ok(count) => inserted += count,
+            Err(e) => {
+                tracing::warn!("Failed to insert MMS batch: {}", e);
+                skipped += batch.len();
             }
-        };
-
-        // Combine MMS parts into body text
-        let body_parts: Vec<String> = mms.parts.iter().filter_map(|p| p.text.clone()).collect();
-        let body = body_parts.join("\n");
-
-        // Convert message_type: 1=received, 2=sent
-        let direction = if mms.message_type == 2 {
-            CommunicationDirection::Outbound
-        } else {
-            CommunicationDirection::Inbound
-        };
-
-        // Convert timestamp from milliseconds
-        let timestamp = DateTime::from_timestamp_millis(mms.message_date).unwrap_or_else(Utc::now);
-
-        let communication = Communication {
-            id: Uuid::parse_str(&mms.id).unwrap_or_else(|_| Uuid::new_v4()),
-            contact_id: contact_uuid,
-            communication_type: CommunicationType::Sms, // Store MMS as SMS
-            direction,
-            timestamp,
-            content: Some(body),
-            duration_seconds: None,
-            phone_number: Some(mms.phone_number.clone()),
-            thread_id: mms.thread_id.map(|t| t.to_string()),
-            status: CommunicationHistoryStatus::Completed,
-            metadata: json!({
-                "message_type": mms.message_type,
-                "contact_name": mms.contact_name,
-                "subject": mms.subject,
-                "readable_date": mms.readable_date,
-                "read_status": mms.read_status,
-                "subscription_id": mms.subscription_id,
-                "source_file": source_file,
-                "imported_by": user_id,
-                "is_mms": true,
-                "mms_parts": mms.parts,
-            }),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-
-        match comm_repo.create_communication(&communication).await {
-            Ok(_) => inserted += 1,
-            Err(_) => skipped += 1,
         }
     }
 

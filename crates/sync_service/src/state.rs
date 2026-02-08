@@ -16,6 +16,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImportJob {
     pub id: Uuid,
+    pub user_id: Uuid,
     pub file_name: String,
     pub connector_id: String,
     pub status: JobStatus,
@@ -59,7 +60,7 @@ pub struct ImportResult {
 #[derive(Clone)]
 pub struct AppState {
     pub store: Arc<LocalStore>,
-    pub ai_client: Arc<SegmindClient>,
+    pub ai_client: Arc<RwLock<SegmindClient>>,
     pub auth_service: Arc<AuthService>,
     pub acl_service: Arc<AclService>,
     pub audit_service: Arc<AuditService>,
@@ -92,7 +93,7 @@ impl AppState {
     ) -> Self {
         Self {
             store: Arc::new(store),
-            ai_client: Arc::new(ai_client),
+            ai_client: Arc::new(RwLock::new(ai_client)),
             auth_service,
             acl_service,
             audit_service,

@@ -4,7 +4,8 @@ import type {
 	AiInsight, SearchHistory, WorkerMetrics, AuthResponse,
 	DashboardSummary, User, Permission, Connector, ImportPreviewResponse,
 	ImportConfig, JobResponse, ImportJob, ImportLog, ImportHistoryFilters,
-	RollbackResult
+	RollbackResult, Pick, Location, RelationshipType, EntityRelationship,
+	CommunicationConcept, MatchResult, ConceptKeyword
 } from './types';
 
 export class ApiError extends Error {
@@ -25,6 +26,74 @@ export class ApiError extends Error {
 	getUserMessage(): string {
 		return this.message;
 	}
+}
+
+// --- Label Matcher types ---
+export interface MatcherGroup {
+	id: string;
+	concept_id: string;
+	position: number;
+	matchers: Matcher[];
+}
+
+export interface Matcher {
+	id: string;
+	group_id: string;
+	element_type: string;
+	match_value: string;
+	match_mode: string;
+	negate: boolean;
+	case_sensitive: boolean;
+	position: number;
+}
+
+export interface MatcherGroupInput {
+	matchers: MatcherInput[];
+}
+
+export interface MatcherInput {
+	element_type: string;
+	match_value: string;
+	match_mode?: string;
+	negate?: boolean;
+	case_sensitive?: boolean;
+}
+
+export interface LabelListEntry {
+	concept_id: string;
+	name: string;
+	description: string | null;
+	concept_type: string | null;
+	matcher_count: number;
+	confirmed_count: number;
+	suggested_count: number;
+}
+
+export interface LabelDetail {
+	concept_id: string;
+	name: string;
+	description: string | null;
+	matcher_groups: MatcherGroup[];
+	confirmed_count: number;
+	suggested_count: number;
+	communications: CommunicationSummaryItem[];
+}
+
+export interface CommunicationSummaryItem {
+	id: string;
+	communication_type: string;
+	sender: string;
+	subject: string | null;
+	preview: string | null;
+	date: string;
+	status: string;
+	confidence: number | null;
+	communication_concept_id: string;
+}
+
+export interface ScanResult {
+	new_suggestions: number;
+	total_scanned: number;
 }
 
 export class ApiClient {
@@ -210,6 +279,151 @@ export class ApiClient {
 		return this.request(`/concepts/${id}`, { method: 'DELETE' });
 	}
 
+	async getConceptChildren(parentId: string): Promise<Concept[]> {
+		return this.request(`/concepts/${parentId}/children`);
+	}
+
+	async addConceptKeyword(conceptId: string, keyword: string): Promise<ConceptKeyword> {
+		return this.request(`/concepts/${conceptId}/keywords`, {
+			method: 'POST',
+			body: JSON.stringify({ keyword })
+		});
+	}
+
+	async removeConceptKeyword(conceptId: string, keywordId: string): Promise<void> {
+		return this.request(`/concepts/${conceptId}/keywords/${keywordId}`, {
+			method: 'DELETE'
+		});
+	}
+
+	// Picks
+	async getPicks(): Promise<Pick[]> {
+		return this.request('/picks');
+	}
+
+	async getPick(id: string): Promise<Pick> {
+		return this.request(`/picks/${id}`);
+	}
+
+	async createPick(pick: Partial<Pick>): Promise<Pick> {
+		return this.request('/picks', {
+			method: 'POST',
+			body: JSON.stringify(pick)
+		});
+	}
+
+	async updatePick(id: string, updates: Partial<Pick>): Promise<Pick> {
+		return this.request(`/picks/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify(updates)
+		});
+	}
+
+	async deletePick(id: string): Promise<void> {
+		return this.request(`/picks/${id}`, { method: 'DELETE' });
+	}
+
+	// Locations
+	async getLocations(): Promise<Location[]> {
+		return this.request('/locations');
+	}
+
+	async getLocation(id: string): Promise<Location> {
+		return this.request(`/locations/${id}`);
+	}
+
+	async createLocation(location: Partial<Location>): Promise<Location> {
+		return this.request('/locations', {
+			method: 'POST',
+			body: JSON.stringify(location)
+		});
+	}
+
+	async updateLocation(id: string, updates: Partial<Location>): Promise<Location> {
+		return this.request(`/locations/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify(updates)
+		});
+	}
+
+	async deleteLocation(id: string): Promise<void> {
+		return this.request(`/locations/${id}`, { method: 'DELETE' });
+	}
+
+	// Relationships
+	async getRelationshipTypes(): Promise<RelationshipType[]> {
+		return this.request('/relationships/types');
+	}
+
+	async createRelationshipType(name: string, description?: string): Promise<RelationshipType> {
+		return this.request('/relationships/types', {
+			method: 'POST',
+			body: JSON.stringify({ name, description })
+		});
+	}
+
+	async deleteRelationshipType(id: string): Promise<void> {
+		return this.request(`/relationships/types/${id}`, { method: 'DELETE' });
+	}
+
+	async createRelationship(rel: {
+		source_type: string;
+		source_id: string;
+		relationship_type_id: string;
+		target_type: string;
+		target_id: string;
+		metadata?: Record<string, any>;
+	}): Promise<EntityRelationship> {
+		return this.request('/relationships', {
+			method: 'POST',
+			body: JSON.stringify(rel)
+		});
+	}
+
+	async deleteRelationship(id: string): Promise<void> {
+		return this.request(`/relationships/${id}`, { method: 'DELETE' });
+	}
+
+	async getRelationshipsBySource(sourceType: string, sourceId: string): Promise<EntityRelationship[]> {
+		return this.request(`/relationships/source/${sourceType}/${sourceId}`);
+	}
+
+	async getRelationshipsByTarget(targetType: string, targetId: string): Promise<EntityRelationship[]> {
+		return this.request(`/relationships/target/${targetType}/${targetId}`);
+	}
+
+	// Matches
+	async getContactMatches(contactId: string): Promise<MatchResult[]> {
+		return this.request(`/matches/contact/${contactId}`);
+	}
+
+	async getPickMatches(pickId: string): Promise<MatchResult[]> {
+		return this.request(`/matches/pick/${pickId}`);
+	}
+
+	// Communication Concepts
+	async getCommunicationConcepts(commType: string, commId: string): Promise<CommunicationConcept[]> {
+		return this.request(`/communications/${commType}/${commId}/concepts`);
+	}
+
+	async detectConcepts(commType: string, commId: string, text: string): Promise<CommunicationConcept[]> {
+		return this.request(`/communications/${commType}/${commId}/concepts/detect`, {
+			method: 'POST',
+			body: JSON.stringify({ text })
+		});
+	}
+
+	async getPendingConceptSuggestions(): Promise<CommunicationConcept[]> {
+		return this.request('/communication-concepts/pending');
+	}
+
+	async updateConceptSuggestion(id: string, status: 'confirmed' | 'denied'): Promise<CommunicationConcept> {
+		return this.request(`/communication-concepts/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify({ status })
+		});
+	}
+
 	// Projects
 	async getProjects(): Promise<Project[]> {
 		return this.request('/projects');
@@ -268,8 +482,17 @@ export class ApiClient {
 	}
 
 	// Notes
-	// NOTE: Backend only supports GET /notes/contact/:id, not GET /notes
-	// Use getNote(id) for individual notes or fetch by contact
+	// NOTE: Backend only supports GET /notes/contact/:id, not GET /notes (yet)
+	async getNotes(): Promise<Note[]> {
+		// TODO: Add backend endpoint for listing all notes
+		// For now, return empty array - individual note fetching works via getContactNotes
+		try {
+			return await this.request('/notes');
+		} catch {
+			return [];
+		}
+	}
+
 	async getContactNotes(contactId: string): Promise<Note[]> {
 		return this.request(`/notes/contact/${contactId}`);
 	}
@@ -445,6 +668,14 @@ export class ApiClient {
 
 	// Shares
 	// NOTE: Backend has /shares/sent and /shares/received, not /shares
+	async getShares(): Promise<ShareInvite[]> {
+		const [sent, received] = await Promise.all([
+			this.request('/shares/sent') as Promise<ShareInvite[]>,
+			this.request('/shares/received') as Promise<ShareInvite[]>
+		]);
+		return [...sent, ...received];
+	}
+
 	async getSentShares(): Promise<ShareInvite[]> {
 		return this.request('/shares/sent');
 	}
@@ -614,6 +845,545 @@ export class ApiClient {
 		document.body.removeChild(a);
 	}
 
+	// SMS History
+	async importAndroidSms(file: File): Promise<{
+		file_type: string;
+		total_records: number;
+		imported: number;
+		skipped: number;
+		elapsed_seconds: number;
+	}> {
+		const formData = new FormData();
+		formData.append('file', file);
+
+		const res = await fetch(`${this.baseUrl}/import/android-sms`, {
+			method: 'POST',
+			headers: this.getAuthHeaders(false),
+			body: formData
+		});
+
+		if (!res.ok) {
+			return await this.handleErrorResponse(res, '/import/android-sms');
+		}
+
+		return res.json();
+	}
+
+	async getSmsConversations(): Promise<{
+		conversations: Array<{
+			phone_number: string;
+			contact_name: string | null;
+			contact_id: string | null;
+			message_count: number;
+			last_message_date: number;
+			last_message_preview: string;
+		}>;
+		total: number;
+	}> {
+		return this.request('/sms-history/conversations');
+	}
+
+	async getSmsConversation(phone: string): Promise<{
+		messages: Array<{
+			id: string;
+			contact_id: string | null;
+			phone_number: string;
+			contact_name: string | null;
+			message_date: number;
+			message_type: number;
+			subject: string | null;
+			body: string;
+			readable_date: string;
+			thread_id: number | null;
+			read_status: number;
+			imported_at: string;
+			source_file: string | null;
+		}>;
+		total: number;
+		phone_number: string;
+	}> {
+		return this.request(`/sms-history/conversation/${encodeURIComponent(phone)}`);
+	}
+
+	async getSmsStats(): Promise<{
+		total_messages: number;
+		unique_conversations: number;
+		earliest_message_date: number | null;
+		latest_message_date: number | null;
+		messages_with_contacts: number;
+		messages_without_contacts: number;
+	}> {
+		return this.request('/sms-history/stats');
+	}
+
+	async importSmsDirectory(path: string): Promise<{
+		path: string;
+		total_files: number;
+		files_imported: number;
+		files_failed: number;
+		total_records: number;
+		total_imported: number;
+		total_skipped: number;
+		elapsed_seconds: number;
+		results: Array<{
+			file_name: string;
+			file_type: string;
+			total_records: number;
+			imported: number;
+			skipped: number;
+			status: string;
+			error: string | null;
+		}>;
+	}> {
+		return this.request('/import/android-sms/directory', {
+			method: 'POST',
+			body: JSON.stringify({ path })
+		});
+	}
+
+	async deleteSmsSource(filename: string): Promise<{ deleted: number; source_file: string }> {
+		return this.request(`/sms-history/source/${encodeURIComponent(filename)}`, {
+			method: 'DELETE'
+		});
+	}
+
+	// Email History
+	async fetchEmails(config: {
+		server: string;
+		port?: number;
+		username: string;
+		password: string;
+		folder?: string;
+		max_emails?: number;
+	}): Promise<{
+		fetched: number;
+		stored: number;
+		skipped: number;
+		server: string;
+		folder: string;
+	}> {
+		return this.request('/email/fetch', {
+			method: 'POST',
+			body: JSON.stringify(config)
+		});
+	}
+
+	async getEmailConversations(): Promise<{
+		conversations: Array<{
+			from_address: string;
+			from_name: string | null;
+			contact_id: string | null;
+			message_count: number;
+			last_message_date: number;
+			last_subject: string;
+			last_body_preview: string;
+		}>;
+		total: number;
+	}> {
+		return this.request('/email/conversations');
+	}
+
+	async getEmailConversation(address: string): Promise<{
+		messages: Array<{
+			id: string;
+			contact_id: string | null;
+			from_address: string;
+			from_name: string | null;
+			to_address: string;
+			cc: string | null;
+			subject: string;
+			body_text: string | null;
+			body_html: string | null;
+			message_date: number;
+			message_type: number;
+			message_id: string | null;
+			read_status: number;
+			has_attachments: number;
+			folder: string | null;
+			imported_at: string;
+			source_server: string | null;
+		}>;
+		total: number;
+		address: string;
+	}> {
+		return this.request(`/email/conversation/${encodeURIComponent(address)}`);
+	}
+
+	async getEmailStats(): Promise<{
+		total_emails: number;
+		unique_senders: number;
+		earliest_message_date: number | null;
+		latest_message_date: number | null;
+		received_count: number;
+		sent_count: number;
+	}> {
+		return this.request('/email/stats');
+	}
+
+	async searchEmails(q: string, limit?: number): Promise<{
+		results: Array<{
+			id: string;
+			from_address: string;
+			from_name: string | null;
+			to_address: string;
+			subject: string;
+			body_preview: string | null;
+			message_date: number;
+			message_type: number;
+			folder: string | null;
+		}>;
+		total: number;
+		query: string;
+	}> {
+		const params = new URLSearchParams({ q });
+		if (limit) params.set('limit', limit.toString());
+		return this.request(`/email/search?${params.toString()}`);
+	}
+
+	// Email Triage
+	async startEmailTriage(config: {
+		server: string;
+		folder?: string;
+		block_size?: number;
+	}): Promise<{
+		session_id: string;
+		status: string;
+		total_fetched: number;
+		block_size: number;
+		total_blocks: number;
+		current_block: number;
+		proposals: Array<{
+			concept_id: string;
+			name: string;
+			description: string;
+			keywords: string[];
+			email_count: number;
+			sample_subjects: string[];
+			sample_senders: string[];
+			confidence: number;
+		}>;
+	}> {
+		return this.request('/email/triage/start', {
+			method: 'POST',
+			body: JSON.stringify(config)
+		});
+	}
+
+	async getTriageSession(sessionId: string): Promise<any> {
+		return this.request(`/email/triage/${sessionId}`);
+	}
+
+	async getTriageProposals(sessionId: string): Promise<any> {
+		return this.request(`/email/triage/${sessionId}/proposals`);
+	}
+
+	async reviewTriageDomains(sessionId: string, review: {
+		approved: string[];
+		denied: string[];
+	}): Promise<any> {
+		return this.request(`/email/triage/${sessionId}/review`, {
+			method: 'POST',
+			body: JSON.stringify(review)
+		});
+	}
+
+	async continueTriage(sessionId: string, options: {
+		auto_apply?: boolean;
+	}): Promise<any> {
+		return this.request(`/email/triage/${sessionId}/continue`, {
+			method: 'POST',
+			body: JSON.stringify(options)
+		});
+	}
+
+	// Email Domains
+	async getEmailDomains(): Promise<{
+		domains: Array<{
+			concept_id: string;
+			name: string;
+			description: string | null;
+			keywords: string[];
+			email_count: number;
+			unique_senders: number;
+			earliest_date: number | null;
+			latest_date: number | null;
+		}>;
+		total: number;
+	}> {
+		return this.request('/email/domains');
+	}
+
+	async getDomainEmails(conceptId: string): Promise<{
+		concept_id: string;
+		emails: Array<{
+			id: string;
+			from_address: string;
+			from_name: string | null;
+			to_address: string;
+			subject: string;
+			body_text: string | null;
+			body_html: string | null;
+			message_date: number;
+			message_type: number;
+			read_status: number;
+			has_attachments: number;
+			folder: string | null;
+		}>;
+		total: number;
+	}> {
+		return this.request(`/email/domains/${conceptId}/emails`);
+	}
+
+	async getDomainStats(conceptId: string): Promise<{
+		concept_id: string;
+		name: string;
+		email_count: number;
+		unique_senders: number;
+		earliest_date: number | null;
+		latest_date: number | null;
+		top_senders: Array<{
+			address: string;
+			name: string | null;
+			count: number;
+		}>;
+	}> {
+		return this.request(`/email/domains/${conceptId}/stats`);
+	}
+
+	async filterEmailsByDomains(filter: {
+		domain_ids: string[];
+		concept_ids?: string[];
+		mode: string;
+		limit?: number;
+		offset?: number;
+	}): Promise<{
+		emails: Array<{
+			id: string;
+			from_address: string;
+			from_name: string | null;
+			subject: string;
+			message_date: number;
+			body_preview: string | null;
+			message_type: number;
+			folder: string | null;
+			domains: Array<{
+				concept_id: string;
+				concept_name: string;
+			}>;
+		}>;
+		total: number;
+		mode: string;
+		overlaps: Array<{
+			domain_ids: string[];
+			count: number;
+		}>;
+	}> {
+		return this.request('/email/domains/filter', {
+			method: 'POST',
+			body: JSON.stringify(filter)
+		});
+	}
+
+	// Manual Domain Assignment
+	async searchEmailDomains(q: string): Promise<{
+		domains: Array<{ concept_id: string; name: string; keywords: string[] }>;
+	}> {
+		return this.request(`/email/domains/search?q=${encodeURIComponent(q)}`);
+	}
+
+	async createEmailDomain(
+		name: string,
+		description?: string,
+		keywords?: string[]
+	): Promise<{ concept_id: string; name: string }> {
+		return this.request('/email/domains/create', {
+			method: 'POST',
+			body: JSON.stringify({ name, description, keywords })
+		});
+	}
+
+	async getEmailDomainAssignments(
+		emailId: string
+	): Promise<{
+		domains: Array<{
+			concept_id: string;
+			name: string;
+			status: string;
+			detection_method: string;
+		}>;
+	}> {
+		return this.request(`/email/${emailId}/domains`);
+	}
+
+	async assignDomainsToEmail(
+		emailId: string,
+		domainNames: string[]
+	): Promise<{
+		assigned: Array<{
+			concept_id: string;
+			name: string;
+			status: string;
+			detection_method: string;
+		}>;
+		created: string[];
+	}> {
+		return this.request(`/email/${emailId}/domains`, {
+			method: 'POST',
+			body: JSON.stringify({ domain_names: domainNames })
+		});
+	}
+
+	async unlinkDomainFromEmail(emailId: string, conceptId: string): Promise<void> {
+		return this.request(`/email/${emailId}/domains/${conceptId}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async bulkAssignDomains(
+		emailIds: string[],
+		domainNames: string[]
+	): Promise<{ assigned_count: number; created_domains: string[] }> {
+		return this.request('/email/bulk-assign-domains', {
+			method: 'POST',
+			body: JSON.stringify({ email_ids: emailIds, domain_names: domainNames })
+		});
+	}
+
+	// IMAP Account Management
+	async getImapAccounts(): Promise<{
+		accounts: Array<{
+			id: string;
+			name: string;
+			server: string;
+			port: number;
+			username: string;
+			default_folder: string;
+			max_emails: number;
+			last_fetched_at: string | null;
+			created_at: string;
+			updated_at: string;
+		}>;
+	}> {
+		return this.request('/imap-accounts');
+	}
+
+	async createImapAccount(data: {
+		name: string;
+		server: string;
+		port?: number;
+		username: string;
+		password: string;
+		default_folder?: string;
+		max_emails?: number;
+	}): Promise<{
+		id: string;
+		name: string;
+		server: string;
+		port: number;
+		username: string;
+		default_folder: string;
+		max_emails: number;
+		last_fetched_at: string | null;
+		created_at: string;
+		updated_at: string;
+	}> {
+		return this.request('/imap-accounts', {
+			method: 'POST',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async updateImapAccount(id: string, data: {
+		name?: string;
+		server?: string;
+		port?: number;
+		username?: string;
+		password?: string;
+		default_folder?: string;
+		max_emails?: number;
+	}): Promise<any> {
+		return this.request(`/imap-accounts/${id}`, {
+			method: 'PUT',
+			body: JSON.stringify(data)
+		});
+	}
+
+	async deleteImapAccount(id: string): Promise<void> {
+		await this.request(`/imap-accounts/${id}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async fetchFromImapAccount(id: string, overrides?: {
+		folder?: string;
+		max_emails?: number;
+	}): Promise<{
+		fetched: number;
+		stored: number;
+		skipped: number;
+		server: string;
+		folder: string;
+	}> {
+		return this.request(`/imap-accounts/${id}/fetch`, {
+			method: 'POST',
+			body: overrides ? JSON.stringify(overrides) : undefined
+		});
+	}
+
+	// Sender-level domain assignment
+	async getSenderDomains(address: string): Promise<{
+		domains: Array<{ concept_id: string; name: string; status: string; detection_method: string }>;
+	}> {
+		return this.request(`/email/sender/${encodeURIComponent(address)}/domains`);
+	}
+
+	async assignDomainsToSender(address: string, domainNames: string[]): Promise<{
+		assigned_count: number;
+		message_count: number;
+		created_domains: string[];
+	}> {
+		return this.request(`/email/sender/${encodeURIComponent(address)}/domains`, {
+			method: 'POST',
+			body: JSON.stringify({ domain_names: domainNames })
+		});
+	}
+
+	async getSmsSenderDomains(phone: string): Promise<{
+		domains: Array<{ concept_id: string; name: string; status: string; detection_method: string }>;
+	}> {
+		return this.request(`/sms/sender/${encodeURIComponent(phone)}/domains`);
+	}
+
+	async assignDomainsToSmsSender(phone: string, domainNames: string[]): Promise<{
+		assigned_count: number;
+		message_count: number;
+		created_domains: string[];
+	}> {
+		return this.request(`/sms/sender/${encodeURIComponent(phone)}/domains`, {
+			method: 'POST',
+			body: JSON.stringify({ domain_names: domainNames })
+		});
+	}
+
+	// Contact Reconciliation
+	async reconcileContacts(): Promise<{
+		contacts_created: number;
+		contacts_matched: number;
+		email_messages_linked: number;
+		sms_messages_linked: number;
+		errors: string[];
+	}> {
+		return this.request('/contacts/reconcile', { method: 'POST' });
+	}
+
+	async getUnlinkedStats(): Promise<{
+		unlinked_email_senders: number;
+		unlinked_sms_senders: number;
+		total_unlinked_senders: number;
+	}> {
+		return this.request('/contacts/unlinked-stats');
+	}
+
 	// Worker Metrics
 	async getWorkerMetrics(): Promise<WorkerMetrics[]> {
 		return this.request('/metrics/worker');
@@ -632,6 +1402,18 @@ export class ApiClient {
 		return this.request('/settings', {
 			method: 'PUT',
 			body: JSON.stringify(settings)
+		});
+	}
+
+	// AI Settings
+	async getAiStatus(): Promise<{ configured: boolean; provider: string; model: string }> {
+		return this.request('/settings/ai');
+	}
+
+	async updateAiKey(apiKey: string): Promise<{ configured: boolean; message: string }> {
+		return this.request('/settings/ai', {
+			method: 'PUT',
+			body: JSON.stringify({ api_key: apiKey })
 		});
 	}
 
@@ -705,6 +1487,75 @@ export class ApiClient {
 		return () => {
 			this.wsListeners.get(type)?.delete(callback);
 		};
+	}
+
+	// --- Label Matchers ---
+
+	async getConceptMatchers(conceptId: string): Promise<{ groups: MatcherGroup[] }> {
+		return this.request(`/concepts/${conceptId}/matchers`);
+	}
+
+	async setConceptMatchers(conceptId: string, groups: MatcherGroupInput[], autoScan?: boolean): Promise<{ groups: MatcherGroup[]; scan_count: number }> {
+		const qs = autoScan ? '?auto_scan=true' : '';
+		return this.request(`/concepts/${conceptId}/matchers${qs}`, {
+			method: 'POST',
+			body: JSON.stringify({ groups })
+		});
+	}
+
+	async addMatcherGroup(conceptId: string, matchers: MatcherInput[]): Promise<{ group: MatcherGroup }> {
+		return this.request(`/concepts/${conceptId}/matchers/groups`, {
+			method: 'POST',
+			body: JSON.stringify({ matchers })
+		});
+	}
+
+	async deleteMatcherGroup(conceptId: string, groupId: string): Promise<void> {
+		return this.request(`/concepts/${conceptId}/matchers/groups/${groupId}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async addMatcherToGroup(conceptId: string, groupId: string, matcher: MatcherInput): Promise<any> {
+		return this.request(`/concepts/${conceptId}/matchers/groups/${groupId}/matchers`, {
+			method: 'POST',
+			body: JSON.stringify(matcher)
+		});
+	}
+
+	async updateMatcher(conceptId: string, groupId: string, matcherId: string, matcher: MatcherInput): Promise<any> {
+		return this.request(`/concepts/${conceptId}/matchers/groups/${groupId}/matchers/${matcherId}`, {
+			method: 'PUT',
+			body: JSON.stringify(matcher)
+		});
+	}
+
+	async deleteMatcher(conceptId: string, groupId: string, matcherId: string): Promise<void> {
+		return this.request(`/concepts/${conceptId}/matchers/groups/${groupId}/matchers/${matcherId}`, {
+			method: 'DELETE'
+		});
+	}
+
+	async scanConcept(conceptId: string): Promise<ScanResult> {
+		return this.request(`/concepts/${conceptId}/scan`, { method: 'POST' });
+	}
+
+	async scanAllLabels(): Promise<ScanResult> {
+		return this.request('/labels/scan-all', { method: 'POST' });
+	}
+
+	async listLabels(): Promise<{ labels: LabelListEntry[] }> {
+		return this.request('/labels');
+	}
+
+	async getLabelDetail(conceptId: string, params?: { status?: string; limit?: number; offset?: number; comm_type?: string }): Promise<LabelDetail> {
+		const searchParams = new URLSearchParams();
+		if (params?.status) searchParams.set('status', params.status);
+		if (params?.limit) searchParams.set('limit', params.limit.toString());
+		if (params?.offset) searchParams.set('offset', params.offset.toString());
+		if (params?.comm_type) searchParams.set('comm_type', params.comm_type);
+		const qs = searchParams.toString();
+		return this.request(`/labels/${conceptId}${qs ? '?' + qs : ''}`);
 	}
 
 	// Private helpers

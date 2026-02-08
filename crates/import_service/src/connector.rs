@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use uuid::Uuid;
 
 /// Metadata describing an import connector's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize)]

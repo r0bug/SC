@@ -209,7 +209,7 @@ impl EmailConnector {
         }
 
         // Auto-detect mappings based on what fields are present
-        let mut suggested_mappings = vec![
+        let suggested_mappings = vec![
             ("email".to_string(), "email".to_string()),
             ("first_name".to_string(), "first_name".to_string()),
             ("last_name".to_string(), "last_name".to_string()),

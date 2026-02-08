@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
  */
 
 // Helper to login and get auth cookie
-async function login(page) {
+async function login(page: any) {
 	await page.goto('/auth/login');
 	await page.fill('input[type="email"]', 'test@example.com');
 	await page.fill('input[type="password"]', 'password');

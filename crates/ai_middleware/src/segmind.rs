@@ -85,6 +85,11 @@ impl SegmindClient {
         }
     }
 
+    /// Check if the client is running in mock mode
+    pub fn is_mock_mode(&self) -> bool {
+        self.mock_mode
+    }
+
     /// Configure custom base URL and model
     pub fn with_config(mut self, base_url: Option<String>, model: Option<String>) -> Self {
         if let Some(url) = base_url {
@@ -138,7 +143,7 @@ impl SegmindClient {
 
     /// Analyze contact data with AI
     pub async fn analyze_contact_data(&self, contact_data: &str) -> Result<ContactAnalysis> {
-        let cache_key = format!("contact_analysis:{}", contact_data);
+        let _cache_key = format!("contact_analysis:{}", contact_data);
 
         // For contact analysis, we generate a structured prompt
         let prompt = format!(

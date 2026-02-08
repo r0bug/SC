@@ -1,9 +1,7 @@
 use crate::audit;
 use crate::auth::{AuthError, AuthUser, LoginRequest, SignupRequest};
 use crate::state::AppState;
-use crate::validation;
 use axum::{extract::State, http::HeaderMap, response::IntoResponse, Json};
-use chrono::Utc;
 use local_store::repositories::UserRepository;
 
 /// POST /api/auth/signup

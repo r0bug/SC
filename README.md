@@ -4,6 +4,7 @@ Portable contact manager for macOS/Linux desktops with responsive web interface.
 
 ## Features
 
+### Core
 - Contact, Tag, Project, Calendar Event, and Note management
 - CSV/vCard/SMS import with social media support (LinkedIn, Twitter, Facebook, Instagram)
 - **Attachment Management** - Upload, scan (ClamAV), and manage files across all entities
@@ -15,6 +16,29 @@ Portable contact manager for macOS/Linux desktops with responsive web interface.
 - SQLite or PostgreSQL storage with Redis caching option
 - S3/MinIO attachment storage option
 - WebSocket real-time notifications
+
+### Email Intelligence
+- **IMAP Integration** - Connect IMAP accounts, sync email history with full content/metadata
+- **Email History** - Browse, search, and view email threads with reading pane
+- **Email Triage** - AI-powered domain discovery and email categorization sessions
+- **Email Domains** - Manage sender domains with bulk tagging and classification
+
+### SMS
+- **SMS Import** - Import Android SMS/call history
+- **SMS History** - Browse SMS conversations with thread view
+
+### Concept Graph
+- **Concepts & Domains** - Define concepts (topics, domains) to categorize communications
+- **Concept Detection** - Automatic keyword and rule-based detection across emails and SMS
+- **Criteria-Based Labels** - Build boolean criteria (AND/OR/NOT) from sender, receiver, subject, body, or attachments; procedural matching with no LLM dependency
+- **Matches** - View and manage concept-communication links with confirm/deny workflow
+- **Labels** - Unified label management with match counts, scan controls, and suggestion review
+
+### Contact Intelligence
+- **Contact Reconciliation** - De-duplication engine linking fragmented contacts across email and SMS
+- **Relationships** - Define and manage contact-to-contact relationships
+- **Locations** - Track contact locations and addresses
+- **Picks** - User selections and confirmations for AI-generated suggestions
 
 ## Service Configuration
 
@@ -114,6 +138,14 @@ A SvelteKit web UI is included with:
 - **Communications screen** with Email/SMS forms
 - **Import page** with format selection and preview
 - **Projects & Notes** management
+- **Email History** - Full email browsing with reading pane, sender domain tags, and label badges
+- **SMS History** - SMS conversation threads with label integration
+- **Email Import** - IMAP account setup, sync controls, and import job tracking
+- **Email Triage** - AI-powered domain discovery sessions
+- **Email Domains** - Domain management with bulk operations
+- **Labels** - Criteria-based label builder with match review (confirmed/suggested)
+- **Matches** - Concept-communication match management
+- **Locations & Picks** - Contact location and pick management
 - Live API integration with sync service
 - Optimistic updates and error handling
 
@@ -272,6 +304,13 @@ See **[SECURITY_NOTES.md](SECURITY_NOTES.md)** for security discussion.
 - [x] ACL enforcement on all routes
 - [x] Playwright E2E test suite
 - [x] Desktop app icons
+- [x] IMAP email integration with full sync
+- [x] Email and SMS history browsing
+- [x] Email triage with AI domain discovery
+- [x] Concept graph (concepts, domains, detection, matchers)
+- [x] Criteria-based labeling system (AND/OR/NOT boolean logic)
+- [x] Contact reconciliation and de-duplication
+- [x] Relationships, locations, and picks
 
 **Upcoming**:
 - [ ] TLS/HTTPS for sync service

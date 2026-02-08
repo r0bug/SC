@@ -32,7 +32,7 @@ impl TextImporter {
         ];
         let mut scores = Vec::new();
 
-        for (delim, name) in delimiters {
+        for (delim, _name) in delimiters {
             let mut counts = Vec::new();
             for line in lines.iter().take(10) {
                 if !line.trim().is_empty() {

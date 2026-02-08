@@ -28,7 +28,7 @@ impl HtmlImporter {
         let mut headers = Vec::new();
 
         // Try to find headers in <thead> or first <tr>
-        let thead_selector = Selector::parse("thead tr th, thead tr td").unwrap();
+        let _thead_selector = Selector::parse("thead tr th, thead tr td").unwrap();
         let tr_selector = Selector::parse("tr").unwrap();
         let td_selector = Selector::parse("td, th").unwrap();
 

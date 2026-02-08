@@ -122,7 +122,7 @@ impl XmlImporter {
                     // Note: Don't push to current_path since this is a self-closing tag
                 }
                 Ok(Event::End(e)) => {
-                    let tag_name = String::from_utf8_lossy(e.name().as_ref());
+                    let _tag_name = String::from_utf8_lossy(e.name().as_ref());
 
                     // Save element text if any
                     if !current_text.trim().is_empty() {
@@ -278,13 +278,13 @@ impl ImportConnector for XmlImporter {
         let mut rows = Vec::new();
         let mut warnings = Vec::new();
         let mut buf = Vec::new();
-        let mut in_record = false;
+        let mut _in_record = false;
 
         loop {
             match reader.read_event_into(&mut buf) {
                 Ok(Event::Start(e)) => {
                     if e.name().as_ref() == record_tag {
-                        in_record = true;
+                        _in_record = true;
                         match Self::parse_record(&mut reader, record_tag, &mut buf) {
                             Ok(mut record) => {
                                 if !record.is_empty() {
@@ -296,7 +296,7 @@ impl ImportConnector for XmlImporter {
                                 warnings.push(format!("Failed to parse record: {}", e));
                             }
                         }
-                        in_record = false;
+                        _in_record = false;
                     }
                 }
                 Ok(Event::Eof) => break,

@@ -123,6 +123,69 @@ impl<'a> ContactRepository<'a> {
         }
     }
 
+    pub async fn get_by_email(&self, email: &str) -> DomainResult<Option<Contact>> {
+        let row = sqlx::query_as::<_, ContactRow>(
+            "SELECT id, first_name, last_name, email, phone, organization, title, notes, metadata, created_at, updated_at, created_by, version, last_synced_at
+             FROM contacts WHERE LOWER(email) = LOWER(?) LIMIT 1"
+        )
+        .bind(email)
+        .fetch_optional(self.pool)
+        .await
+        .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        if let Some(row) = row {
+            let social_handles = sqlx::query_as::<_, SocialHandleRow>(
+                "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?",
+            )
+            .bind(row.id.clone())
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+            let tags = sqlx::query_scalar::<_, String>(
+                "SELECT tag_id FROM contact_tags WHERE contact_id = ?",
+            )
+            .bind(&row.id)
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?
+            .into_iter()
+            .filter_map(|s| Uuid::parse_str(&s).ok())
+            .collect();
+
+            let projects = sqlx::query_scalar::<_, String>(
+                "SELECT project_id FROM project_contacts WHERE contact_id = ?",
+            )
+            .bind(&row.id)
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?
+            .into_iter()
+            .filter_map(|s| Uuid::parse_str(&s).ok())
+            .collect();
+
+            let groups = sqlx::query_scalar::<_, String>(
+                "SELECT group_id FROM contact_groups WHERE contact_id = ?",
+            )
+            .bind(&row.id)
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?
+            .into_iter()
+            .filter_map(|s| Uuid::parse_str(&s).ok())
+            .collect();
+
+            Ok(Some(row.into_contact(
+                social_handles,
+                tags,
+                projects,
+                groups,
+            )))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn get_by_id(&self, id: Uuid) -> DomainResult<Contact> {
         let row = sqlx::query_as::<_, ContactRow>(
             "SELECT id, first_name, last_name, email, phone, organization, title, notes, metadata, created_at, updated_at, created_by, version, last_synced_at
@@ -189,51 +252,115 @@ impl<'a> ContactRepository<'a> {
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;
 
-        let mut contacts = Vec::new();
-        for row in rows {
-            let social_handles = sqlx::query_as::<_, SocialHandleRow>(
-                "SELECT platform, handle, url FROM social_handles WHERE contact_id = ?",
-            )
-            .bind(row.id.clone())
+        if rows.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Collect all contact IDs for batch queries
+        let contact_ids: Vec<String> = rows.iter().map(|r| r.id.clone()).collect();
+        let placeholders = contact_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+
+        // Batch query: social handles for all contacts
+        let social_query = format!(
+            "SELECT contact_id, platform, handle, url FROM social_handles WHERE contact_id IN ({})",
+            placeholders
+        );
+        let mut social_q = sqlx::query_as::<_, SocialHandleRowWithContact>(&social_query);
+        for id in &contact_ids {
+            social_q = social_q.bind(id);
+        }
+        let all_social: Vec<SocialHandleRowWithContact> = social_q
             .fetch_all(self.pool)
             .await
             .map_err(|e| DomainError::Internal(e.to_string()))?;
 
-            let tags = sqlx::query_scalar::<_, String>(
-                "SELECT tag_id FROM contact_tags WHERE contact_id = ?",
-            )
-            .bind(row.id.clone())
-            .fetch_all(self.pool)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?
-            .into_iter()
-            .filter_map(|s| Uuid::parse_str(&s).ok())
-            .collect();
-
-            let projects = sqlx::query_scalar::<_, String>(
-                "SELECT project_id FROM project_contacts WHERE contact_id = ?",
-            )
-            .bind(row.id.clone())
-            .fetch_all(self.pool)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?
-            .into_iter()
-            .filter_map(|s| Uuid::parse_str(&s).ok())
-            .collect();
-
-            let groups = sqlx::query_scalar::<_, String>(
-                "SELECT group_id FROM contact_groups WHERE contact_id = ?",
-            )
-            .bind(row.id.clone())
-            .fetch_all(self.pool)
-            .await
-            .map_err(|e| DomainError::Internal(e.to_string()))?
-            .into_iter()
-            .filter_map(|s| Uuid::parse_str(&s).ok())
-            .collect();
-
-            contacts.push(row.into_contact(social_handles, tags, projects, groups));
+        // Batch query: tags for all contacts
+        let tags_query = format!(
+            "SELECT contact_id, tag_id AS related_id FROM contact_tags WHERE contact_id IN ({})",
+            placeholders
+        );
+        let mut tags_q = sqlx::query_as::<_, RelRow>(&tags_query);
+        for id in &contact_ids {
+            tags_q = tags_q.bind(id);
         }
+        let all_tags: Vec<RelRow> = tags_q
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        // Batch query: projects for all contacts
+        let projects_query = format!(
+            "SELECT contact_id, project_id AS related_id FROM project_contacts WHERE contact_id IN ({})",
+            placeholders
+        );
+        let mut proj_q = sqlx::query_as::<_, RelRow>(&projects_query);
+        for id in &contact_ids {
+            proj_q = proj_q.bind(id);
+        }
+        let all_projects: Vec<RelRow> = proj_q
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        // Batch query: groups for all contacts
+        let groups_query = format!(
+            "SELECT contact_id, group_id AS related_id FROM contact_groups WHERE contact_id IN ({})",
+            placeholders
+        );
+        let mut grp_q = sqlx::query_as::<_, RelRow>(&groups_query);
+        for id in &contact_ids {
+            grp_q = grp_q.bind(id);
+        }
+        let all_groups: Vec<RelRow> = grp_q
+            .fetch_all(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
+
+        // Group results by contact_id using HashMaps
+        use std::collections::HashMap;
+
+        let mut social_map: HashMap<String, Vec<SocialHandleRow>> = HashMap::new();
+        for s in all_social {
+            social_map.entry(s.contact_id).or_default().push(SocialHandleRow {
+                platform: s.platform,
+                handle: s.handle,
+                url: s.url,
+            });
+        }
+
+        let mut tags_map: HashMap<String, Vec<Uuid>> = HashMap::new();
+        for t in all_tags {
+            if let Ok(uuid) = Uuid::parse_str(&t.related_id) {
+                tags_map.entry(t.contact_id).or_default().push(uuid);
+            }
+        }
+
+        let mut projects_map: HashMap<String, Vec<Uuid>> = HashMap::new();
+        for p in all_projects {
+            if let Ok(uuid) = Uuid::parse_str(&p.related_id) {
+                projects_map.entry(p.contact_id).or_default().push(uuid);
+            }
+        }
+
+        let mut groups_map: HashMap<String, Vec<Uuid>> = HashMap::new();
+        for g in all_groups {
+            if let Ok(uuid) = Uuid::parse_str(&g.related_id) {
+                groups_map.entry(g.contact_id).or_default().push(uuid);
+            }
+        }
+
+        // Build contacts with their related data
+        let contacts = rows
+            .into_iter()
+            .map(|row| {
+                let id = row.id.clone();
+                let social = social_map.remove(&id).unwrap_or_default();
+                let tags = tags_map.remove(&id).unwrap_or_default();
+                let projects = projects_map.remove(&id).unwrap_or_default();
+                let groups = groups_map.remove(&id).unwrap_or_default();
+                row.into_contact(social, tags, projects, groups)
+            })
+            .collect();
 
         Ok(contacts)
     }
@@ -749,6 +876,21 @@ struct SocialHandleRow {
     platform: String,
     handle: String,
     url: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct SocialHandleRowWithContact {
+    contact_id: String,
+    platform: String,
+    handle: String,
+    url: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct RelRow {
+    contact_id: String,
+    #[sqlx(rename = "related_id")]
+    related_id: String,
 }
 
 impl From<SocialHandleRow> for SocialHandle {

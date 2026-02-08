@@ -2,17 +2,32 @@ mod acl;
 mod android_import;
 mod android_import_routes;
 mod api;
+mod contact_reconciliation;
+mod contact_reconciliation_routes;
 mod attachment_routes;
 mod audit;
 mod auth;
 mod auth_routes;
 mod calendar_routes;
+mod communication_concept_routes;
+mod concept_detection;
 mod concept_routes;
+mod label_matcher_routes;
 mod dashboard_routes;
+mod email_import;
+mod email_routes;
+mod imap_account_routes;
+mod email_triage;
+mod email_triage_routes;
 mod group_routes;
 mod import_routes;
+mod location_routes;
+mod manual_domain_routes;
+mod match_routes;
 mod observability;
+mod pick_routes;
 mod rate_limit;
+mod relationship_routes;
 mod search_history_routes;
 mod security_headers;
 mod settings_routes;
@@ -33,7 +48,7 @@ use axum::{
     http::{HeaderValue, Method, StatusCode},
     middleware,
     response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Router,
 };
 use local_store::LocalStore;
@@ -56,11 +71,25 @@ async fn main() -> anyhow::Result<()> {
         return Err(err.into());
     }
 
-    let database_url =
+    let mut database_url =
         std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:./data/contacts.db".to_string());
 
+    // Ensure SQLite URLs have create mode and data directory exists
+    if database_url.starts_with("sqlite:") {
+        if !database_url.contains("mode=rwc") {
+            let separator = if database_url.contains('?') { "&" } else { "?" };
+            database_url = format!("{}{}mode=rwc", database_url, separator);
+        }
+        let db_path = database_url.trim_start_matches("sqlite:");
+        let db_path = db_path.split('?').next().unwrap_or(db_path);
+        if let Some(parent) = std::path::Path::new(db_path).parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+
     let store = LocalStore::new(&database_url).await?;
-    let ai_client = SegmindClient::new(Some("mock-api-key".to_string()));
+    let ai_key = std::env::var("SEGMIND_API_KEY").ok().filter(|k| !k.is_empty());
+    let ai_client = SegmindClient::new(ai_key);
 
     // Create shared pool
     let pool = Arc::new(store.pool().clone());
@@ -211,6 +240,21 @@ async fn main() -> anyhow::Result<()> {
     // Update system routes
     let update_router = update_routes::update_routes().with_state(app_state.clone());
 
+    // New concept-graph routes
+    let pick_router = pick_routes::pick_routes().with_state(app_state.clone());
+    let location_router = location_routes::location_routes().with_state(app_state.clone());
+    let relationship_router =
+        relationship_routes::relationship_routes().with_state(app_state.clone());
+    let match_router = match_routes::match_routes().with_state(app_state.clone());
+    let comm_concept_router =
+        communication_concept_routes::communication_concept_routes().with_state(app_state.clone());
+    let email_router = email_routes::email_routes().with_state(app_state.clone());
+    let email_triage_router = email_triage_routes::email_triage_routes().with_state(app_state.clone());
+    let manual_domain_router = manual_domain_routes::manual_domain_routes().with_state(app_state.clone());
+    let reconciliation_router = contact_reconciliation_routes::reconciliation_routes().with_state(app_state.clone());
+    let imap_account_router = imap_account_routes::imap_account_routes().with_state(app_state.clone());
+    let label_matcher_router = label_matcher_routes::label_matcher_routes().with_state(app_state.clone());
+
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/metrics", get(metrics_handler))
@@ -222,6 +266,24 @@ async fn main() -> anyhow::Result<()> {
         .merge(import_router)
         .merge(dashboard_router)
         .merge(update_router)
+        // Concept-graph routes (picks, locations, relationships, matches, comm concepts)
+        .merge(pick_router)
+        .merge(location_router)
+        .merge(relationship_router)
+        .merge(match_router)
+        .merge(comm_concept_router)
+        // Email routes
+        .merge(email_router)
+        // Email triage + domain routes
+        .merge(email_triage_router)
+        // Manual domain assignment routes
+        .merge(manual_domain_router)
+        // Contact reconciliation routes
+        .merge(reconciliation_router)
+        // IMAP account management routes
+        .merge(imap_account_router)
+        // Label matcher routes
+        .merge(label_matcher_router)
         // Share routes
         .route("/api/shares", post(share_routes::create_share))
         .route("/api/shares/:id/accept", post(share_routes::accept_share))
@@ -262,6 +324,18 @@ async fn main() -> anyhow::Result<()> {
                 .put(concept_routes::update_concept)
                 .delete(concept_routes::delete_concept),
         )
+        .route(
+            "/api/concepts/:id/children",
+            get(concept_routes::list_children),
+        )
+        .route(
+            "/api/concepts/:id/keywords",
+            post(concept_routes::add_keyword),
+        )
+        .route(
+            "/api/concepts/:id/keywords/:keyword_id",
+            axum::routing::delete(concept_routes::remove_keyword),
+        )
         // Calendar routes
         .route(
             "/api/calendar/events",
@@ -296,6 +370,10 @@ async fn main() -> anyhow::Result<()> {
             "/api/settings",
             get(settings_routes::get_settings).put(settings_routes::update_settings),
         )
+        .route(
+            "/api/settings/ai",
+            get(settings_routes::get_ai_status).put(settings_routes::update_ai_key),
+        )
         // Worker callback routes
         .route(
             "/api/communication/:id/status",
@@ -328,12 +406,33 @@ async fn main() -> anyhow::Result<()> {
             post(android_import_routes::import_android_sms),
         )
         .route(
+            "/api/import/android-sms/directory",
+            post(android_import_routes::import_directory),
+        )
+        .route(
             "/api/communications/history/:contact_id",
             get(android_import_routes::get_contact_communications),
         )
         .route(
             "/api/communications/search",
             get(android_import_routes::search_communications),
+        )
+        // SMS History routes
+        .route(
+            "/api/sms-history/conversations",
+            get(android_import_routes::list_sms_conversations),
+        )
+        .route(
+            "/api/sms-history/conversation/:phone",
+            get(android_import_routes::get_sms_conversation),
+        )
+        .route(
+            "/api/sms-history/stats",
+            get(android_import_routes::get_sms_stats),
+        )
+        .route(
+            "/api/sms-history/source/:filename",
+            axum::routing::delete(android_import_routes::delete_sms_by_source),
         )
         // Existing routes
         .route(

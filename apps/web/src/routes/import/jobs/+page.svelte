@@ -163,8 +163,7 @@
 					{#if job.status === 'Pending' || job.status === 'Validating' || job.status === 'Parsing' || job.status === 'Deduplicating' || job.status === 'Importing'}
 						<div class="job-progress">
 							<ProgressBar
-								value={job.progress.current}
-								max={job.progress.total}
+								progress={job.progress.total > 0 ? (job.progress.current / job.progress.total) * 100 : 0}
 							/>
 							<p class="progress-phase">{job.progress.phase}</p>
 							<p class="progress-text">

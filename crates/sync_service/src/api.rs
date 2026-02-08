@@ -196,6 +196,22 @@ async fn fetch_owner_id(
                 .map_err(|_| StatusCode::NOT_FOUND)?;
             Ok(entity.created_by)
         }
+        ShareEntityType::Pick => {
+            let repo = PickRepository::new(state.store.pool());
+            let entity = repo
+                .get_by_id(entity_id)
+                .await
+                .map_err(|_| StatusCode::NOT_FOUND)?;
+            Ok(entity.created_by)
+        }
+        ShareEntityType::Location => {
+            let repo = LocationRepository::new(state.store.pool());
+            let entity = repo
+                .get_by_id(entity_id)
+                .await
+                .map_err(|_| StatusCode::NOT_FOUND)?;
+            Ok(entity.created_by)
+        }
     }
 }
 
@@ -751,7 +767,7 @@ pub async fn get_suggestions(
     )
     .await?;
 
-    let engine = SuggestionEngine::new((*state.ai_client).clone());
+    let engine = SuggestionEngine::new(state.ai_client.read().await.clone());
     let suggestions = engine
         .generate_contact_suggestions(&contact)
         .await

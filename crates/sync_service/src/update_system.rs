@@ -18,6 +18,7 @@ pub struct UpdateInfo {
     pub published_at: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct GitHubRelease {
     tag_name: String,
@@ -28,6 +29,7 @@ struct GitHubRelease {
     html_url: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct GitHubAsset {
     name: String,
@@ -160,6 +162,7 @@ impl UpdateChecker {
     }
 
     /// Apply update by replacing current binary
+    #[allow(dead_code)]
     pub fn apply_update(&self, update_path: &Path) -> Result<()> {
         let current_exe = std::env::current_exe()?;
         let backup_path = current_exe.with_extension("bak");
@@ -187,6 +190,7 @@ impl UpdateChecker {
     }
 
     /// Rollback to previous version
+    #[allow(dead_code)]
     pub fn rollback(&self) -> Result<()> {
         let current_exe = std::env::current_exe()?;
         let backup_path = current_exe.with_extension("bak");
@@ -202,6 +206,7 @@ impl UpdateChecker {
     }
 
     /// Verify checksum of downloaded file
+    #[allow(dead_code)]
     pub fn verify_checksum(&self, file_path: &Path, expected_checksum: &str) -> Result<bool> {
         use sha2::{Digest, Sha256};
 

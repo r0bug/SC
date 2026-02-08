@@ -1,6 +1,7 @@
 use crate::auth::AuthUser;
 use crate::state::AppState;
-use axum::{extract::State, Json};
+use ai_middleware::SegmindClient;
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -39,4 +40,47 @@ pub async fn update_settings(
     }
 
     Json(settings.clone())
+}
+
+// --- AI API Key management ---
+
+#[derive(Debug, Deserialize)]
+pub struct AiKeyPayload {
+    pub api_key: String,
+}
+
+/// GET /api/settings/ai - returns whether an AI key is configured (not the key itself)
+pub async fn get_ai_status(
+    State(state): State<AppState>,
+    AuthUser(_user): AuthUser,
+) -> Json<serde_json::Value> {
+    let client = state.ai_client.read().await;
+    let has_key = !client.is_mock_mode();
+    Json(serde_json::json!({
+        "configured": has_key,
+        "provider": "segmind",
+        "model": "llama-3.1-8b-instruct"
+    }))
+}
+
+/// PUT /api/settings/ai - update the AI API key at runtime
+pub async fn update_ai_key(
+    State(state): State<AppState>,
+    AuthUser(_user): AuthUser,
+    Json(payload): Json<AiKeyPayload>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let key = payload.api_key.trim().to_string();
+    let key_opt = if key.is_empty() { None } else { Some(key) };
+
+    let new_client = SegmindClient::new(key_opt);
+    let is_mock = new_client.is_mock_mode();
+
+    // Replace the client
+    let mut client = state.ai_client.write().await;
+    *client = new_client;
+
+    Ok(Json(serde_json::json!({
+        "configured": !is_mock,
+        "message": if is_mock { "AI key cleared - running in mock mode" } else { "AI key updated successfully" }
+    })))
 }

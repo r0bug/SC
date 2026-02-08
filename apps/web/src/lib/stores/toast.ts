@@ -48,9 +48,11 @@ function createToastStore() {
 			addToast({ type: 'warning', message, title, ...options }),
 		info: (message: string, title?: string, options?: Partial<Toast>) =>
 			addToast({ type: 'info', message, title, ...options }),
+		dismiss: removeToast,
 		remove: removeToast,
 		clear: () => update(() => [])
 	};
 }
 
 export const toasts = createToastStore();
+export const toast = toasts;
