@@ -235,13 +235,13 @@ impl ImportConnector for SmartImporter {
 
         // Try to read a few bytes to check if it's text-based
         if let Ok(sample) = std::fs::read(file_path) {
-            if sample.len() > 0 {
+            if !sample.is_empty() {
                 // Check if mostly text (heuristic: >80% printable ASCII/UTF-8)
                 let text_bytes = sample
                     .iter()
                     .take(1000)
                     .filter(|&&b| {
-                        b >= 32 && b <= 126 || b == b'\n' || b == b'\r' || b == b'\t' || b > 127
+                        (32..=126).contains(&b) || b == b'\n' || b == b'\r' || b == b'\t' || b > 127
                     })
                     .count();
 

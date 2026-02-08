@@ -53,15 +53,17 @@
 
 	function setupWebSocket() {
 		api.onWebSocketMessage('note_updated', (data) => {
-			const index = notes.findIndex(n => n.id === data.id);
-			if (index >= 0) notes[index] = data;
+			const updated = data as Note;
+			const index = notes.findIndex(n => n.id === updated.id);
+			if (index >= 0) notes[index] = updated;
 			notes = notes;
 		});
 		api.onWebSocketMessage('note_created', (data) => {
-			notes = [data, ...notes];
+			notes = [data as Note, ...notes];
 		});
 		api.onWebSocketMessage('note_deleted', (data) => {
-			notes = notes.filter(n => n.id !== data.id);
+			const deleted = data as { id: string };
+			notes = notes.filter(n => n.id !== deleted.id);
 		});
 	}
 
@@ -98,7 +100,7 @@
 				const updated = await api.updateNote(editingNote.id, noteData);
 				notes = notes.map(n => n.id === editingNote!.id ? updated : n);
 			} else {
-				const created = await api.createNote(noteData as any);
+				const created = await api.createNote(noteData);
 				notes = [created, ...notes];
 
 				if (formFiles.length > 0) {
@@ -108,8 +110,8 @@
 				}
 			}
 			showModal = false;
-		} catch (error: any) {
-			alert('Failed to save note: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to save note: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -118,8 +120,8 @@
 		try {
 			await api.deleteNote(id);
 			notes = notes.filter(n => n.id !== id);
-		} catch (error: any) {
-			alert('Failed to delete: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to delete: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -164,21 +166,22 @@
 </div>
 
 {#if showModal}
-	<div class="modal-overlay" on:click={() => showModal = false}>
-		<div class="modal" on:click|stopPropagation>
+	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+	<div class="modal-overlay" role="button" tabindex="0" on:click={() => showModal = false} on:keydown={(e) => e.key === 'Enter' && (showModal = false)}>
+		<div class="modal" role="dialog" aria-modal="true" on:click|stopPropagation on:keydown|stopPropagation>
 			<h2>{editingNote ? 'Edit' : 'New'} Note</h2>
 			<form on:submit|preventDefault={handleSubmit}>
 				<div class="form-group">
-					<label>Title</label>
-					<input type="text" bind:value={formTitle} required />
+					<label for="note-title">Title</label>
+					<input id="note-title" type="text" bind:value={formTitle} required />
 				</div>
 				<div class="form-group">
-					<label>Content</label>
-					<textarea bind:value={formContent} rows="6" required></textarea>
+					<label for="note-content">Content</label>
+					<textarea id="note-content" bind:value={formContent} rows="6" required></textarea>
 				</div>
 				<div class="form-group">
-					<label>Contact</label>
-					<select bind:value={formContactId}>
+					<label for="note-contact">Contact</label>
+					<select id="note-contact" bind:value={formContactId}>
 						<option value="">None</option>
 						{#each contacts as c}
 							<option value={c.id}>{c.first_name} {c.last_name || ''}</option>
@@ -186,8 +189,8 @@
 					</select>
 				</div>
 				<div class="form-group">
-					<label>Project</label>
-					<select bind:value={formProjectId}>
+					<label for="note-project">Project</label>
+					<select id="note-project" bind:value={formProjectId}>
 						<option value="">None</option>
 						{#each projects as p}
 							<option value={p.id}>{p.name}</option>
@@ -196,8 +199,8 @@
 				</div>
 				{#if !editingNote}
 					<div class="form-group">
-						<label>Attachments</label>
-						<input type="file" multiple on:change={handleFileChange} />
+						<label for="note-attachments">Attachments</label>
+						<input id="note-attachments" type="file" multiple on:change={handleFileChange} />
 					</div>
 				{/if}
 				<div class="form-actions">

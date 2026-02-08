@@ -4,6 +4,7 @@
 	import { toasts } from '$lib/stores/toast';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { hashColor } from '$lib/utils/colors';
 
 	let labels: LabelListEntry[] = [];
 	let loading = true;
@@ -14,19 +15,6 @@
 	let creating = false;
 	let searchQuery = '';
 
-	const CHIP_COLORS = [
-		'#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
-		'#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6'
-	];
-
-	function hashColor(name: string): string {
-		let hash = 0;
-		for (let i = 0; i < name.length; i++) {
-			hash = name.charCodeAt(i) + ((hash << 5) - hash);
-		}
-		return CHIP_COLORS[Math.abs(hash) % CHIP_COLORS.length];
-	}
-
 	onMount(async () => {
 		await loadLabels();
 	});
@@ -36,7 +24,7 @@
 		try {
 			const result = await api.listLabels();
 			labels = result.labels;
-		} catch (e: any) {
+		} catch (e: unknown) {
 			if (e instanceof ApiError) {
 				toasts.error(e.getUserMessage());
 			}
@@ -51,8 +39,8 @@
 			const result = await api.scanAllLabels();
 			toasts.success(`Scan complete: ${result.new_suggestions} new suggestions`);
 			await loadLabels();
-		} catch (e: any) {
-			toasts.error(e.message || 'Scan failed');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Scan failed');
 		} finally {
 			scanning = false;
 		}
@@ -71,8 +59,8 @@
 			newName = '';
 			newDescription = '';
 			goto(`/labels/${concept.id}`);
-		} catch (e: any) {
-			toasts.error(e.message || 'Failed to create');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Failed to create');
 		} finally {
 			creating = false;
 		}
@@ -147,7 +135,7 @@
 	{/if}
 
 	{#if showCreateModal}
-		<div class="modal-backdrop" on:click|self={() => showCreateModal = false}>
+		<div class="modal-backdrop" role="button" tabindex="0" on:click|self={() => showCreateModal = false} on:keydown={(e) => e.key === 'Enter' && (showCreateModal = false)}>
 			<div class="modal">
 				<h3>Create New Label</h3>
 				<div class="form-group">

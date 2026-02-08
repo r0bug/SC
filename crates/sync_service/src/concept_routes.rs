@@ -245,9 +245,12 @@ pub async fn remove_keyword(
     .await
     .map_err(|code| (code, "Access denied"))?;
 
-    repo.remove_keyword(keyword_id)
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to remove keyword"))?;
+    repo.remove_keyword(keyword_id).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to remove keyword",
+        )
+    })?;
 
     Ok(Json(serde_json::json!({ "message": "Keyword removed" })))
 }

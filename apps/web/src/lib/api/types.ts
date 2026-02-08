@@ -6,7 +6,7 @@ export interface User {
 	name: string;
 	email_verified: boolean;
 	active: boolean;
-	preferences: Record<string, any>;
+	preferences: Record<string, unknown>;
 	created_at: string;
 	updated_at: string;
 	last_login_at?: string;
@@ -30,7 +30,7 @@ export interface Contact {
 	created_by: string;
 	version: number;
 	last_synced_at?: string;
-	metadata: Record<string, any>;
+	metadata: Record<string, unknown>;
 }
 
 export interface SocialHandle {
@@ -55,7 +55,7 @@ export interface Concept {
 	description?: string;
 	parent_id?: string;
 	keywords: ConceptKeyword[];
-	metadata: Record<string, any>;
+	metadata: Record<string, unknown>;
 	created_at: string;
 	updated_at: string;
 	created_by: string;
@@ -145,7 +145,7 @@ export interface Attachment {
 	encrypted: boolean;
 	scan_status: ScanStatus;
 	scan_details?: string;
-	metadata: Record<string, any>;
+	metadata: Record<string, unknown>;
 	created_at: string;
 }
 
@@ -207,8 +207,8 @@ export interface Pick {
 	status: PickStatus;
 	date_start?: string;
 	date_end?: string;
-	recurrence?: any;
-	metadata: Record<string, any>;
+	recurrence?: Record<string, unknown>;
+	metadata: Record<string, unknown>;
 	created_at: string;
 	updated_at: string;
 	created_by: string;
@@ -223,7 +223,7 @@ export interface Location {
 	zip?: string;
 	coordinates_lat?: number;
 	coordinates_lng?: number;
-	metadata: Record<string, any>;
+	metadata: Record<string, unknown>;
 	created_at: string;
 	updated_at: string;
 	created_by: string;
@@ -245,7 +245,7 @@ export interface EntityRelationship {
 	relationship_type_name?: string;
 	target_type: EntityType;
 	target_id: string;
-	metadata: Record<string, any>;
+	metadata: Record<string, unknown>;
 	created_at: string;
 	created_by: string;
 }
@@ -297,7 +297,7 @@ export interface SearchHistory {
 	id: string;
 	user_id: string;
 	query: string;
-	filters: Record<string, any>;
+	filters: Record<string, unknown>;
 	result_count: number;
 	clicked_result_id?: string;
 	privacy_mode?: boolean;
@@ -330,7 +330,7 @@ export interface Connector {
 export interface ImportPreviewResponse {
 	connector: Connector;
 	total_rows: number;
-	preview_rows: Record<string, any>[];
+	preview_rows: Record<string, unknown>[];
 	suggested_mappings: [string, string][];
 	warnings: string[];
 	// Computed fields for UI compatibility

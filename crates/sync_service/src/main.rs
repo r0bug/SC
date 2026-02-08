@@ -2,8 +2,6 @@ mod acl;
 mod android_import;
 mod android_import_routes;
 mod api;
-mod contact_reconciliation;
-mod contact_reconciliation_routes;
 mod attachment_routes;
 mod audit;
 mod auth;
@@ -12,15 +10,17 @@ mod calendar_routes;
 mod communication_concept_routes;
 mod concept_detection;
 mod concept_routes;
-mod label_matcher_routes;
+mod contact_reconciliation;
+mod contact_reconciliation_routes;
 mod dashboard_routes;
 mod email_import;
 mod email_routes;
-mod imap_account_routes;
 mod email_triage;
 mod email_triage_routes;
 mod group_routes;
+mod imap_account_routes;
 mod import_routes;
+mod label_matcher_routes;
 mod location_routes;
 mod manual_domain_routes;
 mod match_routes;
@@ -40,8 +40,6 @@ mod validation;
 mod virus_scanner;
 mod websocket;
 mod worker_routes;
-mod ws;
-
 use ai_middleware::SegmindClient;
 use axum::{
     extract::DefaultBodyLimit,
@@ -88,7 +86,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let store = LocalStore::new(&database_url).await?;
-    let ai_key = std::env::var("SEGMIND_API_KEY").ok().filter(|k| !k.is_empty());
+    let ai_key = std::env::var("SEGMIND_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty());
     let ai_client = SegmindClient::new(ai_key);
 
     // Create shared pool
@@ -141,7 +141,7 @@ async fn main() -> anyhow::Result<()> {
     });
     let user_settings = Arc::new(tokio::sync::RwLock::new(default_settings));
 
-    let app_state = state::AppState::new(
+    let app_state = state::AppState::new(state::AppStateConfig {
         store,
         ai_client,
         auth_service,
@@ -155,7 +155,7 @@ async fn main() -> anyhow::Result<()> {
         update_checker,
         update_config,
         last_update_check,
-    );
+    });
 
     // Metrics endpoint handler
     let metrics_handle = prometheus_handle.clone();
@@ -249,11 +249,16 @@ async fn main() -> anyhow::Result<()> {
     let comm_concept_router =
         communication_concept_routes::communication_concept_routes().with_state(app_state.clone());
     let email_router = email_routes::email_routes().with_state(app_state.clone());
-    let email_triage_router = email_triage_routes::email_triage_routes().with_state(app_state.clone());
-    let manual_domain_router = manual_domain_routes::manual_domain_routes().with_state(app_state.clone());
-    let reconciliation_router = contact_reconciliation_routes::reconciliation_routes().with_state(app_state.clone());
-    let imap_account_router = imap_account_routes::imap_account_routes().with_state(app_state.clone());
-    let label_matcher_router = label_matcher_routes::label_matcher_routes().with_state(app_state.clone());
+    let email_triage_router =
+        email_triage_routes::email_triage_routes().with_state(app_state.clone());
+    let manual_domain_router =
+        manual_domain_routes::manual_domain_routes().with_state(app_state.clone());
+    let reconciliation_router =
+        contact_reconciliation_routes::reconciliation_routes().with_state(app_state.clone());
+    let imap_account_router =
+        imap_account_routes::imap_account_routes().with_state(app_state.clone());
+    let label_matcher_router =
+        label_matcher_routes::label_matcher_routes().with_state(app_state.clone());
 
     let app = Router::new()
         .route("/health", get(health_check))

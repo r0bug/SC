@@ -78,20 +78,18 @@ impl XmlImporter {
                     let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
 
                     // Capture attributes
-                    for attr_result in e.attributes() {
-                        if let Ok(attr) = attr_result {
-                            let attr_name = String::from_utf8_lossy(attr.key.as_ref()).to_string();
-                            let attr_value = String::from_utf8_lossy(&attr.value).to_string();
+                    for attr in e.attributes().flatten() {
+                        let attr_name = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                        let attr_value = String::from_utf8_lossy(&attr.value).to_string();
 
-                            let full_path = if current_path.is_empty() {
-                                format!("{}@{}", tag_name, attr_name)
-                            } else {
-                                format!("{}.{}@{}", current_path.join("."), tag_name, attr_name)
-                            };
+                        let full_path = if current_path.is_empty() {
+                            format!("{}@{}", tag_name, attr_name)
+                        } else {
+                            format!("{}.{}@{}", current_path.join("."), tag_name, attr_name)
+                        };
 
-                            if !attr_value.is_empty() {
-                                record.insert(full_path, attr_value);
-                            }
+                        if !attr_value.is_empty() {
+                            record.insert(full_path, attr_value);
                         }
                     }
 
@@ -103,20 +101,18 @@ impl XmlImporter {
                     let tag_name = String::from_utf8_lossy(e.name().as_ref()).to_string();
 
                     // Capture attributes
-                    for attr_result in e.attributes() {
-                        if let Ok(attr) = attr_result {
-                            let attr_name = String::from_utf8_lossy(attr.key.as_ref()).to_string();
-                            let attr_value = String::from_utf8_lossy(&attr.value).to_string();
+                    for attr in e.attributes().flatten() {
+                        let attr_name = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                        let attr_value = String::from_utf8_lossy(&attr.value).to_string();
 
-                            let full_path = if current_path.is_empty() {
-                                format!("{}@{}", tag_name, attr_name)
-                            } else {
-                                format!("{}.{}@{}", current_path.join("."), tag_name, attr_name)
-                            };
+                        let full_path = if current_path.is_empty() {
+                            format!("{}@{}", tag_name, attr_name)
+                        } else {
+                            format!("{}.{}@{}", current_path.join("."), tag_name, attr_name)
+                        };
 
-                            if !attr_value.is_empty() {
-                                record.insert(full_path, attr_value);
-                            }
+                        if !attr_value.is_empty() {
+                            record.insert(full_path, attr_value);
                         }
                     }
                     // Note: Don't push to current_path since this is a self-closing tag
@@ -179,7 +175,7 @@ impl XmlImporter {
         for field in fields {
             // Remove XML path prefixes for better matching
             let field_lower = field.to_lowercase();
-            let last_part = field.split('.').last().unwrap_or(field).to_lowercase();
+            let last_part = field.split('.').next_back().unwrap_or(field).to_lowercase();
 
             let suggested_target = match () {
                 _ if last_part.contains("first") && last_part.contains("name") => {

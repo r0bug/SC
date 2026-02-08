@@ -1,7 +1,7 @@
+use crate::db::DbPool;
 use core_domain::{
     AiInsight, AiInsightEntityType, AiInsightFeedback, AiInsightType, DomainError, DomainResult,
 };
-use crate::db::DbPool;
 use uuid::Uuid;
 
 pub struct AiInsightRepository<'a> {

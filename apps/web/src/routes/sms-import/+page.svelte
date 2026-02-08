@@ -297,6 +297,8 @@
 			<div
 				class="upload-area"
 				class:drag-active={dragActive}
+				role="region"
+				aria-label="File upload area"
 				on:dragover={handleDragOver}
 				on:dragleave={handleDragLeave}
 				on:drop={handleDrop}

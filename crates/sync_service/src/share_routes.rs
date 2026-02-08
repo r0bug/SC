@@ -101,19 +101,19 @@ pub async fn create_share(
     let user_agent = audit::extract_user_agent(&headers);
     let _ = app_state
         .audit_service
-        .log_operation(
+        .log_operation(audit::AuditEntry {
             entity_type,
-            req.entity_id,
-            AuditAction::Create,
-            user.id,
-            serde_json::json!({
+            entity_id: req.entity_id,
+            action: AuditAction::Create,
+            user_id: user.id,
+            changes: serde_json::json!({
                 "event": "share_created",
                 "shared_with": req.email,
                 "permissions": permissions.iter().map(|p| format!("{:?}", p)).collect::<Vec<_>>()
             }),
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await;
 
     Ok(Json(ShareResponse {
@@ -190,20 +190,20 @@ pub async fn accept_share(
     let user_agent = audit::extract_user_agent(&headers);
     let _ = app_state
         .audit_service
-        .log_operation(
-            invite.entity_type,
-            invite.entity_id,
-            AuditAction::Update,
-            user.id,
-            serde_json::json!({
+        .log_operation(audit::AuditEntry {
+            entity_type: invite.entity_type,
+            entity_id: invite.entity_id,
+            action: AuditAction::Update,
+            user_id: user.id,
+            changes: serde_json::json!({
                 "event": "share_accepted",
                 "share_id": share_id,
                 "shared_by": invite.shared_by,
                 "permissions": invite.permissions.iter().map(|p| format!("{:?}", p)).collect::<Vec<_>>()
             }),
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await;
 
     Ok(Json(serde_json::json!({
@@ -318,19 +318,19 @@ pub async fn revoke_share(
     let user_agent = audit::extract_user_agent(&headers);
     let _ = app_state
         .audit_service
-        .log_operation(
+        .log_operation(audit::AuditEntry {
             entity_type,
             entity_id,
-            AuditAction::Delete,
-            user.id,
-            serde_json::json!({
+            action: AuditAction::Delete,
+            user_id: user.id,
+            changes: serde_json::json!({
                 "event": "share_revoked",
                 "share_id": share_id,
                 "shared_with": shared_with_email
             }),
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await;
 
     Ok(Json(serde_json::json!({

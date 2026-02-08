@@ -1,9 +1,11 @@
 use ai_middleware::SegmindClient;
 use chrono::Utc;
-use core_domain::{CommunicationConcept, Concept, ConceptKeyword, DetectionMethod, SuggestionStatus};
+use core_domain::{
+    CommunicationConcept, Concept, ConceptKeyword, DetectionMethod, SuggestionStatus,
+};
 use local_store::repositories::{
     CommunicationConceptRepository, ConceptRepository, EmailHistoryRepository, EmailMessage,
-    EmailTriageSessionRepository, EmailTriageSession,
+    EmailTriageSession, EmailTriageSessionRepository,
 };
 use local_store::DbPool;
 use serde::{Deserialize, Serialize};
@@ -60,7 +62,10 @@ pub struct EmailTriageService {
 
 impl EmailTriageService {
     pub fn new(pool: &Arc<DbPool>, ai_client: SegmindClient) -> Self {
-        Self { pool: pool.clone(), ai_client }
+        Self {
+            pool: pool.clone(),
+            ai_client,
+        }
     }
 
     /// Start a new triage session: creates the session record
@@ -102,10 +107,7 @@ impl EmailTriageService {
             .await
             .map_err(|e| e.to_string())?;
 
-        info!(
-            "Started triage session {} for {} emails",
-            session.id, total
-        );
+        info!("Started triage session {} for {} emails", session.id, total);
 
         Ok(session)
     }
@@ -152,7 +154,10 @@ impl EmailTriageService {
         let proposals = match self.ai_discover_domains(&emails, &approved_names).await {
             Ok(p) => p,
             Err(e) => {
-                warn!("AI domain discovery failed, using rule-based fallback: {}", e);
+                warn!(
+                    "AI domain discovery failed, using rule-based fallback: {}",
+                    e
+                );
                 self.rule_based_discover_domains(&emails)
             }
         };
@@ -210,7 +215,9 @@ impl EmailTriageService {
                 .map(|b| {
                     if b.len() > 100 {
                         let mut e = 100;
-                        while !b.is_char_boundary(e) { e -= 1; }
+                        while !b.is_char_boundary(e) {
+                            e -= 1;
+                        }
                         format!("{}...", &b[..e])
                     } else {
                         b.clone()
@@ -220,7 +227,11 @@ impl EmailTriageService {
 
             email_summaries.push_str(&format!(
                 "Email {}: From: {} <{}>, Subject: \"{}\", Preview: \"{}\"\n",
-                i, email.from_name.as_deref().unwrap_or(""), email.from_address, email.subject, body_preview
+                i,
+                email.from_name.as_deref().unwrap_or(""),
+                email.from_address,
+                email.subject,
+                body_preview
             ));
         }
 
@@ -264,8 +275,8 @@ Rules:
         let json_end = text.rfind(']').ok_or("No closing bracket in AI response")?;
         let json_str = &text[json_start..=json_end];
 
-        let raw_proposals: Vec<RawAiProposal> =
-            serde_json::from_str(json_str).map_err(|e| format!("Failed to parse AI response: {}", e))?;
+        let raw_proposals: Vec<RawAiProposal> = serde_json::from_str(json_str)
+            .map_err(|e| format!("Failed to parse AI response: {}", e))?;
 
         // Convert to DomainProposal
         let proposals = raw_proposals
@@ -314,10 +325,7 @@ Rules:
                 .unwrap_or("unknown")
                 .to_lowercase();
 
-            domain_groups
-                .entry(sender_domain)
-                .or_default()
-                .push(i);
+            domain_groups.entry(sender_domain).or_default().push(i);
         }
 
         domain_groups
@@ -373,7 +381,10 @@ Rules:
         let concept_repo = ConceptRepository::new(&self.pool);
 
         // Check if a domain with this name already exists
-        let existing = concept_repo.search(&proposal.name).await.map_err(|e| e.to_string())?;
+        let existing = concept_repo
+            .search(&proposal.name)
+            .await
+            .map_err(|e| e.to_string())?;
         for c in &existing {
             if c.name.to_lowercase() == proposal.name.to_lowercase() {
                 // Check if it's already a communication_domain
@@ -420,7 +431,10 @@ Rules:
             .await
             .map_err(|e| format!("Failed to create domain concept: {}", e))?;
 
-        info!("Created communication domain concept: {} ({})", proposal.name, concept_id);
+        info!(
+            "Created communication domain concept: {} ({})",
+            proposal.name, concept_id
+        );
 
         Ok(concept_id)
     }
@@ -445,7 +459,10 @@ Rules:
             )
             .to_lowercase();
 
-            let matches = proposal.keywords.iter().any(|kw| text.contains(&kw.to_lowercase()));
+            let matches = proposal
+                .keywords
+                .iter()
+                .any(|kw| text.contains(&kw.to_lowercase()));
             if !matches {
                 continue;
             }
@@ -474,7 +491,10 @@ Rules:
             };
 
             if let Err(e) = cc_repo.create(&cc).await {
-                warn!("Failed to link email {} to concept {}: {}", email.id, concept_id, e);
+                warn!(
+                    "Failed to link email {} to concept {}: {}",
+                    email.id, concept_id, e
+                );
             }
         }
 
@@ -499,7 +519,11 @@ Rules:
         let mut domains: Vec<(Uuid, Vec<String>)> = Vec::new();
         for &concept_id in approved_concept_ids {
             if let Ok(concept) = concept_repo.get_by_id(concept_id).await {
-                let kws: Vec<String> = concept.keywords.iter().map(|k| k.keyword.to_lowercase()).collect();
+                let kws: Vec<String> = concept
+                    .keywords
+                    .iter()
+                    .map(|k| k.keyword.to_lowercase())
+                    .collect();
                 domains.push((concept_id, kws));
             }
         }

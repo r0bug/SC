@@ -51,15 +51,17 @@
 
 	function setupWebSocket() {
 		api.onWebSocketMessage('project_updated', (data) => {
-			const index = projects.findIndex(p => p.id === data.id);
-			if (index >= 0) projects[index] = data;
+			const updated = data as Project;
+			const index = projects.findIndex(p => p.id === updated.id);
+			if (index >= 0) projects[index] = updated;
 			projects = projects;
 		});
 		api.onWebSocketMessage('project_created', (data) => {
-			projects = [data, ...projects];
+			projects = [data as Project, ...projects];
 		});
 		api.onWebSocketMessage('project_deleted', (data) => {
-			projects = projects.filter(p => p.id !== data.id);
+			const deleted = data as { id: string };
+			projects = projects.filter(p => p.id !== deleted.id);
 		});
 	}
 
@@ -97,12 +99,12 @@
 				const updated = await api.updateProject(editingProject.id, projectData);
 				projects = projects.map(p => p.id === editingProject!.id ? updated : p);
 			} else {
-				const created = await api.createProject(projectData as any);
+				const created = await api.createProject(projectData);
 				projects = [created, ...projects];
 			}
 			showModal = false;
-		} catch (error: any) {
-			alert('Failed to save project: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to save project: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -111,8 +113,8 @@
 		try {
 			await api.deleteProject(id);
 			projects = projects.filter(p => p.id !== id);
-		} catch (error: any) {
-			alert('Failed to delete: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to delete: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -182,21 +184,22 @@
 </div>
 
 {#if showModal}
-	<div class="modal-overlay" on:click={() => showModal = false}>
-		<div class="modal" on:click|stopPropagation>
+	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+	<div class="modal-overlay" role="button" tabindex="0" on:click={() => showModal = false} on:keydown={(e) => e.key === 'Enter' && (showModal = false)}>
+		<div class="modal" role="dialog" aria-modal="true" on:click|stopPropagation on:keydown|stopPropagation>
 			<h2>{editingProject ? 'Edit' : 'New'} Project</h2>
 			<form on:submit|preventDefault={handleSubmit}>
 				<div class="form-group">
-					<label>Name</label>
-					<input type="text" bind:value={formName} required />
+					<label for="proj-name">Name</label>
+					<input id="proj-name" type="text" bind:value={formName} required />
 				</div>
 				<div class="form-group">
-					<label>Description</label>
-					<textarea bind:value={formDescription} rows="4"></textarea>
+					<label for="proj-desc">Description</label>
+					<textarea id="proj-desc" bind:value={formDescription} rows="4"></textarea>
 				</div>
 				<div class="form-group">
-					<label>Status</label>
-					<select bind:value={formStatus}>
+					<label for="proj-status">Status</label>
+					<select id="proj-status" bind:value={formStatus}>
 						<option value="Active">Active</option>
 						<option value="OnHold">On Hold</option>
 						<option value="Completed">Completed</option>
@@ -204,7 +207,7 @@
 					</select>
 				</div>
 				<div class="form-group">
-					<label>Team Members</label>
+					<span class="form-label-text">Team Members</span>
 					<div class="checkbox-list">
 						{#each contacts as contact}
 							<label>
@@ -215,7 +218,7 @@
 					</div>
 				</div>
 				<div class="form-group">
-					<label>Tags</label>
+					<span class="form-label-text">Tags</span>
 					<div class="checkbox-list">
 						{#each tags as tag}
 							<label>
@@ -257,6 +260,7 @@
 	.modal { background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
 	.form-group { margin-bottom: 1.5rem; }
 	.form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+	.form-label-text { display: block; margin-bottom: 0.5rem; font-weight: 500; }
 	.form-group input, .form-group textarea, .form-group select { width: 100%; padding: 0.75rem; border: 1px solid var(--gray-300); border-radius: 6px; }
 	.checkbox-list { max-height: 200px; overflow-y: auto; border: 1px solid var(--gray-300); border-radius: 6px; padding: 0.5rem; }
 	.checkbox-list label { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; cursor: pointer; }

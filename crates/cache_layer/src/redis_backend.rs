@@ -60,12 +60,7 @@ impl CacheBackend for RedisCache {
         }
     }
 
-    async fn set_raw(
-        &self,
-        key: &str,
-        value: &str,
-        ttl: Duration,
-    ) -> Result<(), CacheError> {
+    async fn set_raw(&self, key: &str, value: &str, ttl: Duration) -> Result<(), CacheError> {
         let prefixed = self.prefixed_key(key);
         let mut conn = self.conn.clone();
 

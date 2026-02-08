@@ -1,5 +1,5 @@
-use core_domain::{AuditAction, AuditLog, DomainError, DomainResult, ShareEntityType};
 use crate::db::DbPool;
+use core_domain::{AuditAction, AuditLog, DomainError, DomainResult, ShareEntityType};
 use uuid::Uuid;
 
 pub struct AuditLogRepository<'a> {

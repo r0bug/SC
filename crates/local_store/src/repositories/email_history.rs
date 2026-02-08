@@ -1,7 +1,7 @@
+use crate::db::DbPool;
 use chrono::{DateTime, Utc};
 use core_domain::{DomainError, DomainResult};
 use sqlx::FromRow;
-use crate::db::DbPool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -93,13 +93,12 @@ impl<'a> EmailHistoryRepository<'a> {
 
     /// Check if a message_id already exists (for deduplication)
     pub async fn exists_by_message_id(&self, message_id: &str) -> DomainResult<bool> {
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM email_history WHERE message_id = ?",
-        )
-        .bind(message_id)
-        .fetch_one(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(format!("Failed to check message_id: {}", e)))?;
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM email_history WHERE message_id = ?")
+                .bind(message_id)
+                .fetch_one(self.pool)
+                .await
+                .map_err(|e| DomainError::Internal(format!("Failed to check message_id: {}", e)))?;
 
         Ok(count.0 > 0)
     }
@@ -143,13 +142,16 @@ impl<'a> EmailHistoryRepository<'a> {
         .await
         .map_err(|e| DomainError::Internal(format!("Failed to fetch conversations: {}", e)))?;
 
-        Ok(rows.into_iter().map(|r| EmailConversation {
-            from_address: r.from_address,
-            from_name: r.from_name,
-            contact_id: r.contact_id,
-            message_count: r.message_count,
-            last_message_date: r.last_message_date,
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| EmailConversation {
+                from_address: r.from_address,
+                from_name: r.from_name,
+                contact_id: r.contact_id,
+                message_count: r.message_count,
+                last_message_date: r.last_message_date,
+            })
+            .collect())
     }
 
     /// List all emails (for bulk operations like retroactive scanning)
@@ -338,7 +340,9 @@ impl<'a> EmailHistoryRepository<'a> {
             .bind(&email_id)
             .fetch_all(self.pool)
             .await
-            .map_err(|e| DomainError::Internal(format!("Failed to fetch domain memberships: {}", e)))?;
+            .map_err(|e| {
+                DomainError::Internal(format!("Failed to fetch domain memberships: {}", e))
+            })?;
 
             results.push(EmailWithDomains {
                 id: email_id,

@@ -1,5 +1,5 @@
-use core_domain::{DomainError, DomainResult, Pick, PickStatus};
 use crate::db::DbPool;
+use core_domain::{DomainError, DomainResult, Pick, PickStatus};
 use uuid::Uuid;
 
 pub struct PickRepository<'a> {
@@ -175,9 +175,7 @@ impl PickRow {
                     .ok()
                     .map(|dt| dt.with_timezone(&chrono::Utc))
             }),
-            recurrence: self
-                .recurrence
-                .and_then(|s| serde_json::from_str(&s).ok()),
+            recurrence: self.recurrence.and_then(|s| serde_json::from_str(&s).ok()),
             metadata: serde_json::from_str(&self.metadata).unwrap_or_default(),
             created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
                 .unwrap()

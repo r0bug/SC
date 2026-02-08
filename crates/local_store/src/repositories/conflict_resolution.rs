@@ -1,7 +1,7 @@
+use crate::db::DbPool;
 use core_domain::{
     ConflictResolution, DomainError, DomainResult, ResolutionStrategy, ShareEntityType,
 };
-use crate::db::DbPool;
 use uuid::Uuid;
 
 pub struct ConflictResolutionRepository<'a> {

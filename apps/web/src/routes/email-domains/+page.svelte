@@ -3,7 +3,18 @@
 	import { onMount } from 'svelte';
 	import { domainStore } from '$lib/stores/domains';
 
-	let domains: any[] = [];
+	type EmailDomain = {
+		concept_id: string;
+		name: string;
+		description: string | null;
+		keywords: string[];
+		email_count: number;
+		unique_senders: number;
+		earliest_date: number | null;
+		latest_date: number | null;
+	};
+
+	let domains: EmailDomain[] = [];
 	let loading = true;
 	let error = '';
 	let showNewDomain = false;
@@ -15,8 +26,8 @@
 		try {
 			const result = await api.getEmailDomains();
 			domains = result.domains || [];
-		} catch (e: any) {
-			error = e.message || 'Failed to load domains';
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to load domains';
 		} finally {
 			loading = false;
 		}
@@ -34,8 +45,8 @@
 			newDomainName = '';
 			newDomainDescription = '';
 			showNewDomain = false;
-		} catch (e: any) {
-			error = e.message || 'Failed to create domain';
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to create domain';
 		} finally {
 			creating = false;
 		}

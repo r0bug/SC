@@ -117,8 +117,8 @@
 			groups = result.groups;
 			toasts.success('Criteria saved');
 			dispatch('save');
-		} catch (e: any) {
-			toasts.error(e.message || 'Failed to save');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Failed to save');
 		} finally {
 			saving = false;
 		}
@@ -134,8 +134,8 @@
 			toasts.success(`Criteria saved. ${result.scan_count} new suggestions found.`);
 			dispatch('save');
 			dispatch('scan');
-		} catch (e: any) {
-			toasts.error(e.message || 'Failed to save & scan');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Failed to save & scan');
 		} finally {
 			saving = false;
 			scanning = false;

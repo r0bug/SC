@@ -24,7 +24,7 @@
 		try {
 			loading = true;
 			groups = await api.getGroups();
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error('Failed to load groups:', error);
 		} finally {
 			loading = false;
@@ -34,26 +34,28 @@
 	async function loadContacts() {
 		try {
 			contacts = await api.getContacts(500, 0);
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error('Failed to load contacts:', error);
 		}
 	}
 
 	function setupWebSocket() {
 		api.onWebSocketMessage('group_updated', (data) => {
-			const index = groups.findIndex(g => g.id === data.id);
+			const updated = data as Group;
+			const index = groups.findIndex(g => g.id === updated.id);
 			if (index >= 0) {
-				groups[index] = data;
+				groups[index] = updated;
 				groups = groups;
 			}
 		});
 
 		api.onWebSocketMessage('group_created', (data) => {
-			groups = [data, ...groups];
+			groups = [data as Group, ...groups];
 		});
 
 		api.onWebSocketMessage('group_deleted', (data) => {
-			groups = groups.filter(g => g.id !== data.id);
+			const deleted = data as { id: string };
+			groups = groups.filter(g => g.id !== deleted.id);
 		});
 	}
 
@@ -84,12 +86,12 @@
 				name: formName,
 				description: formDescription,
 				contact_ids: formMembers
-			} as any);
+			});
 
 			groups = [newGroup, ...groups];
 			closeModals();
-		} catch (error: any) {
-			alert('Failed to create group: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to create group: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -109,8 +111,8 @@
 				groups = groups;
 			}
 			closeModals();
-		} catch (error: any) {
-			alert('Failed to update group: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to update group: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -120,8 +122,8 @@
 		try {
 			await api.deleteGroup(id);
 			groups = groups.filter(g => g.id !== id);
-		} catch (error: any) {
-			alert('Failed to delete group: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to delete group: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -205,8 +207,9 @@
 
 <!-- Create Modal -->
 {#if showCreateModal}
-	<div class="modal-overlay" on:click={closeModals}>
-		<div class="modal" on:click|stopPropagation>
+	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+	<div class="modal-overlay" role="button" tabindex="0" on:click={closeModals} on:keydown={(e) => e.key === 'Enter' && closeModals()}>
+		<div class="modal" role="dialog" aria-modal="true" on:click|stopPropagation on:keydown|stopPropagation>
 			<div class="modal-header">
 				<h2>Create Group</h2>
 				<button on:click={closeModals} class="close-btn">×</button>
@@ -224,7 +227,7 @@
 				</div>
 
 				<div class="form-group">
-					<label>Members</label>
+					<span class="form-label-text">Members</span>
 					<div class="member-selector">
 						{#each contacts as contact}
 							<label class="member-option">
@@ -255,8 +258,9 @@
 
 <!-- Edit Modal -->
 {#if showEditModal && selectedGroup}
-	<div class="modal-overlay" on:click={closeModals}>
-		<div class="modal" on:click|stopPropagation>
+	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+	<div class="modal-overlay" role="button" tabindex="0" on:click={closeModals} on:keydown={(e) => e.key === 'Enter' && closeModals()}>
+		<div class="modal" role="dialog" aria-modal="true" on:click|stopPropagation on:keydown|stopPropagation>
 			<div class="modal-header">
 				<h2>Edit Group</h2>
 				<button on:click={closeModals} class="close-btn">×</button>
@@ -274,7 +278,7 @@
 				</div>
 
 				<div class="form-group">
-					<label>Members</label>
+					<span class="form-label-text">Members</span>
 					<div class="member-selector">
 						{#each contacts as contact}
 							<label class="member-option">
@@ -463,6 +467,12 @@
 	}
 
 	.form-group label {
+		display: block;
+		margin-bottom: 0.5rem;
+		font-weight: 500;
+	}
+
+	.form-label-text {
 		display: block;
 		margin-bottom: 0.5rem;
 		font-weight: 500;

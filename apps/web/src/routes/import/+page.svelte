@@ -260,6 +260,8 @@
 				<div
 					class="upload-area"
 					class:drag-active={dragActive}
+					role="region"
+					aria-label="File upload area"
 					on:dragover={handleDragOver}
 					on:dragleave={handleDragLeave}
 					on:drop={handleDrop}
@@ -376,8 +378,8 @@
 						<div class="mappings-grid">
 							{#each preview.detected_fields || [] as field}
 								<div class="mapping-item">
-									<label>{field.field_name}</label>
-									<select
+									<label for="mapping-{field.field_name}">{field.field_name}</label>
+									<select id="mapping-{field.field_name}"
 										value={config.field_mappings?.[field.field_name] || field.suggested_mapping}
 										on:change={(e) => updateMapping(field.field_name, e.currentTarget.value)}
 									>

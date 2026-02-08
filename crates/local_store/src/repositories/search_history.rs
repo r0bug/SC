@@ -1,5 +1,5 @@
-use core_domain::{DomainError, DomainResult, SearchHistory};
 use crate::db::DbPool;
+use core_domain::{DomainError, DomainResult, SearchHistory};
 use uuid::Uuid;
 
 pub struct SearchHistoryRepository<'a> {

@@ -4,12 +4,35 @@
 	import DomainTagInput from '$lib/components/DomainTagInput.svelte';
 	import BulkDomainToolbar from '$lib/components/BulkDomainToolbar.svelte';
 
-	let domains: any[] = [];
+	type ExplorerDomain = {
+		concept_id: string;
+		name: string;
+		email_count: number;
+	};
+
+	type ExplorerEmail = {
+		id: string;
+		from_address: string;
+		from_name: string | null;
+		subject: string;
+		message_date: number;
+		body_preview: string | null;
+		message_type: number;
+		folder: string | null;
+		domains: Array<{ concept_id: string; concept_name: string }>;
+	};
+
+	type Overlap = {
+		domain_ids: string[];
+		count: number;
+	};
+
+	let domains: ExplorerDomain[] = [];
 	let selectedDomainIds: string[] = [];
 	let filterMode: 'union' | 'intersection' = 'union';
 	let viewMode: 'list' | 'venn' = 'list';
-	let emails: any[] = [];
-	let overlaps: any[] = [];
+	let emails: ExplorerEmail[] = [];
+	let overlaps: Overlap[] = [];
 	let loading = false;
 	let domainsLoading = true;
 	let error = '';
@@ -21,8 +44,8 @@
 		try {
 			const result = await api.getEmailDomains();
 			domains = result.domains || [];
-		} catch (e: any) {
-			error = e.message || 'Failed to load domains';
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to load domains';
 		} finally {
 			domainsLoading = false;
 		}
@@ -47,8 +70,8 @@
 			emails = result.emails || [];
 			overlaps = result.overlaps || [];
 			totalShowing = emails.length;
-		} catch (e: any) {
-			error = e.message || 'Failed to filter emails';
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to filter emails';
 		} finally {
 			loading = false;
 		}
@@ -83,7 +106,7 @@
 
 		const getCount = (ids: string[]) => {
 			const sorted = [...ids].sort();
-			const match = overlaps.find((o: any) => {
+			const match = overlaps.find((o: Overlap) => {
 				const oSorted = [...o.domain_ids].sort();
 				return oSorted.length === sorted.length && oSorted.every((v: string, i: number) => v === sorted[i]);
 			});
@@ -130,7 +153,7 @@
 		return new Date(ts).toLocaleDateString();
 	}
 
-	let selectedEmail: any = null;
+	let selectedEmail: ExplorerEmail | null = null;
 
 	function toggleEmailCheck(id: string) {
 		if (checkedEmailIds.includes(id)) {
@@ -144,7 +167,7 @@
 	$: {
 		const map: Record<string, Array<{ concept_id: string; name: string }>> = {};
 		for (const email of emails) {
-			map[email.id] = (email.domains || []).map((d: any) => ({
+			map[email.id] = (email.domains || []).map((d: { concept_id: string; concept_name: string }) => ({
 				concept_id: d.concept_id,
 				name: d.concept_name
 			}));
@@ -273,7 +296,7 @@
 								on:click|stopPropagation
 								class="email-checkbox"
 							/>
-							<div class="email-row-main" on:click={() => selectedEmail = selectedEmail?.id === email.id ? null : email}>
+							<div class="email-row-main" role="button" tabindex="0" on:click={() => selectedEmail = selectedEmail?.id === email.id ? null : email} on:keydown={(e) => e.key === 'Enter' && (selectedEmail = selectedEmail?.id === email.id ? null : email)}>
 								<span class="email-from">{email.from_name || email.from_address}</span>
 								<span class="email-subject">{email.subject}</span>
 								<span class="email-date">{formatDate(email.message_date)}</span>

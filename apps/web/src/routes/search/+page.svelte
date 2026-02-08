@@ -25,8 +25,8 @@
 		try {
 			await api.clearSearchHistory();
 			history = [];
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 </script>

@@ -18,7 +18,9 @@ fn get_webhook_owner_id() -> Uuid {
         .ok()
         .and_then(|s| Uuid::parse_str(&s).ok())
         .unwrap_or_else(|| {
-            warn!("TWILIO_DEFAULT_OWNER_ID not set - using system user for webhook-created contacts");
+            warn!(
+                "TWILIO_DEFAULT_OWNER_ID not set - using system user for webhook-created contacts"
+            );
             // Use a deterministic "system" UUID instead of nil
             Uuid::parse_str("ffffffff-ffff-ffff-ffff-ffffffffffff").unwrap()
         })
@@ -26,7 +28,6 @@ fn get_webhook_owner_id() -> Uuid {
 
 /// Twilio webhook payload for incoming SMS
 /// See: https://www.twilio.com/docs/sms/twiml#twilios-request-to-your-application
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct TwilioInboundSms {
     #[serde(rename = "MessageSid")]
@@ -38,13 +39,13 @@ pub struct TwilioInboundSms {
     #[serde(rename = "Body")]
     body: String,
     #[serde(rename = "NumMedia")]
-    num_media: Option<String>,
+    _num_media: Option<String>,
     #[serde(rename = "FromCity")]
-    from_city: Option<String>,
+    _from_city: Option<String>,
     #[serde(rename = "FromState")]
-    from_state: Option<String>,
+    _from_state: Option<String>,
     #[serde(rename = "FromCountry")]
-    from_country: Option<String>,
+    _from_country: Option<String>,
 }
 
 /// POST /api/webhooks/twilio/sms
@@ -116,7 +117,14 @@ pub async fn receive_sms(
             match contact_repo.create(&new_contact).await {
                 Ok(_) => {
                     // Create ACL for the new contact
-                    let _ = state.acl_service.create_acl(&webhook_owner_id, core_domain::ShareEntityType::Contact, &new_contact.id).await;
+                    let _ = state
+                        .acl_service
+                        .create_acl(
+                            &webhook_owner_id,
+                            core_domain::ShareEntityType::Contact,
+                            &new_contact.id,
+                        )
+                        .await;
                     Some(new_contact.id)
                 }
                 Err(e) => {

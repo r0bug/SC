@@ -1,5 +1,5 @@
-use core_domain::{Attachment, AttachmentEntityType, DomainError, DomainResult};
 use crate::db::DbPool;
+use core_domain::{Attachment, AttachmentEntityType, DomainError, DomainResult};
 use uuid::Uuid;
 
 pub struct AttachmentRepository<'a> {

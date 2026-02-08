@@ -25,10 +25,7 @@ pub struct CreateLocationRequest {
 /// Build location routes as a Router
 pub fn location_routes() -> Router<AppState> {
     Router::new()
-        .route(
-            "/api/locations",
-            get(list_locations).post(create_location),
-        )
+        .route("/api/locations", get(list_locations).post(create_location))
         .route(
             "/api/locations/:id",
             get(get_location)
@@ -126,8 +123,7 @@ pub async fn update_location(
     Path(id): Path<Uuid>,
     Json(req): Json<CreateLocationRequest>,
 ) -> Result<Json<Location>, (StatusCode, &'static str)> {
-    validation::validate_name(&req.name)
-        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid name"))?;
+    validation::validate_name(&req.name).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid name"))?;
 
     let repo = LocationRepository::new(&app_state.pool);
     let mut location = repo
@@ -228,10 +224,12 @@ pub async fn list_locations(
     AuthUser(user): AuthUser,
 ) -> Result<Json<Vec<Location>>, (StatusCode, &'static str)> {
     let repo = LocationRepository::new(&app_state.pool);
-    let locations = repo
-        .list_by_creator(user.id)
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list locations"))?;
+    let locations = repo.list_by_creator(user.id).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to list locations",
+        )
+    })?;
 
     Ok(Json(locations))
 }

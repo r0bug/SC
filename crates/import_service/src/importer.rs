@@ -116,7 +116,7 @@ impl ImportService {
 
             // Check if contact exists (for update vs insert)
             let existing = contact_repo
-                .search(&contact.email.as_deref().unwrap_or(""), user_id)
+                .search(contact.email.as_deref().unwrap_or(""), user_id)
                 .await
                 .ok()
                 .and_then(|results| results.into_iter().next());
@@ -171,13 +171,11 @@ impl ImportService {
     }
 
     pub fn list_configs(&self) -> Result<Vec<ImportConfig>, ImportError> {
-        self.config_repo.list().map_err(|e| ImportError::IoError(e))
+        self.config_repo.list().map_err(ImportError::IoError)
     }
 
     pub fn save_config(&self, config: &ImportConfig) -> Result<(), ImportError> {
-        self.config_repo
-            .save(config)
-            .map_err(|e| ImportError::IoError(e))
+        self.config_repo.save(config).map_err(ImportError::IoError)
     }
 }
 
@@ -191,7 +189,7 @@ fn detect_format(path: &Path) -> Result<ImportFormat, ImportError> {
         "csv" => Ok(ImportFormat::Csv),
         "vcf" | "vcard" => Ok(ImportFormat::Vcard),
         "json" => Ok(ImportFormat::Json),
-        "txt" if path.to_str().map_or(false, |s| s.contains("sms")) => Ok(ImportFormat::Sms),
+        "txt" if path.to_str().is_some_and(|s| s.contains("sms")) => Ok(ImportFormat::Sms),
         _ => Err(ImportError::Other(format!("Unknown format: {}", extension))),
     }
 }
@@ -333,7 +331,10 @@ fn get_contact_field_names() -> Vec<String> {
     ]
 }
 
-fn create_contact_from_mapped(data: &HashMap<String, String>, user_id: Uuid) -> Result<Contact, ImportError> {
+fn create_contact_from_mapped(
+    data: &HashMap<String, String>,
+    user_id: Uuid,
+) -> Result<Contact, ImportError> {
     Ok(Contact {
         id: Uuid::new_v4(),
         first_name: data

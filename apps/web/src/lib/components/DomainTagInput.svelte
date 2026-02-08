@@ -2,6 +2,7 @@
 	import { createEventDispatcher, onMount, tick } from 'svelte';
 	import { api } from '$lib/api/api';
 	import { domainStore } from '$lib/stores/domains';
+	import { hashColor } from '$lib/utils/colors';
 
 	export let emailId: string = '';
 	export let emailIds: string[] = [];
@@ -19,19 +20,6 @@
 	let inputEl: HTMLInputElement;
 	let debounceTimer: ReturnType<typeof setTimeout>;
 	let loading = false;
-
-	const CHIP_COLORS = [
-		'#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
-		'#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6'
-	];
-
-	function hashColor(name: string): string {
-		let hash = 0;
-		for (let i = 0; i < name.length; i++) {
-			hash = name.charCodeAt(i) + ((hash << 5) - hash);
-		}
-		return CHIP_COLORS[Math.abs(hash) % CHIP_COLORS.length];
-	}
 
 	function isBulk(): boolean {
 		return emailIds.length > 0;
@@ -250,9 +238,12 @@
 					class="tag-input compact-input"
 				/>
 				{#if showDropdown && (suggestions.length > 0 || (inputValue.trim() && !hasExactMatch()))}
-					<ul class="dropdown">
+					<ul class="dropdown" role="listbox">
 						{#each suggestions as suggestion, i}
 							<li
+								role="option"
+								aria-selected={i === highlightedIndex}
+								tabindex="-1"
 								class:highlighted={i === highlightedIndex}
 								on:mousedown|preventDefault={() => selectSuggestion(suggestion.name)}
 							>
@@ -264,6 +255,9 @@
 						{/each}
 						{#if inputValue.trim() && !hasExactMatch()}
 							<li
+								role="option"
+								aria-selected={highlightedIndex === suggestions.length}
+								tabindex="-1"
 								class="create-option"
 								class:highlighted={highlightedIndex === suggestions.length}
 								on:mousedown|preventDefault={() => selectSuggestion(inputValue)}
@@ -303,9 +297,12 @@
 			/>
 		</div>
 		{#if showDropdown && (suggestions.length > 0 || (inputValue.trim() && !hasExactMatch()))}
-			<ul class="dropdown">
+			<ul class="dropdown" role="listbox">
 				{#each suggestions as suggestion, i}
 					<li
+						role="option"
+						aria-selected={i === highlightedIndex}
+						tabindex="-1"
 						class:highlighted={i === highlightedIndex}
 						on:mousedown|preventDefault={() => selectSuggestion(suggestion.name)}
 					>
@@ -317,6 +314,9 @@
 				{/each}
 				{#if inputValue.trim() && !hasExactMatch()}
 					<li
+						role="option"
+						aria-selected={highlightedIndex === suggestions.length}
+						tabindex="-1"
 						class="create-option"
 						class:highlighted={highlightedIndex === suggestions.length}
 						on:mousedown|preventDefault={() => selectSuggestion(inputValue)}

@@ -65,7 +65,12 @@ pub async fn find_contact_matches(
     let all_rels = repo
         .list_by_source(&EntityType::Contact, contact_id)
         .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list relationships"))?;
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to list relationships",
+            )
+        })?;
 
     let wants: Vec<_> = all_rels
         .into_iter()
@@ -110,7 +115,12 @@ pub async fn find_pick_matches(
     let all_rels = repo
         .list_by_source(&EntityType::Pick, pick_id)
         .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list relationships"))?;
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to list relationships",
+            )
+        })?;
 
     let pick_haves: Vec<_> = all_rels
         .into_iter()

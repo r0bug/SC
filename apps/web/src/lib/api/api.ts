@@ -13,7 +13,7 @@ export class ApiError extends Error {
 		message: string,
 		public code: string,
 		public status: number,
-		public details?: any
+		public details?: Record<string, unknown>
 	) {
 		super(message);
 		this.name = 'ApiError';
@@ -100,7 +100,7 @@ export class ApiClient {
 	private baseUrl = '/api';
 	private token: string | null = null;
 	private ws: WebSocket | null = null;
-	private wsListeners = new Map<string, Set<(data: any) => void>>();
+	private wsListeners = new Map<string, Set<(data: unknown) => void>>();
 
 	constructor() {
 		// Load token from localStorage if available
@@ -153,7 +153,7 @@ export class ApiClient {
 	async updateUserProfile(payload: {
 		name?: string;
 		email?: string;
-		preferences?: Record<string, any>;
+		preferences?: Record<string, unknown>;
 	}): Promise<User> {
 		return this.request('/auth/me', {
 			method: 'PUT',
@@ -203,7 +203,7 @@ export class ApiClient {
 		return this.request(`/contacts/${id}`, { method: 'DELETE' });
 	}
 
-	async searchContacts(query: string, filters?: Record<string, any>): Promise<Contact[]> {
+	async searchContacts(query: string, filters?: Record<string, unknown>): Promise<Contact[]> {
 		// Backend only accepts query parameter currently
 		// TODO: Enhance backend to support filters (tags, etc.)
 		return this.request('/contacts/search', {
@@ -372,7 +372,7 @@ export class ApiClient {
 		relationship_type_id: string;
 		target_type: string;
 		target_id: string;
-		metadata?: Record<string, any>;
+		metadata?: Record<string, unknown>;
 	}): Promise<EntityRelationship> {
 		return this.request('/relationships', {
 			method: 'POST',
@@ -815,9 +815,9 @@ export class ApiClient {
 			if (filters?.end_date) params.append('end_date', filters.end_date);
 			const query = params.toString() ? `?${params}` : '';
 			return await this.request(`/import/history${query}`);
-		} catch (error: any) {
+		} catch (error: unknown) {
 			// Alpha: History endpoint not implemented yet, return empty array
-			if (error.status === 404) {
+			if (error instanceof ApiError && error.status === 404) {
 				return [];
 			}
 			throw error;
@@ -1069,18 +1069,18 @@ export class ApiClient {
 		});
 	}
 
-	async getTriageSession(sessionId: string): Promise<any> {
+	async getTriageSession(sessionId: string): Promise<unknown> {
 		return this.request(`/email/triage/${sessionId}`);
 	}
 
-	async getTriageProposals(sessionId: string): Promise<any> {
+	async getTriageProposals(sessionId: string): Promise<unknown> {
 		return this.request(`/email/triage/${sessionId}/proposals`);
 	}
 
 	async reviewTriageDomains(sessionId: string, review: {
 		approved: string[];
 		denied: string[];
-	}): Promise<any> {
+	}): Promise<unknown> {
 		return this.request(`/email/triage/${sessionId}/review`, {
 			method: 'POST',
 			body: JSON.stringify(review)
@@ -1089,7 +1089,7 @@ export class ApiClient {
 
 	async continueTriage(sessionId: string, options: {
 		auto_apply?: boolean;
-	}): Promise<any> {
+	}): Promise<unknown> {
 		return this.request(`/email/triage/${sessionId}/continue`, {
 			method: 'POST',
 			body: JSON.stringify(options)
@@ -1301,7 +1301,7 @@ export class ApiClient {
 		password?: string;
 		default_folder?: string;
 		max_emails?: number;
-	}): Promise<any> {
+	}): Promise<unknown> {
 		return this.request(`/imap-accounts/${id}`, {
 			method: 'PUT',
 			body: JSON.stringify(data)
@@ -1389,16 +1389,16 @@ export class ApiClient {
 		return this.request('/metrics/worker');
 	}
 
-	async getWorkerHealth(): Promise<any> {
+	async getWorkerHealth(): Promise<unknown> {
 		return this.request('/health/worker');
 	}
 
 	// Settings
-	async getSettings(): Promise<Record<string, any>> {
+	async getSettings(): Promise<Record<string, unknown>> {
 		return this.request('/settings');
 	}
 
-	async updateSettings(settings: Record<string, any>): Promise<void> {
+	async updateSettings(settings: Record<string, unknown>): Promise<void> {
 		return this.request('/settings', {
 			method: 'PUT',
 			body: JSON.stringify(settings)
@@ -1477,7 +1477,7 @@ export class ApiClient {
 		}
 	}
 
-	onWebSocketMessage(type: string, callback: (data: any) => void) {
+	onWebSocketMessage(type: string, callback: (data: unknown) => void) {
 		if (!this.wsListeners.has(type)) {
 			this.wsListeners.set(type, new Set());
 		}
@@ -1516,14 +1516,14 @@ export class ApiClient {
 		});
 	}
 
-	async addMatcherToGroup(conceptId: string, groupId: string, matcher: MatcherInput): Promise<any> {
+	async addMatcherToGroup(conceptId: string, groupId: string, matcher: MatcherInput): Promise<{ matcher: Matcher }> {
 		return this.request(`/concepts/${conceptId}/matchers/groups/${groupId}/matchers`, {
 			method: 'POST',
 			body: JSON.stringify(matcher)
 		});
 	}
 
-	async updateMatcher(conceptId: string, groupId: string, matcherId: string, matcher: MatcherInput): Promise<any> {
+	async updateMatcher(conceptId: string, groupId: string, matcherId: string, matcher: MatcherInput): Promise<{ matcher: Matcher }> {
 		return this.request(`/concepts/${conceptId}/matchers/groups/${groupId}/matchers/${matcherId}`, {
 			method: 'PUT',
 			body: JSON.stringify(matcher)
@@ -1559,6 +1559,7 @@ export class ApiClient {
 	}
 
 	// Private helpers
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private async request(path: string, options: RequestInit = {}): Promise<any> {
 		try {
 			const res = await fetch(`${this.baseUrl}${path}`, {
@@ -1591,7 +1592,7 @@ export class ApiClient {
 	private async handleErrorResponse(res: Response, path: string): Promise<never> {
 		let errorMessage = `Request failed: ${res.statusText}`;
 		let errorCode = 'UNKNOWN_ERROR';
-		let details: any = undefined;
+		let details: Record<string, unknown> | undefined = undefined;
 
 		try {
 			const contentType = res.headers.get('content-type');

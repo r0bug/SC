@@ -4,7 +4,7 @@ interface OptimisticUpdate {
 	id: string;
 	type: 'create' | 'update' | 'delete';
 	entity: string;
-	data: any;
+	data: unknown;
 	timestamp: number;
 }
 
@@ -14,7 +14,7 @@ function createOptimisticStore() {
 	return {
 		subscribe,
 
-		add(type: 'create' | 'update' | 'delete', entity: string, data: any) {
+		add(type: 'create' | 'update' | 'delete', entity: string, data: unknown) {
 			const id = `${type}_${entity}_${Date.now()}`;
 			update(updates => [...updates, { id, type, entity, data, timestamp: Date.now() }]);
 			return id;
@@ -29,7 +29,7 @@ function createOptimisticStore() {
 		},
 
 		async execute<T>(
-			optimisticData: any,
+			optimisticData: unknown,
 			apiCall: () => Promise<T>,
 			onSuccess?: (result: T) => void,
 			onError?: (error: Error) => void

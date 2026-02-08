@@ -3,8 +3,8 @@
 
 	export let fromAddress: string = '';
 	export let toAddress: string = '';
-	export let subject: string = '';
-	export let bodyText: string = '';
+	export const subject: string = '';
+	export const bodyText: string = '';
 	export let attachmentNames: string[] = [];
 
 	const dispatch = createEventDispatcher();

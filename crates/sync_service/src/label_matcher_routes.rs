@@ -5,9 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use core_domain::{
-    ConceptMatcher, ConceptMatcherGroup, MatchMode, MatcherElementType,
-};
+use core_domain::{ConceptMatcher, ConceptMatcherGroup, MatchMode, MatcherElementType};
 use local_store::repositories::{
     CommunicationConceptRepository, ConceptMatcherRepository, ConceptRepository,
 };
@@ -125,10 +123,7 @@ pub fn label_matcher_routes() -> Router<AppState> {
             "/api/concepts/:id/matchers",
             get(get_concept_matchers).post(set_concept_matchers),
         )
-        .route(
-            "/api/concepts/:id/matchers/groups",
-            post(add_matcher_group),
-        )
+        .route("/api/concepts/:id/matchers/groups", post(add_matcher_group))
         .route(
             "/api/concepts/:id/matchers/groups/:gid",
             axum::routing::delete(delete_matcher_group),
@@ -139,8 +134,7 @@ pub fn label_matcher_routes() -> Router<AppState> {
         )
         .route(
             "/api/concepts/:id/matchers/groups/:gid/matchers/:mid",
-            axum::routing::put(update_matcher)
-                .delete(delete_matcher),
+            axum::routing::put(update_matcher).delete(delete_matcher),
         )
         // Scanning
         .route("/api/concepts/:id/scan", post(scan_concept))
@@ -309,7 +303,9 @@ async fn add_matcher_group(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
 
-    Ok(Json(serde_json::json!({ "group": group_to_response(group) })))
+    Ok(Json(
+        serde_json::json!({ "group": group_to_response(group) }),
+    ))
 }
 
 /// DELETE /api/concepts/:id/matchers/groups/:gid
@@ -364,7 +360,9 @@ async fn add_matcher_to_group(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(serde_json::json!({ "matcher": matcher_to_response(&matcher) })))
+    Ok(Json(
+        serde_json::json!({ "matcher": matcher_to_response(&matcher) }),
+    ))
 }
 
 /// PUT /api/concepts/:id/matchers/groups/:gid/matchers/:mid
@@ -398,7 +396,9 @@ async fn update_matcher(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(serde_json::json!({ "matcher": matcher_to_response(&matcher) })))
+    Ok(Json(
+        serde_json::json!({ "matcher": matcher_to_response(&matcher) }),
+    ))
 }
 
 /// DELETE /api/concepts/:id/matchers/groups/:gid/matchers/:mid
@@ -493,8 +493,14 @@ async fn list_labels(
             .map(|c| c.groups.iter().map(|g| g.matchers.len()).sum::<usize>())
             .unwrap_or(0);
 
-        let confirmed_count = cc_list.iter().filter(|c| c.status.to_string() == "confirmed").count() as i64;
-        let suggested_count = cc_list.iter().filter(|c| c.status.to_string() == "suggested").count() as i64;
+        let confirmed_count = cc_list
+            .iter()
+            .filter(|c| c.status.to_string() == "confirmed")
+            .count() as i64;
+        let suggested_count = cc_list
+            .iter()
+            .filter(|c| c.status.to_string() == "suggested")
+            .count() as i64;
 
         // Determine concept_type from metadata
         let concept_type = concept
@@ -548,8 +554,14 @@ async fn get_label_detail(
     let limit = params.limit.unwrap_or(50);
     let offset = params.offset.unwrap_or(0);
 
-    let confirmed_count = all_ccs.iter().filter(|c| c.status.to_string() == "confirmed").count() as i64;
-    let suggested_count = all_ccs.iter().filter(|c| c.status.to_string() == "suggested").count() as i64;
+    let confirmed_count = all_ccs
+        .iter()
+        .filter(|c| c.status.to_string() == "confirmed")
+        .count() as i64;
+    let suggested_count = all_ccs
+        .iter()
+        .filter(|c| c.status.to_string() == "suggested")
+        .count() as i64;
 
     // Filter by status and comm_type
     let filtered_ccs: Vec<_> = all_ccs

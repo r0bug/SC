@@ -50,7 +50,7 @@
 
 	async function handleSubmit() {
 		try {
-			const data: any = {
+			const data: Record<string, unknown> = {
 				name: formName,
 				description: formDescription || undefined,
 				status: formStatus,
@@ -66,8 +66,8 @@
 				picks = [created, ...picks];
 			}
 			showModal = false;
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -76,8 +76,8 @@
 		try {
 			await api.deletePick(id);
 			picks = picks.filter(p => p.id !== id);
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -141,7 +141,7 @@
 	{/if}
 
 	{#if showModal}
-		<div class="modal-overlay" on:click|self={() => showModal = false}>
+		<div class="modal-overlay" role="button" tabindex="0" on:click|self={() => showModal = false} on:keydown={(e) => e.key === 'Enter' && (showModal = false)}>
 			<div class="modal">
 				<h2>{editing ? 'Edit Pick' : 'New Pick'}</h2>
 				<form on:submit|preventDefault={handleSubmit}>

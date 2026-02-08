@@ -1,5 +1,5 @@
+use crate::db::{connect, initialize, schema, DbPool, DB_BACKEND};
 use anyhow::Result;
-use crate::db::{DbPool, connect, initialize, schema, DB_BACKEND};
 use tracing::info;
 
 pub struct LocalStore {
@@ -51,7 +51,10 @@ impl LocalStore {
                         // fresh installs where CREATE TABLE already included the column.
                         // This is expected and safe to ignore.
                         let is_alter_table = trimmed.to_uppercase().starts_with("ALTER TABLE");
-                        if tolerate_alter_errors && is_alter_table && err_msg.contains("duplicate column") {
+                        if tolerate_alter_errors
+                            && is_alter_table
+                            && err_msg.contains("duplicate column")
+                        {
                             tracing::debug!("Skipping already-applied migration: {}", trimmed);
                         } else {
                             tracing::error!("Migration failed for statement: {}", trimmed);

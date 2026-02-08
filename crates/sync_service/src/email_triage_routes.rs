@@ -27,8 +27,8 @@ pub struct StartTriageRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ReviewDomainsRequest {
-    pub approved: Vec<String>,  // concept IDs to approve
-    pub denied: Vec<String>,    // concept IDs to deny
+    pub approved: Vec<String>, // concept IDs to approve
+    pub denied: Vec<String>,   // concept IDs to deny
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,8 +58,14 @@ pub fn email_triage_routes() -> Router<AppState> {
         // Domain view endpoints
         .route("/api/email/domains", get(list_email_domains))
         .route("/api/email/domains/filter", post(filter_emails_by_domains))
-        .route("/api/email/domains/:concept_id/emails", get(get_domain_emails))
-        .route("/api/email/domains/:concept_id/stats", get(get_domain_stats))
+        .route(
+            "/api/email/domains/:concept_id/emails",
+            get(get_domain_emails),
+        )
+        .route(
+            "/api/email/domains/:concept_id/stats",
+            get(get_domain_stats),
+        )
 }
 
 // ─── Triage Endpoints ────────────────────────────────────────────────
@@ -190,7 +196,8 @@ pub async fn get_triage_proposals(
                 .filter(|c| c.communication_type == "email")
                 .count();
 
-            let keywords: Vec<String> = concept.keywords.iter().map(|k| k.keyword.clone()).collect();
+            let keywords: Vec<String> =
+                concept.keywords.iter().map(|k| k.keyword.clone()).collect();
 
             proposals.push(serde_json::json!({
                 "concept_id": concept.id.to_string(),
@@ -264,7 +271,12 @@ pub async fn review_triage_domains(
     let approved_json = serde_json::to_string(&req.approved).unwrap_or_else(|_| "[]".to_string());
     let denied_json = serde_json::to_string(&req.denied).unwrap_or_else(|_| "[]".to_string());
     session_repo
-        .update_domains(id, &session.discovered_domains, &approved_json, &denied_json)
+        .update_domains(
+            id,
+            &session.discovered_domains,
+            &approved_json,
+            &denied_json,
+        )
         .await
         .ok();
 
@@ -304,16 +316,14 @@ pub async fn continue_triage(
             .collect();
 
         if !approved_uuids.is_empty() {
-            let service = EmailTriageService::new(&state.pool, state.ai_client.read().await.clone());
+            let service =
+                EmailTriageService::new(&state.pool, state.ai_client.read().await.clone());
             let categorized = service
                 .apply_approved_domains(id, &approved_uuids)
                 .await
                 .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
-            session_repo
-                .update_status(id, "completed", None)
-                .await
-                .ok();
+            session_repo.update_status(id, "completed", None).await.ok();
 
             return Ok(Json(serde_json::json!({
                 "session_id": id.to_string(),
@@ -326,10 +336,7 @@ pub async fn continue_triage(
 
     // Otherwise analyze the next block
     if next_block >= total_blocks {
-        session_repo
-            .update_status(id, "completed", None)
-            .await
-            .ok();
+        session_repo.update_status(id, "completed", None).await.ok();
 
         return Ok(Json(serde_json::json!({
             "session_id": id.to_string(),
@@ -367,10 +374,7 @@ pub async fn continue_triage(
         .await
         .ok();
 
-    session_repo
-        .update_status(id, "reviewing", None)
-        .await
-        .ok();
+    session_repo.update_status(id, "reviewing", None).await.ok();
 
     Ok(Json(serde_json::json!({
         "session_id": id.to_string(),

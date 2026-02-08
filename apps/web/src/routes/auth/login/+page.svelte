@@ -13,8 +13,8 @@
 
 		try {
 			await auth.login(email, password);
-		} catch (err: any) {
-			error = err.message || 'Login failed';
+		} catch (err: unknown) {
+			error = err instanceof Error ? err.message : 'Login failed';
 		} finally {
 			loading = false;
 		}

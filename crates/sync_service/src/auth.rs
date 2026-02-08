@@ -11,8 +11,8 @@ use chrono::Utc;
 use core_domain::User;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use local_store::repositories::UserRepository;
-use serde::{Deserialize, Serialize};
 use local_store::DbPool;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -115,7 +115,7 @@ impl AuthService {
         let repo = UserRepository::new(&self.pool);
 
         // Check if user already exists
-        if let Ok(_) = repo.get_by_email(&req.email).await {
+        if repo.get_by_email(&req.email).await.is_ok() {
             return Err(AuthError::UserAlreadyExists);
         }
 

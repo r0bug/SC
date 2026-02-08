@@ -1,7 +1,7 @@
+use crate::db::DbPool;
 use chrono::{DateTime, Utc};
 use core_domain::{DomainError, DomainResult};
 use sqlx::FromRow;
-use crate::db::DbPool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -97,7 +97,12 @@ impl<'a> EmailTriageSessionRepository<'a> {
         rows.into_iter().map(|r| r.try_into()).collect()
     }
 
-    pub async fn update_status(&self, id: Uuid, status: &str, error_message: Option<&str>) -> DomainResult<()> {
+    pub async fn update_status(
+        &self,
+        id: Uuid,
+        status: &str,
+        error_message: Option<&str>,
+    ) -> DomainResult<()> {
         let now = Utc::now().to_rfc3339();
         let completed_at = if status == "completed" || status == "failed" {
             Some(now.clone())

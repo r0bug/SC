@@ -9,7 +9,10 @@ pub mod concept;
 pub mod concept_matcher;
 pub mod conflict_resolution;
 pub mod contact;
+pub mod email_history;
+pub mod email_triage_session;
 pub mod group;
+pub mod imap_account;
 pub mod location;
 pub mod note;
 pub mod pick;
@@ -19,9 +22,6 @@ pub mod resource_acl;
 pub mod search_history;
 pub mod share;
 pub mod sms_history;
-pub mod email_history;
-pub mod email_triage_session;
-pub mod imap_account;
 pub mod tag;
 pub mod user;
 
@@ -36,7 +36,13 @@ pub use concept::ConceptRepository;
 pub use concept_matcher::{ConceptMatcherRepository, ConceptWithMatchers};
 pub use conflict_resolution::ConflictResolutionRepository;
 pub use contact::{ContactRepository, MergeStatistics};
+pub use email_history::{
+    DomainMembership, EmailConversation, EmailHistoryRepository, EmailMessage, EmailWithDomains,
+    OverlapCount, UnlinkedSender,
+};
+pub use email_triage_session::{EmailTriageSession, EmailTriageSessionRepository};
 pub use group::GroupRepository;
+pub use imap_account::{ImapAccount, ImapAccountRepository};
 pub use location::LocationRepository;
 pub use note::NoteRepository;
 pub use pick::PickRepository;
@@ -46,8 +52,5 @@ pub use resource_acl::ResourceAclRepository;
 pub use search_history::SearchHistoryRepository;
 pub use share::ShareRepository;
 pub use sms_history::{SmsHistoryRepository, SmsMessage, UnlinkedSmsSender};
-pub use email_history::{EmailHistoryRepository, EmailMessage, EmailConversation, EmailWithDomains, DomainMembership, OverlapCount, UnlinkedSender};
-pub use email_triage_session::{EmailTriageSessionRepository, EmailTriageSession};
-pub use imap_account::{ImapAccountRepository, ImapAccount};
 pub use tag::TagRepository;
 pub use user::UserRepository;

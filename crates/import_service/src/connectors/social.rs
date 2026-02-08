@@ -16,6 +16,12 @@ use std::path::Path;
 /// - URL (LinkedIn profile URL)
 pub struct LinkedInConnector;
 
+impl Default for LinkedInConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LinkedInConnector {
     pub fn new() -> Self {
         Self
@@ -63,7 +69,8 @@ impl ImportConnector for LinkedInConnector {
                         // LinkedIn connections CSV has these specific columns
                         return headers_str.contains("First Name")
                             && headers_str.contains("Last Name")
-                            && (headers_str.contains("Company") || headers_str.contains("Position"));
+                            && (headers_str.contains("Company")
+                                || headers_str.contains("Position"));
                     }
                 }
             }
@@ -147,20 +154,32 @@ impl ImportConnector for LinkedInConnector {
             ("email".to_string(), "email".to_string()),
             ("organization".to_string(), "organization".to_string()),
             ("title".to_string(), "title".to_string()),
-            ("linkedin_url".to_string(), "social_handles.linkedin".to_string()),
-            ("linkedin_username".to_string(), "social_handles.linkedin_username".to_string()),
+            (
+                "linkedin_url".to_string(),
+                "social_handles.linkedin".to_string(),
+            ),
+            (
+                "linkedin_username".to_string(),
+                "social_handles.linkedin_username".to_string(),
+            ),
             ("location".to_string(), "address".to_string()),
-            ("connection_date".to_string(), "metadata.linkedin_connected_on".to_string()),
+            (
+                "connection_date".to_string(),
+                "metadata.linkedin_connected_on".to_string(),
+            ),
         ];
 
         let mut metadata = HashMap::new();
         metadata.insert("format".to_string(), "linkedin_csv".to_string());
         metadata.insert("total_contacts".to_string(), rows.len().to_string());
         metadata.insert("contacts_with_email".to_string(), with_email.to_string());
-        metadata.insert("contacts_with_linkedin_url".to_string(), with_linkedin_url.to_string());
+        metadata.insert(
+            "contacts_with_linkedin_url".to_string(),
+            with_linkedin_url.to_string(),
+        );
 
         // Add info about what was found
-        if with_email == 0 && rows.len() > 0 {
+        if with_email == 0 && !rows.is_empty() {
             warnings.push(format!(
                 "Note: LinkedIn exports typically don't include email addresses (found {} contacts with 0 emails).",
                 rows.len()
@@ -185,6 +204,12 @@ impl ImportConnector for LinkedInConnector {
 ///
 /// This connector parses both following.js and followers.js files.
 pub struct TwitterConnector;
+
+impl Default for TwitterConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl TwitterConnector {
     pub fn new() -> Self {
@@ -212,8 +237,9 @@ impl TwitterConnector {
         let content = content.trim();
 
         // Find the JSON array start
-        let json_start = content.find('[')
-            .ok_or_else(|| ImportError::Other("Could not find JSON array in Twitter export".to_string()))?;
+        let json_start = content.find('[').ok_or_else(|| {
+            ImportError::Other("Could not find JSON array in Twitter export".to_string())
+        })?;
 
         let json_content = &content[json_start..];
 
@@ -242,7 +268,9 @@ impl ImportConnector for TwitterConnector {
         ConnectorMetadata {
             id: "twitter".to_string(),
             name: "Twitter/X".to_string(),
-            description: "Import contacts from Twitter/X data export archive (following.js, followers.js)".to_string(),
+            description:
+                "Import contacts from Twitter/X data export archive (following.js, followers.js)"
+                    .to_string(),
             supported_extensions: vec!["js".to_string(), "json".to_string()],
             supported_mime_types: vec![
                 "application/javascript".to_string(),
@@ -262,9 +290,9 @@ impl ImportConnector for TwitterConnector {
                 // Check file content for Twitter format
                 if let Ok(content) = std::fs::read_to_string(file_path) {
                     let content_preview = &content[..content.len().min(500)];
-                    return content_preview.contains("window.YTD") ||
-                           content_preview.contains("\"following\"") ||
-                           content_preview.contains("\"follower\"");
+                    return content_preview.contains("window.YTD")
+                        || content_preview.contains("\"following\"")
+                        || content_preview.contains("\"follower\"");
                 }
             }
         }
@@ -284,8 +312,7 @@ impl ImportConnector for TwitterConnector {
         for (idx, item) in array.iter().enumerate() {
             // Twitter export structure: { "following": { "accountId": "...", "userLink": "..." } }
             // or for followers: { "follower": { "accountId": "...", "userLink": "..." } }
-            let entry = item.get("following")
-                .or_else(|| item.get("follower"));
+            let entry = item.get("following").or_else(|| item.get("follower"));
 
             if let Some(entry) = entry {
                 let mut row = HashMap::new();
@@ -319,19 +346,31 @@ impl ImportConnector for TwitterConnector {
 
         let suggested_mappings = vec![
             ("first_name".to_string(), "first_name".to_string()),
-            ("twitter_username".to_string(), "social_handles.twitter".to_string()),
-            ("twitter_url".to_string(), "social_handles.twitter_url".to_string()),
-            ("twitter_account_id".to_string(), "metadata.twitter_account_id".to_string()),
+            (
+                "twitter_username".to_string(),
+                "social_handles.twitter".to_string(),
+            ),
+            (
+                "twitter_url".to_string(),
+                "social_handles.twitter_url".to_string(),
+            ),
+            (
+                "twitter_account_id".to_string(),
+                "metadata.twitter_account_id".to_string(),
+            ),
         ];
 
         let mut metadata = HashMap::new();
         metadata.insert("format".to_string(), "twitter_js".to_string());
         metadata.insert("file_type".to_string(), file_type.to_string());
         metadata.insert("total_contacts".to_string(), rows.len().to_string());
-        metadata.insert("contacts_with_username".to_string(), with_username.to_string());
+        metadata.insert(
+            "contacts_with_username".to_string(),
+            with_username.to_string(),
+        );
 
         // Add note about limited data
-        if rows.len() > 0 {
+        if !rows.is_empty() {
             warnings.push(format!(
                 "Note: Twitter exports only contain usernames and account IDs. Display names and bios are not included. Found {} accounts.",
                 rows.len()
@@ -364,6 +403,12 @@ impl ImportConnector for TwitterConnector {
 /// Note: Facebook exports only contain names and timestamps - no email/phone/profile URLs.
 pub struct FacebookConnector;
 
+impl Default for FacebookConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FacebookConnector {
     pub fn new() -> Self {
         Self
@@ -371,7 +416,7 @@ impl FacebookConnector {
 
     /// Parse a Facebook name into first/last name
     fn parse_name(name: &str) -> (String, Option<String>) {
-        let parts: Vec<&str> = name.trim().split_whitespace().collect();
+        let parts: Vec<&str> = name.split_whitespace().collect();
         match parts.len() {
             0 => (name.to_string(), None),
             1 => (parts[0].to_string(), None),
@@ -413,8 +458,9 @@ impl ImportConnector for FacebookConnector {
                 // Verify it's a Facebook export format
                 if let Ok(content) = std::fs::read_to_string(file_path) {
                     let content_preview = &content[..content.len().min(500)];
-                    return content_preview.contains("friends_v2") ||
-                           content_preview.contains("\"name\"") && content_preview.contains("\"timestamp\"");
+                    return content_preview.contains("friends_v2")
+                        || content_preview.contains("\"name\"")
+                            && content_preview.contains("\"timestamp\"");
                 }
             }
         }
@@ -432,7 +478,8 @@ impl ImportConnector for FacebookConnector {
         let mut warnings = Vec::new();
 
         // Facebook exports use "friends_v2" key
-        let friends = json.get("friends_v2")
+        let friends = json
+            .get("friends_v2")
             .or_else(|| json.get("friends"))
             .and_then(|v| v.as_array());
 
@@ -455,7 +502,10 @@ impl ImportConnector for FacebookConnector {
 
                 // Extract timestamp (when you became friends)
                 if let Some(timestamp) = friend.get("timestamp").and_then(|v| v.as_i64()) {
-                    row.insert("friend_since".to_string(), Self::timestamp_to_date(timestamp));
+                    row.insert(
+                        "friend_since".to_string(),
+                        Self::timestamp_to_date(timestamp),
+                    );
                     row.insert("friend_timestamp".to_string(), timestamp.to_string());
                 }
 
@@ -483,7 +533,10 @@ impl ImportConnector for FacebookConnector {
                     }
 
                     if let Some(timestamp) = friend.get("timestamp").and_then(|v| v.as_i64()) {
-                        row.insert("friend_since".to_string(), Self::timestamp_to_date(timestamp));
+                        row.insert(
+                            "friend_since".to_string(),
+                            Self::timestamp_to_date(timestamp),
+                        );
                     }
 
                     row.insert("source".to_string(), "facebook".to_string());
@@ -497,7 +550,10 @@ impl ImportConnector for FacebookConnector {
         let suggested_mappings = vec![
             ("first_name".to_string(), "first_name".to_string()),
             ("last_name".to_string(), "last_name".to_string()),
-            ("friend_since".to_string(), "metadata.facebook_friend_since".to_string()),
+            (
+                "friend_since".to_string(),
+                "metadata.facebook_friend_since".to_string(),
+            ),
         ];
 
         let mut metadata = HashMap::new();
@@ -505,7 +561,7 @@ impl ImportConnector for FacebookConnector {
         metadata.insert("total_contacts".to_string(), rows.len().to_string());
 
         // Add privacy note
-        if rows.len() > 0 {
+        if !rows.is_empty() {
             warnings.push(format!(
                 "Note: Facebook exports only include names and friendship dates. Email addresses and phone numbers are not available. Found {} friends.",
                 rows.len()
@@ -552,13 +608,23 @@ impl ImportConnector for FacebookConnector {
 /// ```
 pub struct InstagramConnector;
 
+impl Default for InstagramConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InstagramConnector {
     pub fn new() -> Self {
         Self
     }
 
     /// Extract Instagram username from profile URL or title
-    fn extract_username(href: Option<&str>, title: Option<&str>, value: Option<&str>) -> Option<String> {
+    fn extract_username(
+        href: Option<&str>,
+        title: Option<&str>,
+        value: Option<&str>,
+    ) -> Option<String> {
         // Try value field first (most reliable)
         if let Some(v) = value {
             if !v.is_empty() {
@@ -605,7 +671,9 @@ impl ImportConnector for InstagramConnector {
         ConnectorMetadata {
             id: "instagram".to_string(),
             name: "Instagram".to_string(),
-            description: "Import contacts from Instagram data export (followers.json, following.json)".to_string(),
+            description:
+                "Import contacts from Instagram data export (followers.json, following.json)"
+                    .to_string(),
             supported_extensions: vec!["json".to_string()],
             supported_mime_types: vec!["application/json".to_string()],
             format: ImportFormat::Instagram,
@@ -617,14 +685,16 @@ impl ImportConnector for InstagramConnector {
     fn can_handle(&self, file_path: &Path) -> bool {
         if let Some(filename) = file_path.file_name().and_then(|n| n.to_str()) {
             let filename_lower = filename.to_lowercase();
-            if (filename_lower.contains("follower") || filename_lower.contains("following")) &&
-               filename_lower.ends_with(".json") {
+            if (filename_lower.contains("follower") || filename_lower.contains("following"))
+                && filename_lower.ends_with(".json")
+            {
                 // Verify it's Instagram format
                 if let Ok(content) = std::fs::read_to_string(file_path) {
                     let content_preview = &content[..content.len().min(1000)];
-                    return content_preview.contains("relationships_follow") ||
-                           content_preview.contains("string_list_data") ||
-                           (content_preview.contains("\"title\"") && content_preview.contains("instagram.com"));
+                    return content_preview.contains("relationships_follow")
+                        || content_preview.contains("string_list_data")
+                        || (content_preview.contains("\"title\"")
+                            && content_preview.contains("instagram.com"));
                 }
             }
         }
@@ -642,7 +712,8 @@ impl ImportConnector for InstagramConnector {
         let file_type = Self::detect_file_type(&json);
 
         // Try new format first (relationships_following/relationships_followers)
-        let users = json.get("relationships_following")
+        let users = json
+            .get("relationships_following")
             .or_else(|| json.get("relationships_followers"))
             .and_then(|v| v.as_array());
 
@@ -654,12 +725,14 @@ impl ImportConnector for InstagramConnector {
                 let title = user.get("title").and_then(|v| v.as_str());
 
                 // Get additional data from string_list_data
-                let (href, value, timestamp) = if let Some(list_data) = user.get("string_list_data").and_then(|v| v.as_array()) {
+                let (href, value, timestamp) = if let Some(list_data) =
+                    user.get("string_list_data").and_then(|v| v.as_array())
+                {
                     if let Some(first) = list_data.first() {
                         (
                             first.get("href").and_then(|v| v.as_str()),
                             first.get("value").and_then(|v| v.as_str()),
-                            first.get("timestamp").and_then(|v| v.as_i64())
+                            first.get("timestamp").and_then(|v| v.as_i64()),
                         )
                     } else {
                         (None, None, None)
@@ -687,7 +760,10 @@ impl ImportConnector for InstagramConnector {
                     row.insert("source".to_string(), format!("instagram_{}", file_type));
                     rows.push(row);
                 } else {
-                    warnings.push(format!("User {} has no identifiable username, skipped", idx + 1));
+                    warnings.push(format!(
+                        "User {} has no identifiable username, skipped",
+                        idx + 1
+                    ));
                 }
             }
         } else {
@@ -710,7 +786,10 @@ impl ImportConnector for InstagramConnector {
                         row.insert("source".to_string(), "instagram".to_string());
                         rows.push(row);
                     } else {
-                        warnings.push(format!("User {} has no identifiable username, skipped", idx + 1));
+                        warnings.push(format!(
+                            "User {} has no identifiable username, skipped",
+                            idx + 1
+                        ));
                     }
                 }
             } else {
@@ -720,9 +799,18 @@ impl ImportConnector for InstagramConnector {
 
         let suggested_mappings = vec![
             ("first_name".to_string(), "first_name".to_string()),
-            ("instagram_username".to_string(), "social_handles.instagram".to_string()),
-            ("instagram_url".to_string(), "social_handles.instagram_url".to_string()),
-            ("followed_date".to_string(), "metadata.instagram_followed_date".to_string()),
+            (
+                "instagram_username".to_string(),
+                "social_handles.instagram".to_string(),
+            ),
+            (
+                "instagram_url".to_string(),
+                "social_handles.instagram_url".to_string(),
+            ),
+            (
+                "followed_date".to_string(),
+                "metadata.instagram_followed_date".to_string(),
+            ),
         ];
 
         let mut metadata = HashMap::new();
@@ -731,7 +819,7 @@ impl ImportConnector for InstagramConnector {
         metadata.insert("total_contacts".to_string(), rows.len().to_string());
 
         // Add note about limited data
-        if rows.len() > 0 {
+        if !rows.is_empty() {
             warnings.push(format!(
                 "Note: Instagram exports only contain usernames and profile links. Display names and bios are not included. Found {} accounts.",
                 rows.len()
@@ -802,7 +890,10 @@ Bob,Johnson,bob@test.com,StartupXYZ,CEO,01 Mar 2023,
 
         assert_eq!(result.rows.len(), 3);
         assert_eq!(result.metadata.get("contacts_with_email").unwrap(), "2");
-        assert_eq!(result.metadata.get("contacts_with_linkedin_url").unwrap(), "2");
+        assert_eq!(
+            result.metadata.get("contacts_with_linkedin_url").unwrap(),
+            "2"
+        );
 
         // Check first row
         let first = &result.rows[0];
@@ -882,8 +973,14 @@ Alice,,,Designer,01 Jan 2024
 
         // Check first row
         let first = &result.rows[0];
-        assert_eq!(first.get("twitter_username"), Some(&"@testuser1".to_string()));
-        assert_eq!(first.get("twitter_account_id"), Some(&"123456789".to_string()));
+        assert_eq!(
+            first.get("twitter_username"),
+            Some(&"@testuser1".to_string())
+        );
+        assert_eq!(
+            first.get("twitter_account_id"),
+            Some(&"123456789".to_string())
+        );
         assert_eq!(first.get("source"), Some(&"twitter_following".to_string()));
     }
 
@@ -908,15 +1005,27 @@ Alice,,,Designer,01 Jan 2024
         assert_eq!(result.metadata.get("file_type").unwrap(), "followers");
 
         let first = &result.rows[0];
-        assert_eq!(first.get("twitter_username"), Some(&"@follower1".to_string()));
+        assert_eq!(
+            first.get("twitter_username"),
+            Some(&"@follower1".to_string())
+        );
         assert_eq!(first.get("source"), Some(&"twitter_followers".to_string()));
     }
 
     #[test]
     fn test_facebook_parse_name() {
-        assert_eq!(FacebookConnector::parse_name("John Doe"), ("John".to_string(), Some("Doe".to_string())));
-        assert_eq!(FacebookConnector::parse_name("Jane"), ("Jane".to_string(), None));
-        assert_eq!(FacebookConnector::parse_name("Mary Jane Watson"), ("Mary".to_string(), Some("Jane Watson".to_string())));
+        assert_eq!(
+            FacebookConnector::parse_name("John Doe"),
+            ("John".to_string(), Some("Doe".to_string()))
+        );
+        assert_eq!(
+            FacebookConnector::parse_name("Jane"),
+            ("Jane".to_string(), None)
+        );
+        assert_eq!(
+            FacebookConnector::parse_name("Mary Jane Watson"),
+            ("Mary".to_string(), Some("Jane Watson".to_string()))
+        );
     }
 
     #[tokio::test]
@@ -938,7 +1047,7 @@ Alice,,,Designer,01 Jan 2024
   ]
 }"#;
 
-        let mut temp_file = NamedTempFile::with_prefix("friends").unwrap();
+        let temp_file = NamedTempFile::with_prefix("friends").unwrap();
         std::fs::write(temp_file.path(), json_content).unwrap();
 
         // Rename to have .json extension
@@ -983,11 +1092,7 @@ Alice,,,Designer,01 Jan 2024
             Some("testuser".to_string())
         );
         assert_eq!(
-            InstagramConnector::extract_username(
-                None,
-                Some("another_user"),
-                None
-            ),
+            InstagramConnector::extract_username(None, Some("another_user"), None),
             Some("another_user".to_string())
         );
         assert_eq!(
@@ -1029,7 +1134,7 @@ Alice,,,Designer,01 Jan 2024
   ]
 }"#;
 
-        let mut temp_file = NamedTempFile::with_prefix("following").unwrap();
+        let temp_file = NamedTempFile::with_prefix("following").unwrap();
         std::fs::write(temp_file.path(), json_content).unwrap();
 
         let json_path = temp_file.path().with_extension("json");
@@ -1048,7 +1153,10 @@ Alice,,,Designer,01 Jan 2024
 
         let first = &result.rows[0];
         assert_eq!(first.get("instagram_username"), Some(&"@user1".to_string()));
-        assert_eq!(first.get("source"), Some(&"instagram_following".to_string()));
+        assert_eq!(
+            first.get("source"),
+            Some(&"instagram_following".to_string())
+        );
         assert!(first.contains_key("followed_date"));
 
         let _ = std::fs::remove_file(&json_path);
@@ -1067,7 +1175,7 @@ Alice,,,Designer,01 Jan 2024
   }
 ]"#;
 
-        let mut temp_file = NamedTempFile::with_prefix("followers").unwrap();
+        let temp_file = NamedTempFile::with_prefix("followers").unwrap();
         std::fs::write(temp_file.path(), json_content).unwrap();
 
         let json_path = temp_file.path().with_extension("json");
@@ -1079,8 +1187,14 @@ Alice,,,Designer,01 Jan 2024
         assert_eq!(result.rows.len(), 2);
 
         let first = &result.rows[0];
-        assert_eq!(first.get("instagram_username"), Some(&"@simple_user1".to_string()));
-        assert_eq!(first.get("instagram_url"), Some(&"https://www.instagram.com/simple_user1".to_string()));
+        assert_eq!(
+            first.get("instagram_username"),
+            Some(&"@simple_user1".to_string())
+        );
+        assert_eq!(
+            first.get("instagram_url"),
+            Some(&"https://www.instagram.com/simple_user1".to_string())
+        );
 
         let _ = std::fs::remove_file(&json_path);
     }

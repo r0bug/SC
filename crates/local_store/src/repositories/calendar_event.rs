@@ -1,5 +1,5 @@
-use core_domain::{CalendarEvent, DomainError, DomainResult, Reminder};
 use crate::db::DbPool;
+use core_domain::{CalendarEvent, DomainError, DomainResult, Reminder};
 use uuid::Uuid;
 
 pub struct CalendarEventRepository<'a> {

@@ -31,10 +31,7 @@ pub fn communication_concept_routes() -> Router<AppState> {
             "/api/communications/:comm_type/:comm_id/concepts/detect",
             axum::routing::post(detect_concepts),
         )
-        .route(
-            "/api/communication-concepts/pending",
-            get(list_pending),
-        )
+        .route("/api/communication-concepts/pending", get(list_pending))
         .route(
             "/api/communication-concepts/:id",
             axum::routing::put(update_status),
@@ -124,12 +121,14 @@ pub async fn update_status(
         )
     })?;
 
-    repo.update_status(id, &status, user.id).await.map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to update status".to_string(),
-        )
-    })?;
+    repo.update_status(id, &status, user.id)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to update status".to_string(),
+            )
+        })?;
 
     // Return updated record
     let updated = repo.get_by_id(id).await.map_err(|_| {

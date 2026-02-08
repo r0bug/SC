@@ -119,13 +119,15 @@
 
 	function setupWebSocket() {
 		api.onWebSocketMessage('contact_updated', (data) => {
-			if (data.id === contactId) {
-				contact = data;
+			const updated = data as Contact;
+			if (updated.id === contactId) {
+				contact = updated;
 				resetForm();
 			}
 		});
 		api.onWebSocketMessage('contact_deleted', (data) => {
-			if (data.id === contactId) {
+			const deleted = data as { id: string };
+			if (deleted.id === contactId) {
 				alert('Contact was deleted');
 				goto('/contacts');
 			}
@@ -149,14 +151,14 @@
 				notes: formNotes || undefined,
 				tags: formTags,
 				social_handles: formSocialHandles.filter(sh => sh.handle.trim()).map(sh => ({
-					platform: sh.platform as any,
+					platform: sh.platform,
 					handle: sh.handle
 				}))
 			});
 			contact = updated;
 			editing = false;
-		} catch (error: any) {
-			alert('Failed to save: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to save: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -165,8 +167,8 @@
 		try {
 			await api.deleteContact(contactId);
 			goto('/contacts');
-		} catch (error: any) {
-			alert('Failed to delete: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to delete: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -199,8 +201,8 @@
 			}
 			attachments = await api.getAttachments('Contact', contactId);
 			input.value = '';
-		} catch (error: any) {
-			alert('Failed to upload: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to upload: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -208,8 +210,8 @@
 		try {
 			// downloadAttachment handles the download internally
 			await api.downloadAttachment(id, filename);
-		} catch (error: any) {
-			alert('Failed to download: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to download: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 </script>
@@ -244,35 +246,35 @@
 					<div class="card">
 						<h2>Edit Contact</h2>
 						<div class="form-group">
-							<label>First Name *</label>
-							<input type="text" bind:value={formFirstName} required />
+							<label for="edit-first-name">First Name *</label>
+							<input id="edit-first-name" type="text" bind:value={formFirstName} required />
 						</div>
 						<div class="form-group">
-							<label>Last Name</label>
-							<input type="text" bind:value={formLastName} />
+							<label for="edit-last-name">Last Name</label>
+							<input id="edit-last-name" type="text" bind:value={formLastName} />
 						</div>
 						<div class="form-group">
-							<label>Email</label>
-							<input type="email" bind:value={formEmail} />
+							<label for="edit-email">Email</label>
+							<input id="edit-email" type="email" bind:value={formEmail} />
 						</div>
 						<div class="form-group">
-							<label>Phone</label>
-							<input type="tel" bind:value={formPhone} />
+							<label for="edit-phone">Phone</label>
+							<input id="edit-phone" type="tel" bind:value={formPhone} />
 						</div>
 						<div class="form-group">
-							<label>Organization</label>
-							<input type="text" bind:value={formOrganization} />
+							<label for="edit-organization">Organization</label>
+							<input id="edit-organization" type="text" bind:value={formOrganization} />
 						</div>
 						<div class="form-group">
-							<label>Title</label>
-							<input type="text" bind:value={formTitle} />
+							<label for="edit-title">Title</label>
+							<input id="edit-title" type="text" bind:value={formTitle} />
 						</div>
 						<div class="form-group">
-							<label>Notes</label>
-							<textarea bind:value={formNotes} rows="4"></textarea>
+							<label for="edit-notes">Notes</label>
+							<textarea id="edit-notes" bind:value={formNotes} rows="4"></textarea>
 						</div>
 						<div class="form-group">
-							<label>Social Handles</label>
+							<span class="form-label-text">Social Handles</span>
 							{#each formSocialHandles as handle, i}
 								<div class="social-handle-row">
 									<select bind:value={handle.platform}>
@@ -289,7 +291,7 @@
 							<button type="button" on:click={addSocialHandle} class="btn btn-sm btn-secondary">Add Social Handle</button>
 						</div>
 						<div class="form-group">
-							<label>Tags</label>
+							<span class="form-label-text">Tags</span>
 							<div class="tags">
 								{#each formTags as tag}
 									<span class="tag">
@@ -478,6 +480,7 @@
 
 	.form-group { margin-bottom: 1.5rem; }
 	.form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+	.form-label-text { display: block; margin-bottom: 0.5rem; font-weight: 500; }
 	.form-group input, .form-group select, .form-group textarea {
 		width: 100%;
 		padding: 0.75rem;

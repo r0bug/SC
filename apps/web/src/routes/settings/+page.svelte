@@ -4,7 +4,7 @@
 	import type { WorkerMetrics } from '$lib/api/types';
 
 	let metrics: WorkerMetrics[] = [];
-	let settings: Record<string, any> = {};
+	let settings: { theme?: string; notifications?: boolean; sync_enabled?: boolean; [key: string]: string | boolean | number | undefined } = {};
 	let loading = true;
 
 	// AI settings
@@ -27,7 +27,7 @@
 
 	async function loadSettings() {
 		try {
-			settings = await api.getSettings();
+			settings = await api.getSettings() as typeof settings;
 		} catch (error) {
 			console.error('Failed to load settings:', error);
 		} finally {
@@ -47,8 +47,8 @@
 		try {
 			await api.updateSettings(settings);
 			alert('Settings saved');
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -60,8 +60,8 @@
 			aiMessage = result.message;
 			aiApiKey = '';
 			await loadAiStatus();
-		} catch (error: any) {
-			aiMessage = 'Failed: ' + error.message;
+		} catch (error: unknown) {
+			aiMessage = 'Failed: ' + (error instanceof Error ? error.message : String(error));
 		} finally {
 			aiSaving = false;
 		}
@@ -74,8 +74,8 @@
 			const result = await api.updateAiKey('');
 			aiMessage = result.message;
 			await loadAiStatus();
-		} catch (error: any) {
-			aiMessage = 'Failed: ' + error.message;
+		} catch (error: unknown) {
+			aiMessage = 'Failed: ' + (error instanceof Error ? error.message : String(error));
 		} finally {
 			aiSaving = false;
 		}
@@ -117,8 +117,8 @@
 			<div class="card">
 				<h2>Application Settings</h2>
 				<div class="form-group">
-					<label>Theme</label>
-					<select bind:value={settings.theme}>
+					<label for="settings-theme">Theme</label>
+					<select id="settings-theme" bind:value={settings.theme}>
 						<option value="light">Light</option>
 						<option value="dark">Dark</option>
 					</select>

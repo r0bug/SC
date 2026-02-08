@@ -10,6 +10,12 @@ use std::path::Path;
 /// Google Contacts CSV Connector
 pub struct GoogleContactsConnector;
 
+impl Default for GoogleContactsConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GoogleContactsConnector {
     pub fn new() -> Self {
         Self
@@ -67,7 +73,7 @@ impl ImportConnector for GoogleContactsConnector {
                             let normalized_key = match header.as_str() {
                                 "Given Name" => "first_name",
                                 "Family Name" | "Additional Name"
-                                    if row.get("last_name").is_none() =>
+                                    if !row.contains_key("last_name") =>
                                 {
                                     "last_name"
                                 }
@@ -145,6 +151,12 @@ impl ImportConnector for GoogleContactsConnector {
 
 /// Apple Contacts vCard Connector
 pub struct AppleContactsConnector;
+
+impl Default for AppleContactsConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl AppleContactsConnector {
     pub fn new() -> Self {
@@ -274,6 +286,12 @@ impl ImportConnector for AppleContactsConnector {
 
 /// Generic CSV Connector (fallback for other contact CSV formats)
 pub struct GenericCsvConnector;
+
+impl Default for GenericCsvConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl GenericCsvConnector {
     pub fn new() -> Self {

@@ -66,10 +66,12 @@ pub async fn list_relationship_types(
     AuthUser(_user): AuthUser,
 ) -> Result<Json<Vec<RelationshipType>>, (StatusCode, &'static str)> {
     let repo = RelationshipTypeRepository::new(&app_state.pool);
-    let types = repo
-        .list()
-        .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list relationship types"))?;
+    let types = repo.list().await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to list relationship types",
+        )
+    })?;
 
     Ok(Json(types))
 }
@@ -116,7 +118,10 @@ pub async fn delete_relationship_type(
         .map_err(|_| (StatusCode::NOT_FOUND, "Relationship type not found"))?;
 
     if rt.is_core {
-        return Err((StatusCode::FORBIDDEN, "Cannot delete core relationship types"));
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Cannot delete core relationship types",
+        ));
     }
 
     repo.delete(id).await.map_err(|_| {
@@ -126,7 +131,9 @@ pub async fn delete_relationship_type(
         )
     })?;
 
-    Ok(Json(serde_json::json!({ "message": "Relationship type deleted" })))
+    Ok(Json(
+        serde_json::json!({ "message": "Relationship type deleted" }),
+    ))
 }
 
 /// POST /api/relationships
@@ -135,10 +142,8 @@ pub async fn create_relationship(
     AuthUser(user): AuthUser,
     Json(req): Json<CreateRelationshipRequest>,
 ) -> Result<Json<EntityRelationship>, (StatusCode, String)> {
-    let source_type = parse_entity_type(&req.source_type)
-        .map_err(|e| (e.0, e.1.to_string()))?;
-    let target_type = parse_entity_type(&req.target_type)
-        .map_err(|e| (e.0, e.1.to_string()))?;
+    let source_type = parse_entity_type(&req.source_type).map_err(|e| (e.0, e.1.to_string()))?;
+    let target_type = parse_entity_type(&req.target_type).map_err(|e| (e.0, e.1.to_string()))?;
 
     // Verify relationship type exists
     let type_repo = RelationshipTypeRepository::new(&app_state.pool);
@@ -215,7 +220,9 @@ pub async fn delete_relationship(
         )
     })?;
 
-    Ok(Json(serde_json::json!({ "message": "Relationship deleted" })))
+    Ok(Json(
+        serde_json::json!({ "message": "Relationship deleted" }),
+    ))
 }
 
 /// GET /api/relationships
@@ -227,9 +234,12 @@ pub async fn list_relationships(
     let repo = EntityRelationshipRepository::new(&app_state.pool);
 
     let relationships = if let Some(type_id) = params.type_id {
-        repo.list_by_type(type_id)
-            .await
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list relationships"))?
+        repo.list_by_type(type_id).await.map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to list relationships",
+            )
+        })?
     } else {
         // Return empty if no filter specified (too broad otherwise)
         Vec::new()
@@ -255,7 +265,12 @@ pub async fn list_by_source(
     let relationships = repo
         .list_by_source(&source_type, source_id)
         .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list relationships"))?;
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to list relationships",
+            )
+        })?;
 
     Ok(Json(relationships))
 }
@@ -272,7 +287,12 @@ pub async fn list_by_target(
     let relationships = repo
         .list_by_target(&target_type, target_id)
         .await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to list relationships"))?;
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to list relationships",
+            )
+        })?;
 
     Ok(Json(relationships))
 }

@@ -26,7 +26,7 @@
 				comm_type: commTypeFilter === 'all' ? undefined : commTypeFilter,
 				limit: 50
 			});
-		} catch (e: any) {
+		} catch (e: unknown) {
 			if (e instanceof ApiError) {
 				toasts.error(e.getUserMessage());
 			}
@@ -42,8 +42,8 @@
 			const result = await api.scanConcept(labelId);
 			toasts.success(`Scan complete: ${result.new_suggestions} new suggestions`);
 			await loadDetail();
-		} catch (e: any) {
-			toasts.error(e.message || 'Scan failed');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Scan failed');
 		} finally {
 			scanning = false;
 		}
@@ -54,8 +54,8 @@
 			await api.updateConceptSuggestion(cc.communication_concept_id, 'confirmed');
 			toasts.success('Confirmed');
 			await loadDetail();
-		} catch (e: any) {
-			toasts.error(e.message || 'Failed to confirm');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Failed to confirm');
 		}
 	}
 
@@ -63,8 +63,8 @@
 		try {
 			await api.updateConceptSuggestion(cc.communication_concept_id, 'denied');
 			await loadDetail();
-		} catch (e: any) {
-			toasts.error(e.message || 'Failed to deny');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Failed to deny');
 		}
 	}
 
@@ -87,8 +87,8 @@
 			await api.deleteConcept(labelId);
 			toasts.success('Label deleted');
 			goto('/labels');
-		} catch (e: any) {
-			toasts.error(e.message || 'Failed to delete');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Failed to delete');
 		} finally {
 			deleting = false;
 		}
@@ -193,7 +193,7 @@
 								<div class="match-icon" class:email={comm.communication_type === 'email'} class:sms={comm.communication_type === 'sms'}>
 									{comm.communication_type === 'email' ? '&#9993;' : '&#128172;'}
 								</div>
-								<div class="match-info" on:click={() => navigateToComm(comm)}>
+								<div class="match-info" role="button" tabindex="0" on:click={() => navigateToComm(comm)} on:keydown={(e) => e.key === 'Enter' && navigateToComm(comm)}>
 									<div class="match-sender">{comm.sender}</div>
 									{#if comm.subject}
 										<div class="match-subject">{comm.subject}</div>
@@ -496,12 +496,6 @@
 	.btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
-	}
-
-	.btn-primary {
-		background: #3b82f6;
-		color: white;
-		border-color: #3b82f6;
 	}
 
 	.btn-secondary {

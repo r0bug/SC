@@ -17,10 +17,9 @@ pub struct ConceptDetector<'a> {
 
 /// A detected concept match from scanning text
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Detection {
     pub concept_id: Uuid,
-    pub keyword: String,
+    pub _keyword: String,
     pub confidence: f32,
 }
 
@@ -104,7 +103,7 @@ impl<'a> ConceptDetector<'a> {
                     seen_concepts.insert(concept.id);
                     detections.push(Detection {
                         concept_id: concept.id,
-                        keyword: keyword.keyword.clone(),
+                        _keyword: keyword.keyword.clone(),
                         confidence: calculate_confidence(&text_lower, &keyword.keyword),
                     });
                 }
@@ -209,7 +208,7 @@ impl<'a> ConceptDetector<'a> {
             if concept_matched {
                 detections.push(Detection {
                     concept_id: cwm.concept_id,
-                    keyword: format!("rule:{}", cwm.concept_name),
+                    _keyword: format!("rule:{}", cwm.concept_name),
                     confidence: 0.9,
                 });
             }
@@ -449,9 +448,14 @@ fn evaluate_concept_against_comm(
 fn evaluate_matcher(matcher: &ConceptMatcher, comm: &CommunicationFields) -> bool {
     let field_values = get_field_values(&matcher.element_type, comm);
 
-    let raw_result = field_values
-        .iter()
-        .any(|val| match_value(val, &matcher.match_value, &matcher.match_mode, matcher.case_sensitive));
+    let raw_result = field_values.iter().any(|val| {
+        match_value(
+            val,
+            &matcher.match_value,
+            &matcher.match_mode,
+            matcher.case_sensitive,
+        )
+    });
 
     if matcher.negate {
         !raw_result
@@ -465,12 +469,16 @@ fn get_field_values(element_type: &MatcherElementType, comm: &CommunicationField
     match element_type {
         MatcherElementType::Sender => vec![comm.sender.clone()],
         MatcherElementType::Receiver => comm.receivers.clone(),
-        MatcherElementType::Subject => {
-            comm.subject.as_ref().map(|s| vec![s.clone()]).unwrap_or_default()
-        }
-        MatcherElementType::Body => {
-            comm.body.as_ref().map(|s| vec![s.clone()]).unwrap_or_default()
-        }
+        MatcherElementType::Subject => comm
+            .subject
+            .as_ref()
+            .map(|s| vec![s.clone()])
+            .unwrap_or_default(),
+        MatcherElementType::Body => comm
+            .body
+            .as_ref()
+            .map(|s| vec![s.clone()])
+            .unwrap_or_default(),
         MatcherElementType::AttachmentName => comm.attachment_names.clone(),
         MatcherElementType::AnyText => {
             let mut vals = vec![comm.sender.clone()];
@@ -518,10 +526,9 @@ fn keyword_matches(text: &str, keyword: &str) -> bool {
         let end_pos = abs_pos + kw_lower.len();
 
         // Check word boundaries
-        let start_ok =
-            abs_pos == 0 || !text_lower.as_bytes()[abs_pos - 1].is_ascii_alphanumeric();
-        let end_ok = end_pos >= text_lower.len()
-            || !text_lower.as_bytes()[end_pos].is_ascii_alphanumeric();
+        let start_ok = abs_pos == 0 || !text_lower.as_bytes()[abs_pos - 1].is_ascii_alphanumeric();
+        let end_ok =
+            end_pos >= text_lower.len() || !text_lower.as_bytes()[end_pos].is_ascii_alphanumeric();
 
         if start_ok && end_ok {
             return true;
@@ -600,7 +607,10 @@ mod tests {
             "i found some trench art at a sale",
             "trench art"
         ));
-        assert!(!keyword_matches("trench coat and art supplies", "trench art"));
+        assert!(!keyword_matches(
+            "trench coat and art supplies",
+            "trench art"
+        ));
     }
 
     #[test]
@@ -637,27 +647,62 @@ mod tests {
 
     #[test]
     fn test_match_value_contains() {
-        assert!(match_value("hello world", "world", &MatchMode::Contains, false));
-        assert!(!match_value("hello world", "xyz", &MatchMode::Contains, false));
+        assert!(match_value(
+            "hello world",
+            "world",
+            &MatchMode::Contains,
+            false
+        ));
+        assert!(!match_value(
+            "hello world",
+            "xyz",
+            &MatchMode::Contains,
+            false
+        ));
     }
 
     #[test]
     fn test_match_value_exact() {
         assert!(match_value("hello", "hello", &MatchMode::Exact, false));
         assert!(match_value("Hello", "hello", &MatchMode::Exact, false));
-        assert!(!match_value("hello world", "hello", &MatchMode::Exact, false));
+        assert!(!match_value(
+            "hello world",
+            "hello",
+            &MatchMode::Exact,
+            false
+        ));
     }
 
     #[test]
     fn test_match_value_starts_with() {
-        assert!(match_value("hello world", "hello", &MatchMode::StartsWith, false));
-        assert!(!match_value("hello world", "world", &MatchMode::StartsWith, false));
+        assert!(match_value(
+            "hello world",
+            "hello",
+            &MatchMode::StartsWith,
+            false
+        ));
+        assert!(!match_value(
+            "hello world",
+            "world",
+            &MatchMode::StartsWith,
+            false
+        ));
     }
 
     #[test]
     fn test_match_value_ends_with() {
-        assert!(match_value("hello world", "world", &MatchMode::EndsWith, false));
-        assert!(!match_value("hello world", "hello", &MatchMode::EndsWith, false));
+        assert!(match_value(
+            "hello world",
+            "world",
+            &MatchMode::EndsWith,
+            false
+        ));
+        assert!(!match_value(
+            "hello world",
+            "hello",
+            &MatchMode::EndsWith,
+            false
+        ));
     }
 
     #[test]

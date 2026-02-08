@@ -1,7 +1,5 @@
 use core_domain::Contact;
-use local_store::repositories::{
-    ContactRepository, EmailHistoryRepository, SmsHistoryRepository,
-};
+use local_store::repositories::{ContactRepository, EmailHistoryRepository, SmsHistoryRepository};
 use local_store::DbPool;
 use serde::Serialize;
 use tracing::{info, warn};
@@ -73,7 +71,9 @@ pub async fn reconcile_emails(pool: &DbPool, user_id: Uuid) -> ReconciliationRes
     let unlinked = match email_repo.get_unlinked_senders().await {
         Ok(u) => u,
         Err(e) => {
-            result.errors.push(format!("Failed to get unlinked email senders: {}", e));
+            result
+                .errors
+                .push(format!("Failed to get unlinked email senders: {}", e));
             return result;
         }
     };
@@ -183,7 +183,9 @@ pub async fn reconcile_sms(pool: &DbPool, user_id: Uuid) -> ReconciliationResult
     let unlinked = match sms_repo.get_unlinked_senders().await {
         Ok(u) => u,
         Err(e) => {
-            result.errors.push(format!("Failed to get unlinked SMS senders: {}", e));
+            result
+                .errors
+                .push(format!("Failed to get unlinked SMS senders: {}", e));
             return result;
         }
     };
@@ -354,7 +356,7 @@ fn parse_name_from_email(display_name: &Option<String>, email: &str) -> (String,
 
     // Fallback: parse email local-part (e.g., "john.doe@example.com" -> "John", "Doe")
     let local_part = email.split('@').next().unwrap_or(email);
-    let parts: Vec<&str> = local_part.split(|c: char| c == '.' || c == '_' || c == '-').collect();
+    let parts: Vec<&str> = local_part.split(['.', '_', '-']).collect();
 
     if parts.len() >= 2 {
         (capitalize(parts[0]), Some(capitalize(parts[1])))

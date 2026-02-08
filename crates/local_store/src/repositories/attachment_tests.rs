@@ -1,11 +1,10 @@
 #[cfg(test)]
 mod attachment_integration_tests {
-    use super::super::*;
+    use crate::db::DbPool;
     use crate::repositories::attachment::AttachmentRepository;
     use chrono::Utc;
     use core_domain::{Attachment, AttachmentEntityType, ScanStatus};
     use sqlx::sqlite::SqlitePoolOptions;
-    use crate::db::DbPool;
     use uuid::Uuid;
 
     async fn setup_test_db() -> DbPool {

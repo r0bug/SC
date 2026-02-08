@@ -2,25 +2,13 @@
 	import { createEventDispatcher, onMount } from 'svelte';
 	import { api } from '$lib/api/api';
 	import { toasts } from '$lib/stores/toast';
+	import { hashColor } from '$lib/utils/colors';
 
 	export let communicationType: string = 'email';
 	export let communicationId: string = '';
 	export let showSuggested: boolean = true;
 
 	const dispatch = createEventDispatcher();
-
-	const CHIP_COLORS = [
-		'#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
-		'#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6'
-	];
-
-	function hashColor(name: string): string {
-		let hash = 0;
-		for (let i = 0; i < name.length; i++) {
-			hash = name.charCodeAt(i) + ((hash << 5) - hash);
-		}
-		return CHIP_COLORS[Math.abs(hash) % CHIP_COLORS.length];
-	}
 
 	type LabelEntry = {
 		id: string;
@@ -72,8 +60,8 @@
 			labels = labels;
 			dispatch('statusChanged');
 			toasts.success(`"${label.concept_name}" confirmed`);
-		} catch (e: any) {
-			toasts.error(e.message || 'Failed to confirm');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Failed to confirm');
 		}
 	}
 
@@ -82,8 +70,8 @@
 			await api.updateConceptSuggestion(label.id, 'denied');
 			labels = labels.filter(l => l.id !== label.id);
 			dispatch('statusChanged');
-		} catch (e: any) {
-			toasts.error(e.message || 'Failed to deny');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Failed to deny');
 		}
 	}
 

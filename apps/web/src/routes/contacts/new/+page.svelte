@@ -50,16 +50,16 @@
 				notes: formNotes || undefined,
 				tags: formTags,
 				social_handles: formSocialHandles.filter(sh => sh.handle.trim()).map(sh => ({
-					platform: sh.platform as any,
+					platform: sh.platform,
 					handle: sh.handle
 				})),
 				projects: [],
 				groups: []
-			} as any);
+			});
 
 			goto(`/contacts/${contact.id}`);
-		} catch (error: any) {
-			alert('Failed to create contact: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to create contact: ' + (error instanceof Error ? error.message : String(error)));
 		} finally {
 			saving = false;
 		}
@@ -80,42 +80,42 @@
 	<div class="card">
 		<form on:submit|preventDefault={handleSubmit}>
 			<div class="form-group">
-				<label>First Name *</label>
-				<input type="text" bind:value={formFirstName} required />
+				<label for="new-first-name">First Name *</label>
+				<input id="new-first-name" type="text" bind:value={formFirstName} required />
 			</div>
 
 			<div class="form-group">
-				<label>Last Name</label>
-				<input type="text" bind:value={formLastName} />
+				<label for="new-last-name">Last Name</label>
+				<input id="new-last-name" type="text" bind:value={formLastName} />
 			</div>
 
 			<div class="form-group">
-				<label>Email</label>
-				<input type="email" bind:value={formEmail} />
+				<label for="new-email">Email</label>
+				<input id="new-email" type="email" bind:value={formEmail} />
 			</div>
 
 			<div class="form-group">
-				<label>Phone</label>
-				<input type="tel" bind:value={formPhone} />
+				<label for="new-phone">Phone</label>
+				<input id="new-phone" type="tel" bind:value={formPhone} />
 			</div>
 
 			<div class="form-group">
-				<label>Organization</label>
-				<input type="text" bind:value={formOrganization} />
+				<label for="new-organization">Organization</label>
+				<input id="new-organization" type="text" bind:value={formOrganization} />
 			</div>
 
 			<div class="form-group">
-				<label>Title</label>
-				<input type="text" bind:value={formTitle} />
+				<label for="new-title">Title</label>
+				<input id="new-title" type="text" bind:value={formTitle} />
 			</div>
 
 			<div class="form-group">
-				<label>Notes</label>
-				<textarea bind:value={formNotes} rows="4"></textarea>
+				<label for="new-notes">Notes</label>
+				<textarea id="new-notes" bind:value={formNotes} rows="4"></textarea>
 			</div>
 
 			<div class="form-group">
-				<label>Social Handles</label>
+				<span class="form-label-text">Social Handles</span>
 				{#each formSocialHandles as handle, i}
 					<div class="social-handle-row">
 						<select bind:value={handle.platform}>
@@ -135,7 +135,7 @@
 			</div>
 
 			<div class="form-group">
-				<label>Tags</label>
+				<span class="form-label-text">Tags</span>
 				<div class="tags">
 					{#each formTags as tag}
 						<span class="tag">
@@ -166,6 +166,7 @@
 
 	.form-group { margin-bottom: 1.5rem; }
 	.form-group label { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+	.form-label-text { display: block; margin-bottom: 0.5rem; font-weight: 500; }
 	.form-group input, .form-group select, .form-group textarea {
 		width: 100%;
 		padding: 0.75rem;

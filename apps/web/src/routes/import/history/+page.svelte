@@ -322,8 +322,9 @@
 </div>
 
 {#if showRollbackConfirm && selectedLog}
-	<div class="modal-overlay" on:click={() => showRollbackConfirm = false}>
-		<div class="modal" on:click|stopPropagation>
+	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+	<div class="modal-overlay" role="button" tabindex="0" on:click={() => showRollbackConfirm = false} on:keydown={(e) => e.key === 'Enter' && (showRollbackConfirm = false)}>
+		<div class="modal" role="dialog" aria-modal="true" on:click|stopPropagation on:keydown|stopPropagation>
 			<h2>Confirm Rollback</h2>
 			<p>Are you sure you want to rollback the import of <strong>{selectedLog.file_name}</strong>?</p>
 			<p class="warning-text">This will remove {selectedLog.imported} imported contacts. This action cannot be undone.</p>

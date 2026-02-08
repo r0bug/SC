@@ -197,12 +197,9 @@ pub async fn update_pick(
     }
     pick.updated_at = chrono::Utc::now();
 
-    repo.update(&pick).await.map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to update pick",
-        )
-    })?;
+    repo.update(&pick)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to update pick"))?;
 
     let ip = audit::extract_ip_address(&headers);
     let user_agent = audit::extract_user_agent(&headers);
@@ -238,12 +235,9 @@ pub async fn delete_pick(
         }
     }
 
-    repo.delete(id).await.map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to delete pick",
-        )
-    })?;
+    repo.delete(id)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "Failed to delete pick"))?;
 
     let ip = audit::extract_ip_address(&headers);
     let user_agent = audit::extract_user_agent(&headers);

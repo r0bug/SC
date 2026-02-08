@@ -4,6 +4,17 @@ use local_store::DbPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Parameters for logging an audit operation, reducing argument count.
+pub struct AuditEntry {
+    pub entity_type: ShareEntityType,
+    pub entity_id: Uuid,
+    pub action: AuditAction,
+    pub user_id: Uuid,
+    pub changes: serde_json::Value,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+}
+
 /// Service for audit logging - tracks all CRUD operations and authentication events
 pub struct AuditService {
     pool: Arc<DbPool>,
@@ -15,27 +26,18 @@ impl AuditService {
     }
 
     /// Log a CRUD operation on an entity
-    pub async fn log_operation(
-        &self,
-        entity_type: ShareEntityType,
-        entity_id: Uuid,
-        action: AuditAction,
-        user_id: Uuid,
-        changes: serde_json::Value,
-        ip_address: Option<String>,
-        user_agent: Option<String>,
-    ) -> DomainResult<()> {
+    pub async fn log_operation(&self, entry: AuditEntry) -> DomainResult<()> {
         let repo = AuditLogRepository::new(&self.pool);
 
         let log = AuditLog {
             id: Uuid::new_v4(),
-            entity_type,
-            entity_id,
-            action,
-            user_id,
-            changes,
-            ip_address,
-            user_agent,
+            entity_type: entry.entity_type,
+            entity_id: entry.entity_id,
+            action: entry.action,
+            user_id: entry.user_id,
+            changes: entry.changes,
+            ip_address: entry.ip_address,
+            user_agent: entry.user_agent,
             created_at: chrono::Utc::now(),
         };
 
@@ -50,15 +52,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Contact,
-            contact_id,
-            AuditAction::Create,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Contact,
+            entity_id: contact_id,
+            action: AuditAction::Create,
             user_id,
-            serde_json::json!({"action": "contact_created"}),
-            ip,
+            changes: serde_json::json!({"action": "contact_created"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -70,15 +72,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Contact,
-            contact_id,
-            AuditAction::Update,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Contact,
+            entity_id: contact_id,
+            action: AuditAction::Update,
             user_id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -89,15 +91,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Contact,
-            contact_id,
-            AuditAction::Delete,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Contact,
+            entity_id: contact_id,
+            action: AuditAction::Delete,
             user_id,
-            serde_json::json!({"action": "contact_deleted"}),
-            ip,
+            changes: serde_json::json!({"action": "contact_deleted"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -109,15 +111,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Project,
-            project_id,
-            AuditAction::Create,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Project,
+            entity_id: project_id,
+            action: AuditAction::Create,
             user_id,
-            serde_json::json!({"action": "project_created"}),
-            ip,
+            changes: serde_json::json!({"action": "project_created"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -129,15 +131,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Project,
-            project_id,
-            AuditAction::Update,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Project,
+            entity_id: project_id,
+            action: AuditAction::Update,
             user_id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -148,15 +150,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Project,
-            project_id,
-            AuditAction::Delete,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Project,
+            entity_id: project_id,
+            action: AuditAction::Delete,
             user_id,
-            serde_json::json!({"action": "project_deleted"}),
-            ip,
+            changes: serde_json::json!({"action": "project_deleted"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -168,15 +170,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Group,
-            group_id,
-            AuditAction::Create,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Group,
+            entity_id: group_id,
+            action: AuditAction::Create,
             user_id,
-            serde_json::json!({"action": "group_created"}),
-            ip,
+            changes: serde_json::json!({"action": "group_created"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -188,15 +190,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Group,
-            group_id,
-            AuditAction::Update,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Group,
+            entity_id: group_id,
+            action: AuditAction::Update,
             user_id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -207,15 +209,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Group,
-            group_id,
-            AuditAction::Delete,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Group,
+            entity_id: group_id,
+            action: AuditAction::Delete,
             user_id,
-            serde_json::json!({"action": "group_deleted"}),
-            ip,
+            changes: serde_json::json!({"action": "group_deleted"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -227,15 +229,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::CalendarEvent,
-            event_id,
-            AuditAction::Create,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::CalendarEvent,
+            entity_id: event_id,
+            action: AuditAction::Create,
             user_id,
-            serde_json::json!({"action": "event_created"}),
-            ip,
+            changes: serde_json::json!({"action": "event_created"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -247,15 +249,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::CalendarEvent,
-            event_id,
-            AuditAction::Update,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::CalendarEvent,
+            entity_id: event_id,
+            action: AuditAction::Update,
             user_id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -266,15 +268,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::CalendarEvent,
-            event_id,
-            AuditAction::Delete,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::CalendarEvent,
+            entity_id: event_id,
+            action: AuditAction::Delete,
             user_id,
-            serde_json::json!({"action": "event_deleted"}),
-            ip,
+            changes: serde_json::json!({"action": "event_deleted"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -286,15 +288,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Note,
-            note_id,
-            AuditAction::Create,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Note,
+            entity_id: note_id,
+            action: AuditAction::Create,
             user_id,
-            serde_json::json!({"action": "note_created"}),
-            ip,
+            changes: serde_json::json!({"action": "note_created"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -306,15 +308,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Note,
-            note_id,
-            AuditAction::Update,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Note,
+            entity_id: note_id,
+            action: AuditAction::Update,
             user_id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -325,15 +327,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Note,
-            note_id,
-            AuditAction::Delete,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Note,
+            entity_id: note_id,
+            action: AuditAction::Delete,
             user_id,
-            serde_json::json!({"action": "note_deleted"}),
-            ip,
+            changes: serde_json::json!({"action": "note_deleted"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -345,15 +347,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Concept,
-            concept_id,
-            AuditAction::Create,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Concept,
+            entity_id: concept_id,
+            action: AuditAction::Create,
             user_id,
-            serde_json::json!({"action": "concept_created"}),
-            ip,
+            changes: serde_json::json!({"action": "concept_created"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -365,15 +367,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Concept,
-            concept_id,
-            AuditAction::Update,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Concept,
+            entity_id: concept_id,
+            action: AuditAction::Update,
             user_id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -384,15 +386,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Concept,
-            concept_id,
-            AuditAction::Delete,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Concept,
+            entity_id: concept_id,
+            action: AuditAction::Delete,
             user_id,
-            serde_json::json!({"action": "concept_deleted"}),
-            ip,
+            changes: serde_json::json!({"action": "concept_deleted"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -404,15 +406,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Pick,
-            pick_id,
-            AuditAction::Create,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Pick,
+            entity_id: pick_id,
+            action: AuditAction::Create,
             user_id,
-            serde_json::json!({"action": "pick_created"}),
-            ip,
+            changes: serde_json::json!({"action": "pick_created"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -424,15 +426,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Pick,
-            pick_id,
-            AuditAction::Update,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Pick,
+            entity_id: pick_id,
+            action: AuditAction::Update,
             user_id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -443,15 +445,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Pick,
-            pick_id,
-            AuditAction::Delete,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Pick,
+            entity_id: pick_id,
+            action: AuditAction::Delete,
             user_id,
-            serde_json::json!({"action": "pick_deleted"}),
-            ip,
+            changes: serde_json::json!({"action": "pick_deleted"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -463,15 +465,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Location,
-            location_id,
-            AuditAction::Create,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Location,
+            entity_id: location_id,
+            action: AuditAction::Create,
             user_id,
-            serde_json::json!({"action": "location_created"}),
-            ip,
+            changes: serde_json::json!({"action": "location_created"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -483,15 +485,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Location,
-            location_id,
-            AuditAction::Update,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Location,
+            entity_id: location_id,
+            action: AuditAction::Update,
             user_id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -502,15 +504,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Location,
-            location_id,
-            AuditAction::Delete,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Location,
+            entity_id: location_id,
+            action: AuditAction::Delete,
             user_id,
-            serde_json::json!({"action": "location_deleted"}),
-            ip,
+            changes: serde_json::json!({"action": "location_deleted"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -529,15 +531,15 @@ impl AuditService {
             serde_json::json!({"event": "login_failed"})
         };
 
-        self.log_operation(
-            ShareEntityType::Contact, // Using Contact as placeholder for auth events
-            user_id,                  // entity_id = user_id for auth events
-            AuditAction::Read,        // Using Read as placeholder for authentication
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Contact, // Using Contact as placeholder for auth events
+            entity_id: user_id,                    // entity_id = user_id for auth events
+            action: AuditAction::Read,             // Using Read as placeholder for authentication
             user_id,
-            action_data,
-            ip,
+            changes: action_data,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -547,15 +549,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Contact,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Contact,
+            entity_id: user_id,
+            action: AuditAction::Create,
             user_id,
-            AuditAction::Create,
-            user_id,
-            serde_json::json!({"event": "user_signup"}),
-            ip,
+            changes: serde_json::json!({"event": "user_signup"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 
@@ -565,15 +567,15 @@ impl AuditService {
         ip: Option<String>,
         user_agent: Option<String>,
     ) -> DomainResult<()> {
-        self.log_operation(
-            ShareEntityType::Contact,
+        self.log_operation(AuditEntry {
+            entity_type: ShareEntityType::Contact,
+            entity_id: user_id,
+            action: AuditAction::Read,
             user_id,
-            AuditAction::Read,
-            user_id,
-            serde_json::json!({"event": "user_logout"}),
-            ip,
+            changes: serde_json::json!({"event": "user_logout"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await
     }
 

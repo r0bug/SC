@@ -1,5 +1,5 @@
-use core_domain::{DomainError, DomainResult, Group};
 use crate::db::DbPool;
+use core_domain::{DomainError, DomainResult, Group};
 use uuid::Uuid;
 
 pub struct GroupRepository<'a> {

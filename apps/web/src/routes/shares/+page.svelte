@@ -24,8 +24,8 @@
 		try {
 			await api.acceptShare(id);
 			shares = shares.map(s => s.id === id ? {...s, accepted: true} : s);
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -34,8 +34,8 @@
 		try {
 			await api.revokeShare(id);
 			shares = shares.filter(s => s.id !== id);
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 </script>

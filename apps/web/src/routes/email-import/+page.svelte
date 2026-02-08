@@ -163,7 +163,7 @@
 	async function saveEdit() {
 		if (!editingAccount) return;
 		try {
-			const updates: any = {
+			const updates: Record<string, unknown> = {
 				name: editingAccount.name,
 				server: editingAccount.server,
 				port: editingAccount.port,
@@ -215,38 +215,38 @@
 								<div class="edit-form">
 									<div class="form-row">
 										<div class="form-group flex-2">
-											<label>Name</label>
-											<input type="text" bind:value={editingAccount.name} />
+											<label for="edit-acct-name">Name</label>
+											<input id="edit-acct-name" type="text" bind:value={editingAccount.name} />
 										</div>
 										<div class="form-group flex-1">
-											<label>Port</label>
-											<input type="number" bind:value={editingAccount.port} />
+											<label for="edit-acct-port">Port</label>
+											<input id="edit-acct-port" type="number" bind:value={editingAccount.port} />
 										</div>
 									</div>
 									<div class="form-group">
-										<label>Server</label>
-										<input type="text" bind:value={editingAccount.server} />
+										<label for="edit-acct-server">Server</label>
+										<input id="edit-acct-server" type="text" bind:value={editingAccount.server} />
 									</div>
 									<div class="form-group">
-										<label>Username</label>
-										<input type="text" bind:value={editingAccount.username} />
+										<label for="edit-acct-username">Username</label>
+										<input id="edit-acct-username" type="text" bind:value={editingAccount.username} />
 									</div>
 									<div class="form-group">
-										<label>New Password (leave blank to keep)</label>
-										<input type="password" bind:value={editPassword} placeholder="unchanged" />
+										<label for="edit-acct-password">New Password (leave blank to keep)</label>
+										<input id="edit-acct-password" type="password" bind:value={editPassword} placeholder="unchanged" />
 									</div>
 									<div class="form-row">
 										<div class="form-group flex-2">
-											<label>Default Folder</label>
-											<select bind:value={editingAccount.default_folder}>
+											<label for="edit-acct-folder">Default Folder</label>
+											<select id="edit-acct-folder" bind:value={editingAccount.default_folder}>
 												{#each folders as f}
 													<option value={f.value}>{f.label}</option>
 												{/each}
 											</select>
 										</div>
 										<div class="form-group flex-1">
-											<label>Max Emails</label>
-											<input type="number" bind:value={editingAccount.max_emails} min="1" max="5000" />
+											<label for="edit-acct-max">Max Emails</label>
+											<input id="edit-acct-max" type="number" bind:value={editingAccount.max_emails} min="1" max="5000" />
 										</div>
 									</div>
 									<div class="edit-actions">

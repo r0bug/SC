@@ -21,7 +21,7 @@
 			loading = true;
 			error = '';
 			event = await api.getEvent(eventId);
-		} catch (err: any) {
+		} catch (err: unknown) {
 			console.error('Failed to load event:', err);
 			error = 'Failed to load event details';
 		} finally {
@@ -36,7 +36,7 @@
 		try {
 			await api.deleteEvent(eventId);
 			goto('/calendar');
-		} catch (err: any) {
+		} catch (err: unknown) {
 			console.error('Failed to delete event:', err);
 			alert('Failed to delete event');
 		}

@@ -47,10 +47,8 @@ impl JsonImporter {
                                 Self::flatten_object(&arr[0], &new_key, result);
                             } else {
                                 // Array of primitives - join as string
-                                let values: Vec<String> = arr
-                                    .iter()
-                                    .filter_map(|v| Self::value_to_string(v))
-                                    .collect();
+                                let values: Vec<String> =
+                                    arr.iter().filter_map(Self::value_to_string).collect();
                                 if !values.is_empty() {
                                     result.insert(new_key, values.join(", "));
                                 }

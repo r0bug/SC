@@ -59,7 +59,7 @@ pub fn init_metrics() -> PrometheusHandle {
     handle
 }
 
-/// Application metrics
+/// Application metrics (used in metrics middleware and tests)
 #[allow(dead_code)]
 pub struct Metrics;
 
@@ -171,7 +171,7 @@ impl Metrics {
     }
 }
 
-/// Timer for measuring operation duration
+/// Timer for measuring operation duration (used in metrics middleware and tests)
 #[allow(dead_code)]
 pub struct Timer {
     start: Instant,

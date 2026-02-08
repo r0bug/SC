@@ -36,9 +36,9 @@
 			const loginData = await login.json();
 			result += '\n✓ Login: ' + JSON.stringify(loginData, null, 2);
 
-		} catch (e: any) {
-			error = e.message;
-			result += '\n✗ Error: ' + e.message;
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : String(e);
+			result += '\n✗ Error: ' + (e instanceof Error ? e.message : String(e));
 		}
 	}
 </script>

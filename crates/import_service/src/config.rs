@@ -110,6 +110,12 @@ pub struct ConfigRepository {
     config_dir: PathBuf,
 }
 
+impl Default for ConfigRepository {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConfigRepository {
     pub fn new() -> Self {
         let mut config_dir = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));

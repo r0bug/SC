@@ -6,7 +6,15 @@
 	let dashboard: DashboardSummary | null = null;
 	let loading = true;
 	let error = '';
-	let updateInfo: any = null;
+	let updateInfo: {
+		current_version: string;
+		latest_version: string;
+		update_available: boolean;
+		release_url?: string;
+		release_notes?: string;
+		download_url?: string;
+		published_at?: string;
+	} | null = null;
 	let checkingForUpdates = false;
 	let updateDismissed = false;
 
@@ -14,8 +22,8 @@
 		try {
 			dashboard = await api.getDashboard();
 			await checkForUpdates();
-		} catch (e: any) {
-			error = e.message;
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : String(e);
 		} finally {
 			loading = false;
 		}
@@ -48,7 +56,7 @@
 		});
 	}
 
-	function getStatusBadgeClass(status: any): string {
+	function getStatusBadgeClass(status: string | { Failed: { reason: string } }): string {
 		if (typeof status === 'string') {
 			switch (status) {
 				case 'Sent': return 'badge-success';

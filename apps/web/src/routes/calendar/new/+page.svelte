@@ -47,8 +47,8 @@
 
 			// Redirect to calendar
 			goto('/calendar');
-		} catch (err: any) {
-			error = err.message || 'Failed to create event';
+		} catch (err: unknown) {
+			error = err instanceof Error ? err.message : 'Failed to create event';
 		} finally {
 			creating = false;
 		}

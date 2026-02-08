@@ -106,7 +106,10 @@ mod tests {
         let cache = MemoryCache::new(config);
 
         // Test set and get
-        cache.set_raw("key1", "value1", Duration::from_secs(60)).await.unwrap();
+        cache
+            .set_raw("key1", "value1", Duration::from_secs(60))
+            .await
+            .unwrap();
         let value = cache.get_raw("key1").await.unwrap();
         assert_eq!(value, Some("value1".to_string()));
 
@@ -114,8 +117,8 @@ mod tests {
         let stats = cache.stats().await;
         assert_eq!(stats.hits, 1);
         assert_eq!(stats.misses, 0);
-        // Note: entry_count may have async delay, so we just check >= 0
-        assert!(stats.entries >= 0);
+        // Note: entry_count may have async delay, so we just verify it's accessible
+        let _ = stats.entries;
 
         // Test exists - use get_raw for reliable existence check
         let exists = cache.get_raw("key1").await.unwrap();
@@ -135,7 +138,10 @@ mod tests {
         let config = CacheConfig::default().with_prefix("test:");
         let cache = MemoryCache::new(config);
 
-        cache.set_raw("key", "value", Duration::from_secs(60)).await.unwrap();
+        cache
+            .set_raw("key", "value", Duration::from_secs(60))
+            .await
+            .unwrap();
 
         // Verify via get_raw which checks the prefixed key internally
         let value = cache.get_raw("key").await.unwrap();

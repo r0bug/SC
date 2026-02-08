@@ -92,10 +92,7 @@ pub fn manual_domain_routes() -> Router<AppState> {
             "/api/email/:email_id/domains/:concept_id",
             axum::routing::delete(unlink_domain),
         )
-        .route(
-            "/api/email/bulk-assign-domains",
-            post(bulk_assign_domains),
-        )
+        .route("/api/email/bulk-assign-domains", post(bulk_assign_domains))
         // Sender-level domain endpoints
         .route(
             "/api/email/sender/:address/domains",
@@ -105,10 +102,7 @@ pub fn manual_domain_routes() -> Router<AppState> {
             "/api/sms/sender/:phone/domains",
             get(get_sms_sender_domains).post(assign_domains_to_sms_sender),
         )
-        .route(
-            "/api/sms/:sms_id/domains",
-            get(get_sms_domains),
-        )
+        .route("/api/sms/:sms_id/domains", get(get_sms_domains))
 }
 
 // --- Handlers ---
@@ -152,7 +146,10 @@ async fn create_domain(
 ) -> Result<Json<CreatedDomain>, (StatusCode, String)> {
     let name = req.name.trim().to_string();
     if name.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Domain name is required".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Domain name is required".to_string(),
+        ));
     }
 
     let concept_repo = ConceptRepository::new(&app_state.pool);
@@ -202,10 +199,7 @@ async fn create_domain(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(CreatedDomain {
-        concept_id,
-        name,
-    }))
+    Ok(Json(CreatedDomain { concept_id, name }))
 }
 
 /// GET /api/email/:email_id/domains
@@ -489,13 +483,12 @@ async fn assign_domains_to_sender(
     let address_lower = address.to_lowercase();
 
     // Get all email IDs from this sender
-    let email_ids: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM email_history WHERE LOWER(from_address) = ?",
-    )
-    .bind(&address_lower)
-    .fetch_all(app_state.pool.as_ref())
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let email_ids: Vec<(String,)> =
+        sqlx::query_as("SELECT id FROM email_history WHERE LOWER(from_address) = ?")
+            .bind(&address_lower)
+            .fetch_all(app_state.pool.as_ref())
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let email_count = email_ids.len();
     let concept_repo = ConceptRepository::new(&app_state.pool);
@@ -588,13 +581,12 @@ async fn get_sms_sender_domains(
     Path(phone): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     // Get all SMS IDs from this phone
-    let sms_ids: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM sms_history WHERE phone_number = ?",
-    )
-    .bind(&phone)
-    .fetch_all(app_state.pool.as_ref())
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let sms_ids: Vec<(String,)> =
+        sqlx::query_as("SELECT id FROM sms_history WHERE phone_number = ?")
+            .bind(&phone)
+            .fetch_all(app_state.pool.as_ref())
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let cc_repo = CommunicationConceptRepository::new(&app_state.pool);
     let concept_repo = ConceptRepository::new(&app_state.pool);
@@ -636,13 +628,12 @@ async fn assign_domains_to_sms_sender(
     Json(req): Json<AssignDomainsRequest>,
 ) -> Result<Json<SenderAssignResponse>, (StatusCode, String)> {
     // Get all SMS IDs from this phone
-    let sms_ids: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM sms_history WHERE phone_number = ?",
-    )
-    .bind(&phone)
-    .fetch_all(app_state.pool.as_ref())
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let sms_ids: Vec<(String,)> =
+        sqlx::query_as("SELECT id FROM sms_history WHERE phone_number = ?")
+            .bind(&phone)
+            .fetch_all(app_state.pool.as_ref())
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let sms_count = sms_ids.len();
     let concept_repo = ConceptRepository::new(&app_state.pool);

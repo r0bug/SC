@@ -134,7 +134,13 @@ impl WebSocketBroadcaster {
 
     pub async fn broadcast(&self, event: BroadcastEvent) {
         let clients = self.clients.read().await;
-        let message = serde_json::to_string(&event).unwrap();
+        let message = match serde_json::to_string(&event) {
+            Ok(msg) => msg,
+            Err(e) => {
+                tracing::error!("Failed to serialize broadcast event: {}", e);
+                return;
+            }
+        };
 
         for (_id, tx) in clients.iter() {
             let _ = tx.send(Message::Text(message.clone()));

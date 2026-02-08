@@ -1,5 +1,5 @@
-use core_domain::{DomainError, DomainResult, Project};
 use crate::db::DbPool;
+use core_domain::{DomainError, DomainResult, Project};
 use uuid::Uuid;
 
 pub struct ProjectRepository<'a> {

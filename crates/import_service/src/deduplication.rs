@@ -187,10 +187,9 @@ impl DeduplicationEngine {
             MatchCriteria::EmailOrPhone => {
                 if let Some(email) = row.get("email") {
                     Some(format!("email:{}", self.normalize_email_if_needed(email)))
-                } else if let Some(phone) = row.get("phone") {
-                    Some(format!("phone:{}", self.normalize_phone_if_needed(phone)))
                 } else {
-                    None
+                    row.get("phone")
+                        .map(|phone| format!("phone:{}", self.normalize_phone_if_needed(phone)))
                 }
             }
             MatchCriteria::Custom(fields) => {
@@ -339,8 +338,8 @@ fn levenshtein_distance(s1: &str, s2: &str) -> usize {
 
     let mut matrix: Vec<Vec<usize>> = vec![vec![0; len2 + 1]; len1 + 1];
 
-    for i in 0..=len1 {
-        matrix[i][0] = i;
+    for (i, row) in matrix.iter_mut().enumerate().take(len1 + 1) {
+        row[0] = i;
     }
     for j in 0..=len2 {
         matrix[0][j] = j;

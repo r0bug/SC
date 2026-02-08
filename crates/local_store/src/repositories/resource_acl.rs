@@ -1,5 +1,5 @@
-use core_domain::{AclGrant, DomainError, DomainResult, ResourceAcl, ShareEntityType};
 use crate::db::DbPool;
+use core_domain::{AclGrant, DomainError, DomainResult, ResourceAcl, ShareEntityType};
 use uuid::Uuid;
 
 pub struct ResourceAclRepository<'a> {

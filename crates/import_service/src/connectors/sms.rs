@@ -12,6 +12,12 @@ use std::path::Path;
 /// SMS Connector supporting Android SMS Backup & Restore XML and iOS CSV exports
 pub struct SmsConnector;
 
+impl Default for SmsConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SmsConnector {
     pub fn new() -> Self {
         Self
@@ -39,19 +45,17 @@ impl SmsConnector {
                         let mut message_type = String::new();
                         let mut date = String::new();
 
-                        for attr in e.attributes() {
-                            if let Ok(attr) = attr {
-                                let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
-                                let value = String::from_utf8_lossy(&attr.value).to_string();
+                        for attr in e.attributes().flatten() {
+                            let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                            let value = String::from_utf8_lossy(&attr.value).to_string();
 
-                                match key.as_str() {
-                                    "address" => phone = value,
-                                    "contact_name" => contact_name = value,
-                                    "body" => message_body = value,
-                                    "type" => message_type = value,
-                                    "date" => date = value,
-                                    _ => {}
-                                }
+                            match key.as_str() {
+                                "address" => phone = value,
+                                "contact_name" => contact_name = value,
+                                "body" => message_body = value,
+                                "type" => message_type = value,
+                                "date" => date = value,
+                                _ => {}
                             }
                         }
 

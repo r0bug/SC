@@ -51,23 +51,24 @@ pub async fn fetch_emails(
     let folder = req.folder.unwrap_or_else(|| "INBOX".to_string());
     let max_emails = req.max_emails.unwrap_or(100);
 
-    let (fetched, stored, skipped) = crate::email_import::fetch_emails(
-        &req.server,
-        port,
-        &req.username,
-        &req.password,
-        &folder,
-        max_emails,
-        &state.pool,
-        Some(user.id),
-    )
-    .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Email fetch failed: {}", e),
-        )
-    })?;
+    let (fetched, stored, skipped) =
+        crate::email_import::fetch_emails(crate::email_import::FetchEmailsConfig {
+            server: &req.server,
+            port,
+            username: &req.username,
+            password: &req.password,
+            folder: &folder,
+            max_emails,
+            pool: &state.pool,
+            user_id: Some(user.id),
+        })
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Email fetch failed: {}", e),
+            )
+        })?;
 
     Ok(Json(FetchEmailsResponse {
         fetched,
@@ -132,7 +133,9 @@ pub async fn list_email_conversations(
                     .map(|b| {
                         if b.len() > 100 {
                             let mut end = 100;
-                            while !b.is_char_boundary(end) { end -= 1; }
+                            while !b.is_char_boundary(end) {
+                                end -= 1;
+                            }
                             format!("{}...", &b[..end])
                         } else {
                             b
@@ -256,7 +259,10 @@ pub async fn search_emails(
         .unwrap_or(50);
 
     if query.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Query parameter 'q' is required".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Query parameter 'q' is required".to_string(),
+        ));
     }
 
     let repo = EmailHistoryRepository::new(&state.pool);
@@ -299,7 +305,10 @@ pub fn email_routes() -> Router<AppState> {
     Router::new()
         .route("/api/email/fetch", axum::routing::post(fetch_emails))
         .route("/api/email/conversations", get(list_email_conversations))
-        .route("/api/email/conversation/:address", get(get_email_conversation))
+        .route(
+            "/api/email/conversation/:address",
+            get(get_email_conversation),
+        )
         .route("/api/email/stats", get(get_email_stats))
         .route("/api/email/search", get(search_emails))
 }

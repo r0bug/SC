@@ -1,5 +1,5 @@
-use core_domain::{DomainError, DomainResult, Tag};
 use crate::db::DbPool;
+use core_domain::{DomainError, DomainResult, Tag};
 use uuid::Uuid;
 
 pub struct TagRepository<'a> {

@@ -110,7 +110,10 @@ async fn create_account(
 ) -> Result<Json<ImapAccountResponse>, (StatusCode, String)> {
     let name = req.name.trim().to_string();
     if name.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Account name is required".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Account name is required".to_string(),
+        ));
     }
     if req.server.trim().is_empty() {
         return Err((StatusCode::BAD_REQUEST, "Server is required".to_string()));
@@ -244,18 +247,24 @@ async fn fetch_from_account(
         .and_then(|o| o.max_emails)
         .unwrap_or(account.max_emails as u32);
 
-    let (fetched, stored, skipped) = crate::email_import::fetch_emails(
-        &account.server,
-        account.port as u16,
-        &account.username,
-        &account.password,
-        &folder,
-        max_emails,
-        &app_state.pool,
-        Some(user.id),
-    )
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Fetch failed: {}", e)))?;
+    let (fetched, stored, skipped) =
+        crate::email_import::fetch_emails(crate::email_import::FetchEmailsConfig {
+            server: &account.server,
+            port: account.port as u16,
+            username: &account.username,
+            password: &account.password,
+            folder: &folder,
+            max_emails,
+            pool: &app_state.pool,
+            user_id: Some(user.id),
+        })
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Fetch failed: {}", e),
+            )
+        })?;
 
     // Update last_fetched_at
     let now = Utc::now();

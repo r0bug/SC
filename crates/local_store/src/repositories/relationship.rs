@@ -1,5 +1,5 @@
-use core_domain::{DomainError, DomainResult, EntityRelationship, EntityType, RelationshipType};
 use crate::db::DbPool;
+use core_domain::{DomainError, DomainResult, EntityRelationship, EntityType, RelationshipType};
 use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
@@ -197,7 +197,9 @@ impl<'a> EntityRelationshipRepository<'a> {
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;
 
-        rows.into_iter().map(|r| r.into_entity_relationship()).collect()
+        rows.into_iter()
+            .map(|r| r.into_entity_relationship())
+            .collect()
     }
 
     pub async fn list_by_target(
@@ -220,7 +222,9 @@ impl<'a> EntityRelationshipRepository<'a> {
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;
 
-        rows.into_iter().map(|r| r.into_entity_relationship()).collect()
+        rows.into_iter()
+            .map(|r| r.into_entity_relationship())
+            .collect()
     }
 
     pub async fn list_by_type(
@@ -241,7 +245,9 @@ impl<'a> EntityRelationshipRepository<'a> {
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;
 
-        rows.into_iter().map(|r| r.into_entity_relationship()).collect()
+        rows.into_iter()
+            .map(|r| r.into_entity_relationship())
+            .collect()
     }
 
     /// Find entities that HAVE what the source WANTs.
@@ -280,7 +286,9 @@ impl<'a> EntityRelationshipRepository<'a> {
         .await
         .map_err(|e| DomainError::Internal(e.to_string()))?;
 
-        rows.into_iter().map(|r| r.into_entity_relationship()).collect()
+        rows.into_iter()
+            .map(|r| r.into_entity_relationship())
+            .collect()
     }
 }
 
@@ -303,11 +311,11 @@ impl EntityRelationshipRow {
         let source_type = self
             .source_type
             .parse::<EntityType>()
-            .map_err(|e| DomainError::Internal(e))?;
+            .map_err(DomainError::Internal)?;
         let target_type = self
             .target_type
             .parse::<EntityType>()
-            .map_err(|e| DomainError::Internal(e))?;
+            .map_err(DomainError::Internal)?;
 
         Ok(EntityRelationship {
             id: Uuid::parse_str(&self.id).unwrap(),
@@ -387,7 +395,10 @@ mod tests {
 
         let retrieved = repo.get_by_id(rt.id).await.unwrap();
         assert_eq!(retrieved.name, "CUSTOM_REL");
-        assert_eq!(retrieved.description, Some("A custom relationship".to_string()));
+        assert_eq!(
+            retrieved.description,
+            Some("A custom relationship".to_string())
+        );
         assert!(!retrieved.is_core);
     }
 
@@ -529,7 +540,10 @@ mod tests {
             repo.create(&rel).await.unwrap();
         }
 
-        let results = repo.list_by_source(&EntityType::Contact, source_id).await.unwrap();
+        let results = repo
+            .list_by_source(&EntityType::Contact, source_id)
+            .await
+            .unwrap();
         assert_eq!(results.len(), 3);
         for r in &results {
             assert_eq!(r.relationship_type_name, Some("WANT".to_string()));
@@ -562,7 +576,10 @@ mod tests {
             repo.create(&rel).await.unwrap();
         }
 
-        let results = repo.list_by_target(&EntityType::Concept, target_id).await.unwrap();
+        let results = repo
+            .list_by_target(&EntityType::Concept, target_id)
+            .await
+            .unwrap();
         assert_eq!(results.len(), 2);
     }
 

@@ -11,6 +11,12 @@ use std::path::Path;
 /// Email Connector supporting Gmail Takeout MBOX and Outlook CSV exports
 pub struct EmailConnector;
 
+impl Default for EmailConnector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EmailConnector {
     pub fn new() -> Self {
         Self
@@ -113,7 +119,7 @@ impl EmailConnector {
 
             // Add recipients as contacts
             for to_email in to_emails {
-                if !contacts_map.contains_key(&to_email) {
+                contacts_map.entry(to_email.clone()).or_insert_with(|| {
                     let mut map = HashMap::new();
                     map.insert("email".to_string(), to_email.clone());
                     map.insert(
@@ -122,8 +128,8 @@ impl EmailConnector {
                     );
                     map.insert("source".to_string(), "email".to_string());
                     map.insert("notes".to_string(), "Email recipient".to_string());
-                    contacts_map.insert(to_email, map);
-                }
+                    map
+                });
             }
 
             if idx % 1000 == 0 && idx > 0 {

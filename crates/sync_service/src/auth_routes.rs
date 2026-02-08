@@ -173,15 +173,15 @@ pub async fn update_current_user(
     let user_agent = audit::extract_user_agent(&headers);
     let _ = app_state
         .audit_service
-        .log_operation(
-            core_domain::ShareEntityType::Contact, // Using Contact as placeholder for user events
-            user.id,
-            core_domain::AuditAction::Update,
-            user.id,
-            serde_json::json!({"event": "profile_updated", "changes": changes}),
-            ip,
+        .log_operation(crate::audit::AuditEntry {
+            entity_type: core_domain::ShareEntityType::Contact, // Using Contact as placeholder for user events
+            entity_id: user.id,
+            action: core_domain::AuditAction::Update,
+            user_id: user.id,
+            changes: serde_json::json!({"event": "profile_updated", "changes": changes}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await;
 
     Ok(Json(serde_json::json!({
@@ -220,15 +220,15 @@ pub async fn change_password(
     let user_agent = audit::extract_user_agent(&headers);
     let _ = app_state
         .audit_service
-        .log_operation(
-            core_domain::ShareEntityType::Contact, // Using Contact as placeholder for user events
-            user.id,
-            core_domain::AuditAction::Update,
-            user.id,
-            serde_json::json!({"event": "password_changed"}),
-            ip,
+        .log_operation(crate::audit::AuditEntry {
+            entity_type: core_domain::ShareEntityType::Contact, // Using Contact as placeholder for user events
+            entity_id: user.id,
+            action: core_domain::AuditAction::Update,
+            user_id: user.id,
+            changes: serde_json::json!({"event": "password_changed"}),
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await;
 
     Ok(Json(serde_json::json!({

@@ -1,7 +1,7 @@
+use crate::db::DbPool;
 use chrono::{DateTime, Utc};
 use core_domain::{DomainError, DomainResult};
 use sqlx::FromRow;
-use crate::db::DbPool;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -197,7 +197,9 @@ impl<'a> SmsHistoryRepository<'a> {
         )
         .fetch_all(self.pool)
         .await
-        .map_err(|e| DomainError::Internal(format!("Failed to fetch unlinked SMS senders: {}", e)))?;
+        .map_err(|e| {
+            DomainError::Internal(format!("Failed to fetch unlinked SMS senders: {}", e))
+        })?;
 
         Ok(rows
             .into_iter()

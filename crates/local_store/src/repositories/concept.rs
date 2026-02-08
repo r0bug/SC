@@ -1,5 +1,5 @@
-use core_domain::{Concept, ConceptKeyword, DomainError, DomainResult};
 use crate::db::DbPool;
+use core_domain::{Concept, ConceptKeyword, DomainError, DomainResult};
 use uuid::Uuid;
 
 pub struct ConceptRepository<'a> {
@@ -91,10 +91,7 @@ impl<'a> ConceptRepository<'a> {
         Ok(rows
             .into_iter()
             .map(|row| {
-                let kws = keywords_map
-                    .get(&row.id)
-                    .cloned()
-                    .unwrap_or_default();
+                let kws = keywords_map.get(&row.id).cloned().unwrap_or_default();
                 row.into_concept(kws)
             })
             .collect())
@@ -252,7 +249,11 @@ impl<'a> ConceptRepository<'a> {
         Ok(())
     }
 
-    pub async fn add_keyword(&self, concept_id: Uuid, keyword: &ConceptKeyword) -> DomainResult<()> {
+    pub async fn add_keyword(
+        &self,
+        concept_id: Uuid,
+        keyword: &ConceptKeyword,
+    ) -> DomainResult<()> {
         sqlx::query(
             "INSERT INTO concept_keywords (id, concept_id, keyword, created_at) VALUES (?, ?, ?, ?)",
         )
@@ -376,7 +377,10 @@ impl<'a> ConceptRepository<'a> {
     }
 
     /// Find a communication domain by exact name (case-insensitive) for deduplication
-    pub async fn find_communication_domain_by_name(&self, name: &str) -> DomainResult<Option<Concept>> {
+    pub async fn find_communication_domain_by_name(
+        &self,
+        name: &str,
+    ) -> DomainResult<Option<Concept>> {
         let lower = name.to_lowercase();
         let row = sqlx::query_as::<_, ConceptRow>(
             "SELECT id, name, description, parent_id, metadata, created_at, updated_at, created_by
@@ -431,7 +435,10 @@ impl<'a> ConceptRepository<'a> {
 
     // --- Internal helpers ---
 
-    async fn get_keywords_for_concept(&self, concept_id: Uuid) -> DomainResult<Vec<ConceptKeyword>> {
+    async fn get_keywords_for_concept(
+        &self,
+        concept_id: Uuid,
+    ) -> DomainResult<Vec<ConceptKeyword>> {
         let rows = sqlx::query_as::<_, KeywordRow>(
             "SELECT id, concept_id, keyword, created_at FROM concept_keywords WHERE concept_id = ?",
         )

@@ -192,9 +192,12 @@ cargo test
 
 ### Linting
 
+The codebase maintains zero warnings across the entire stack:
+
 ```bash
-cargo clippy -- -D warnings
-cargo fmt --check
+cargo clippy -- -W clippy::all   # 0 warnings
+cargo fmt --check                # 0 formatting issues
+cd apps/web && npx svelte-check  # 0 errors, 0 warnings (including a11y)
 ```
 
 ### Database Migrations

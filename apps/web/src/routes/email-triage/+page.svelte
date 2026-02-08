@@ -13,7 +13,26 @@
 	let totalFetched = 0;
 	let totalBlocks = 0;
 	let currentBlock = 0;
-	let proposals: any[] = [];
+	type TriageProposal = {
+		concept_id: string;
+		name: string;
+		description: string;
+		keywords: string[];
+		email_count: number;
+		sample_subjects: string[];
+		sample_senders: string[];
+		sample_email_ids?: string[];
+		confidence: number;
+	};
+
+	type TriageContinueResult = {
+		status?: string;
+		current_block?: number;
+		proposals?: TriageProposal[];
+		total_categorized?: number;
+	};
+
+	let proposals: TriageProposal[] = [];
 	let approvedIds: string[] = [];
 	let deniedIds: string[] = [];
 	let autoApply = false;
@@ -35,8 +54,8 @@
 			currentBlock = result.current_block;
 			proposals = result.proposals || [];
 			step = 'review';
-		} catch (e: any) {
-			error = e.message || 'Failed to start triage';
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to start triage';
 			step = 'config';
 		} finally {
 			loading = false;
@@ -69,25 +88,25 @@
 
 			if (autoApply) {
 				step = 'processing';
-				const result = await api.continueTriage(sessionId, { auto_apply: true });
+				const result = await api.continueTriage(sessionId, { auto_apply: true }) as TriageContinueResult;
 				totalCategorized = result.total_categorized || 0;
 				step = 'complete';
 			} else {
 				// Continue to next block
 				step = 'analyzing';
-				const result = await api.continueTriage(sessionId, { auto_apply: false });
+				const result = await api.continueTriage(sessionId, { auto_apply: false }) as TriageContinueResult;
 				if (result.status === 'completed') {
 					step = 'complete';
 				} else {
-					currentBlock = result.current_block;
+					currentBlock = result.current_block ?? 0;
 					proposals = result.proposals || [];
 					approvedIds = [];
 					deniedIds = [];
 					step = 'review';
 				}
 			}
-		} catch (e: any) {
-			error = e.message || 'Failed to submit review';
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to submit review';
 		} finally {
 			loading = false;
 		}

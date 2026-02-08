@@ -24,8 +24,8 @@
 		try {
 			await api.applyInsight(id);
 			insights = insights.map(i => i.id === id ? {...i, applied: true} : i);
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -33,8 +33,8 @@
 		try {
 			await api.feedbackInsight(id, helpful);
 			insights = insights.map(i => i.id === id ? {...i, feedback: { helpful, submitted_at: new Date().toISOString() }} : i);
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 </script>

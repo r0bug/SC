@@ -128,13 +128,16 @@ impl ConnectorRegistry {
     }
 
     /// Get a connector by ID
-    pub fn get(&self, id: &str) -> Option<&Box<dyn ImportConnector>> {
-        self.connectors.get(id)
+    pub fn get(&self, id: &str) -> Option<&dyn ImportConnector> {
+        self.connectors.get(id).map(|b| b.as_ref())
     }
 
     /// Find the best connector for a given file
-    pub fn find_connector(&self, file_path: &Path) -> Option<&Box<dyn ImportConnector>> {
-        self.connectors.values().find(|c| c.can_handle(file_path))
+    pub fn find_connector(&self, file_path: &Path) -> Option<&dyn ImportConnector> {
+        self.connectors
+            .values()
+            .find(|c| c.can_handle(file_path))
+            .map(|b| b.as_ref())
     }
 
     /// List all registered connectors
@@ -143,10 +146,11 @@ impl ConnectorRegistry {
     }
 
     /// Get connectors by format
-    pub fn get_by_format(&self, format: &ImportFormat) -> Vec<&Box<dyn ImportConnector>> {
+    pub fn get_by_format(&self, format: &ImportFormat) -> Vec<&dyn ImportConnector> {
         self.connectors
             .values()
             .filter(|c| &c.metadata().format == format)
+            .map(|b| b.as_ref())
             .collect()
     }
 }

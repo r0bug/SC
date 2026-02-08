@@ -26,8 +26,8 @@
 
 		try {
 			await auth.signup(email, password, name);
-		} catch (err: any) {
-			error = err.message || 'Signup failed';
+		} catch (err: unknown) {
+			error = err instanceof Error ? err.message : 'Signup failed';
 		} finally {
 			loading = false;
 		}

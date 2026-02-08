@@ -1,6 +1,6 @@
-use core_domain::{DomainError, DomainResult};
 use crate::db::DbPool;
 use chrono::{DateTime, Utc};
+use core_domain::{DomainError, DomainResult};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -111,16 +111,18 @@ impl<'a> ImapAccountRepository<'a> {
         Ok(())
     }
 
-    pub async fn update_last_fetched(&self, id: Uuid, timestamp: DateTime<Utc>) -> DomainResult<()> {
-        sqlx::query(
-            "UPDATE imap_accounts SET last_fetched_at = ?, updated_at = ? WHERE id = ?",
-        )
-        .bind(timestamp.to_rfc3339())
-        .bind(timestamp.to_rfc3339())
-        .bind(id.to_string())
-        .execute(self.pool)
-        .await
-        .map_err(|e| DomainError::Internal(e.to_string()))?;
+    pub async fn update_last_fetched(
+        &self,
+        id: Uuid,
+        timestamp: DateTime<Utc>,
+    ) -> DomainResult<()> {
+        sqlx::query("UPDATE imap_accounts SET last_fetched_at = ?, updated_at = ? WHERE id = ?")
+            .bind(timestamp.to_rfc3339())
+            .bind(timestamp.to_rfc3339())
+            .bind(id.to_string())
+            .execute(self.pool)
+            .await
+            .map_err(|e| DomainError::Internal(e.to_string()))?;
 
         Ok(())
     }

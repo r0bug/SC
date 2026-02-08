@@ -1,5 +1,7 @@
-use core_domain::{CommunicationConcept, DetectionMethod, DomainError, DomainResult, SuggestionStatus};
 use crate::db::DbPool;
+use core_domain::{
+    CommunicationConcept, DetectionMethod, DomainError, DomainResult, SuggestionStatus,
+};
 use uuid::Uuid;
 
 pub struct CommunicationConceptRepository<'a> {
@@ -189,9 +191,7 @@ impl CommunicationConceptRow {
                     .ok()
                     .map(|dt| dt.with_timezone(&chrono::Utc))
             }),
-            reviewed_by: self
-                .reviewed_by
-                .and_then(|s| Uuid::parse_str(&s).ok()),
+            reviewed_by: self.reviewed_by.and_then(|s| Uuid::parse_str(&s).ok()),
             created_at: chrono::DateTime::parse_from_rfc3339(&self.created_at)
                 .unwrap()
                 .with_timezone(&chrono::Utc),
@@ -310,7 +310,10 @@ mod tests {
         let results = repo.list_by_communication("email", comm_id).await.unwrap();
         assert_eq!(results.len(), 2);
 
-        let results = repo.list_by_communication("sms", cc3.communication_id).await.unwrap();
+        let results = repo
+            .list_by_communication("sms", cc3.communication_id)
+            .await
+            .unwrap();
         assert_eq!(results.len(), 1);
     }
 

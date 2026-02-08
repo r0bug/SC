@@ -56,7 +56,7 @@
 
 	async function handleSubmit() {
 		try {
-			const data: any = {
+			const data: Partial<Location> = {
 				name: formName,
 				address: formAddress || undefined,
 				city: formCity || undefined,
@@ -74,8 +74,8 @@
 				locations = [created, ...locations];
 			}
 			showModal = false;
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -84,8 +84,8 @@
 		try {
 			await api.deleteLocation(id);
 			locations = locations.filter(l => l.id !== id);
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -131,7 +131,7 @@
 	{/if}
 
 	{#if showModal}
-		<div class="modal-overlay" on:click|self={() => showModal = false}>
+		<div class="modal-overlay" role="button" tabindex="0" on:click|self={() => showModal = false} on:keydown={(e) => e.key === 'Enter' && (showModal = false)}>
 			<div class="modal">
 				<h2>{editing ? 'Edit Location' : 'New Location'}</h2>
 				<form on:submit|preventDefault={handleSubmit}>
@@ -202,7 +202,7 @@
 	.modal { background: white; border-radius: 12px; padding: 1.5rem; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
 	.modal h2 { margin: 0 0 1rem; }
 	.modal label { display: block; margin-bottom: 0.75rem; font-size: 0.875rem; font-weight: 500; }
-	.modal input, .modal textarea { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; margin-top: 0.25rem; font-size: 0.875rem; box-sizing: border-box; }
+	.modal input { width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 6px; margin-top: 0.25rem; font-size: 0.875rem; box-sizing: border-box; }
 	.modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
 	.row { display: flex; gap: 0.75rem; }
 	.flex-1 { flex: 1; }

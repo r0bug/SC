@@ -9,7 +9,8 @@
 	onMount(async () => {
 		await loadCommunications();
 		api.onWebSocketMessage('communication_updated', (data) => {
-			communications = communications.map(c => c.id === data.id ? data : c);
+			const comm = data as CommunicationAttempt;
+			communications = communications.map(c => c.id === comm.id ? comm : c);
 		});
 	});
 
@@ -23,7 +24,7 @@
 		}
 	}
 
-	function getStatusBadge(status: any): string {
+	function getStatusBadge(status: string | { Failed: { reason: string } }): string {
 		if (typeof status === 'string') {
 			switch (status) {
 				case 'Sent': return 'status-sent';

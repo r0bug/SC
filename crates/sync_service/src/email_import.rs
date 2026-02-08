@@ -9,18 +9,29 @@ use tokio_util::compat::TokioAsyncReadCompatExt;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+/// Configuration for fetching emails from an IMAP server.
+pub struct FetchEmailsConfig<'a> {
+    pub server: &'a str,
+    pub port: u16,
+    pub username: &'a str,
+    pub password: &'a str,
+    pub folder: &'a str,
+    pub max_emails: u32,
+    pub pool: &'a DbPool,
+    pub user_id: Option<Uuid>,
+}
+
 /// Fetch emails from an IMAP server and store them in the database.
 /// Returns (fetched, stored, skipped).
-pub async fn fetch_emails(
-    server: &str,
-    port: u16,
-    username: &str,
-    password: &str,
-    folder: &str,
-    max_emails: u32,
-    pool: &DbPool,
-    user_id: Option<Uuid>,
-) -> Result<(usize, usize, usize)> {
+pub async fn fetch_emails(config: FetchEmailsConfig<'_>) -> Result<(usize, usize, usize)> {
+    let server = config.server;
+    let port = config.port;
+    let username = config.username;
+    let password = config.password;
+    let folder = config.folder;
+    let max_emails = config.max_emails;
+    let pool = config.pool;
+    let user_id = config.user_id;
     info!("Connecting to IMAP server {}:{}", server, port);
 
     // Connect via TLS
@@ -38,8 +49,11 @@ pub async fn fetch_emails(
 
     // Select folder
     let mailbox = imap_session.select(folder).await?;
-    let total_in_folder = mailbox.exists as u32;
-    info!("Selected folder '{}': {} messages total", folder, total_in_folder);
+    let total_in_folder = mailbox.exists;
+    info!(
+        "Selected folder '{}': {} messages total",
+        folder, total_in_folder
+    );
 
     if total_in_folder == 0 {
         imap_session.logout().await?;
@@ -170,9 +184,10 @@ pub async fn fetch_emails(
     }
 
     // Batch insert (INSERT OR IGNORE handles deduplication on message_id uniqueness)
-    let stored = repo.batch_create(&parsed_emails).await.map_err(|e| {
-        anyhow::anyhow!("Failed to store emails: {}", e)
-    })?;
+    let stored = repo
+        .batch_create(&parsed_emails)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to store emails: {}", e))?;
 
     let skipped = parsed_emails.len() - stored;
 

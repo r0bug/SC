@@ -1,5 +1,5 @@
-use core_domain::{Contact, DomainError, DomainResult, SocialHandle};
 use crate::db::DbPool;
+use core_domain::{Contact, DomainError, DomainResult, SocialHandle};
 use uuid::Uuid;
 
 pub struct ContactRepository<'a> {
@@ -30,7 +30,7 @@ impl<'a> ContactRepository<'a> {
         .bind(&contact.organization)
         .bind(&contact.title)
         .bind(&contact.notes)
-        .bind(serde_json::to_string(&contact.metadata).unwrap())
+        .bind(serde_json::to_string(&contact.metadata).unwrap_or_default())
         .bind(contact.created_at.to_rfc3339())
         .bind(contact.updated_at.to_rfc3339())
         .bind(contact.created_by.to_string())
@@ -258,7 +258,11 @@ impl<'a> ContactRepository<'a> {
 
         // Collect all contact IDs for batch queries
         let contact_ids: Vec<String> = rows.iter().map(|r| r.id.clone()).collect();
-        let placeholders = contact_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let placeholders = contact_ids
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(",");
 
         // Batch query: social handles for all contacts
         let social_query = format!(
@@ -321,11 +325,14 @@ impl<'a> ContactRepository<'a> {
 
         let mut social_map: HashMap<String, Vec<SocialHandleRow>> = HashMap::new();
         for s in all_social {
-            social_map.entry(s.contact_id).or_default().push(SocialHandleRow {
-                platform: s.platform,
-                handle: s.handle,
-                url: s.url,
-            });
+            social_map
+                .entry(s.contact_id)
+                .or_default()
+                .push(SocialHandleRow {
+                    platform: s.platform,
+                    handle: s.handle,
+                    url: s.url,
+                });
         }
 
         let mut tags_map: HashMap<String, Vec<Uuid>> = HashMap::new();
@@ -384,7 +391,7 @@ impl<'a> ContactRepository<'a> {
         .bind(&contact.organization)
         .bind(&contact.title)
         .bind(&contact.notes)
-        .bind(serde_json::to_string(&contact.metadata).unwrap())
+        .bind(serde_json::to_string(&contact.metadata).unwrap_or_default())
         .bind(contact.updated_at.to_rfc3339())
         .bind(contact.id.to_string())
         .execute(&mut *tx)
@@ -564,10 +571,7 @@ impl<'a> ContactRepository<'a> {
             .collect();
 
             let contact = row.into_contact(social_handles, tags, projects, groups);
-            duplicates
-                .entry(phone)
-                .or_insert_with(Vec::new)
-                .push(contact);
+            duplicates.entry(phone).or_default().push(contact);
         }
 
         // Filter to only include phone numbers with 2+ contacts

@@ -163,10 +163,7 @@ mod tests {
 
     #[test]
     fn test_query_builder() {
-        let query = QueryBuilder::build_params(
-            "INSERT INTO test (a, b, c) VALUES ({}, {}, {})",
-            3
-        );
+        let query = QueryBuilder::build_params("INSERT INTO test (a, b, c) VALUES ({}, {}, {})", 3);
 
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         assert_eq!(query, "INSERT INTO test (a, b, c) VALUES (?, ?, ?)");

@@ -1,11 +1,10 @@
 #[cfg(test)]
 mod ai_interaction_integration_tests {
-    use super::super::*;
+    use crate::db::DbPool;
     use crate::repositories::ai_interaction::AiInteractionRepository;
     use chrono::Utc;
     use core_domain::AiInteraction;
     use sqlx::sqlite::SqlitePoolOptions;
-    use crate::db::DbPool;
     use uuid::Uuid;
 
     async fn setup_test_db() -> DbPool {

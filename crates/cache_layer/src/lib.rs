@@ -150,7 +150,12 @@ impl Cache {
     }
 
     /// Set a typed value in cache
-    pub async fn set<T: Serialize>(&self, key: &str, value: &T, ttl: Duration) -> Result<(), CacheError> {
+    pub async fn set<T: Serialize>(
+        &self,
+        key: &str,
+        value: &T,
+        ttl: Duration,
+    ) -> Result<(), CacheError> {
         let raw = serde_json::to_string(value)?;
         self.backend.set_raw(key, &raw, ttl).await
     }
@@ -192,9 +197,12 @@ pub async fn create_cache(config: CacheConfig) -> Result<Cache, CacheError> {
 
     #[cfg(feature = "memory")]
     {
-        tracing::info!("Creating in-memory cache backend (max {} entries)", config.max_capacity);
+        tracing::info!(
+            "Creating in-memory cache backend (max {} entries)",
+            config.max_capacity
+        );
         let backend = MemoryCache::new(config);
-        return Ok(Cache::new(Arc::new(backend)));
+        Ok(Cache::new(Arc::new(backend)))
     }
 
     #[cfg(not(any(feature = "memory", feature = "redis")))]
@@ -249,7 +257,9 @@ impl AiResponseCache {
 
     /// Cache AI response
     pub async fn set(&self, prompt_hash: &str, response: &str) -> Result<(), CacheError> {
-        self.cache.set(&self.cache_key(prompt_hash), &response, self.ttl).await
+        self.cache
+            .set(&self.cache_key(prompt_hash), &response, self.ttl)
+            .await
     }
 }
 
@@ -270,13 +280,22 @@ impl SessionCache {
     }
 
     /// Get session data
-    pub async fn get_session<T: DeserializeOwned>(&self, session_id: &str) -> Result<Option<T>, CacheError> {
+    pub async fn get_session<T: DeserializeOwned>(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<T>, CacheError> {
         self.cache.get(&self.session_key(session_id)).await
     }
 
     /// Store session data
-    pub async fn set_session<T: Serialize>(&self, session_id: &str, data: &T) -> Result<(), CacheError> {
-        self.cache.set(&self.session_key(session_id), data, self.session_ttl).await
+    pub async fn set_session<T: Serialize>(
+        &self,
+        session_id: &str,
+        data: &T,
+    ) -> Result<(), CacheError> {
+        self.cache
+            .set(&self.session_key(session_id), data, self.session_ttl)
+            .await
     }
 
     /// Delete session
@@ -285,7 +304,10 @@ impl SessionCache {
     }
 
     /// Extend session TTL
-    pub async fn refresh_session<T: Serialize + DeserializeOwned>(&self, session_id: &str) -> Result<bool, CacheError> {
+    pub async fn refresh_session<T: Serialize + DeserializeOwned>(
+        &self,
+        session_id: &str,
+    ) -> Result<bool, CacheError> {
         if let Some(data) = self.get_session::<T>(session_id).await? {
             self.set_session(session_id, &data).await?;
             Ok(true)
@@ -305,7 +327,11 @@ pub struct RateLimiter {
 
 impl RateLimiter {
     pub fn new(cache: Cache, window: Duration, max_requests: u32) -> Self {
-        Self { cache, window, max_requests }
+        Self {
+            cache,
+            window,
+            max_requests,
+        }
     }
 
     fn rate_key(&self, identifier: &str) -> String {
@@ -364,7 +390,14 @@ mod tests {
         let cache = create_cache(CacheConfig::default()).await.unwrap();
 
         // Set and get
-        cache.set("test_key", &"test_value".to_string(), Duration::from_secs(60)).await.unwrap();
+        cache
+            .set(
+                "test_key",
+                &"test_value".to_string(),
+                Duration::from_secs(60),
+            )
+            .await
+            .unwrap();
         let value: Option<String> = cache.get("test_key").await.unwrap();
         assert_eq!(value, Some("test_value".to_string()));
 
@@ -381,7 +414,10 @@ mod tests {
         let cache = create_cache(CacheConfig::default()).await.unwrap();
         let ai_cache = AiResponseCache::new(cache, Duration::from_secs(3600));
 
-        ai_cache.set("prompt_hash_123", "AI response text").await.unwrap();
+        ai_cache
+            .set("prompt_hash_123", "AI response text")
+            .await
+            .unwrap();
         let response = ai_cache.get("prompt_hash_123").await.unwrap();
         assert_eq!(response, Some("AI response text".to_string()));
     }

@@ -382,7 +382,9 @@ pub async fn list_sms_conversations(
                 let body: String = r.get("body");
                 if body.len() > 100 {
                     let mut e = 100;
-                    while !body.is_char_boundary(e) { e -= 1; }
+                    while !body.is_char_boundary(e) {
+                        e -= 1;
+                    }
                     format!("{}...", &body[..e])
                 } else {
                     body

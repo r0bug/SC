@@ -5,10 +5,35 @@
 	import DomainTagInput from '$lib/components/DomainTagInput.svelte';
 	import BulkDomainToolbar from '$lib/components/BulkDomainToolbar.svelte';
 
+	type DomainStats = {
+		concept_id: string;
+		name: string;
+		email_count: number;
+		unique_senders: number;
+		earliest_date: number | null;
+		latest_date: number | null;
+		top_senders: Array<{ address: string; name: string | null; count: number }>;
+	};
+
+	type DomainEmail = {
+		id: string;
+		from_address: string;
+		from_name: string | null;
+		to_address: string;
+		subject: string;
+		body_text: string | null;
+		body_html: string | null;
+		message_date: number;
+		message_type: number;
+		read_status: number;
+		has_attachments: number;
+		folder: string | null;
+	};
+
 	let domainId: string = '';
-	let stats: any = null;
-	let emails: any[] = [];
-	let selectedEmail: any = null;
+	let stats: DomainStats | null = null;
+	let emails: DomainEmail[] = [];
+	let selectedEmail: DomainEmail | null = null;
 	let loading = true;
 	let error = '';
 	let selectedEmailIds: string[] = [];
@@ -26,8 +51,8 @@
 			emails = emailsResult.emails || [];
 			// Load domain assignments for visible emails
 			loadEmailDomains();
-		} catch (e: any) {
-			error = e.message || 'Failed to load domain';
+		} catch (e: unknown) {
+			error = e instanceof Error ? e.message : 'Failed to load domain';
 		} finally {
 			loading = false;
 		}
@@ -37,7 +62,7 @@
 		for (const email of emails.slice(0, 50)) {
 			try {
 				const result = await api.getEmailDomainAssignments(email.id);
-				emailDomains[email.id] = result.domains.map((d: any) => ({ concept_id: d.concept_id, name: d.name }));
+				emailDomains[email.id] = result.domains.map((d: { concept_id: string; name: string }) => ({ concept_id: d.concept_id, name: d.name }));
 			} catch {
 				emailDomains[email.id] = [];
 			}
@@ -45,7 +70,7 @@
 		emailDomains = { ...emailDomains };
 	}
 
-	function selectEmail(email: any) {
+	function selectEmail(email: DomainEmail) {
 		selectedEmail = email;
 	}
 
@@ -71,7 +96,7 @@
 
 	// Group emails by sender for the left pane
 	$: senderGroups = (() => {
-		const groups: Record<string, { address: string; name: string | null; emails: any[] }> = {};
+		const groups: Record<string, { address: string; name: string | null; emails: DomainEmail[] }> = {};
 		for (const email of emails) {
 			const key = email.from_address;
 			if (!groups[key]) {
@@ -129,7 +154,10 @@
 				<strong>Top senders:</strong>
 				{#each stats.top_senders.slice(0, 5) as sender}
 					<span class="sender-chip" class:active={selectedSender === sender.address}
-						on:click={() => selectedSender = selectedSender === sender.address ? null : sender.address}>
+						role="button"
+						tabindex="0"
+						on:click={() => selectedSender = selectedSender === sender.address ? null : sender.address}
+						on:keydown={(e) => e.key === 'Enter' && (selectedSender = selectedSender === sender.address ? null : sender.address)}>
 						{sender.name || sender.address} ({sender.count})
 					</span>
 				{/each}

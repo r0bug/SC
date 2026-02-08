@@ -32,8 +32,8 @@ function createAuthStore() {
 					error: null
 				});
 				goto('/dashboard');
-			} catch (error: any) {
-				update(s => ({ ...s, loading: false, error: error.message }));
+			} catch (error: unknown) {
+				update(s => ({ ...s, loading: false, error: error instanceof Error ? error.message : String(error) }));
 				throw error;
 			}
 		},
@@ -49,8 +49,8 @@ function createAuthStore() {
 					error: null
 				});
 				goto('/dashboard');
-			} catch (error: any) {
-				update(s => ({ ...s, loading: false, error: error.message }));
+			} catch (error: unknown) {
+				update(s => ({ ...s, loading: false, error: error instanceof Error ? error.message : String(error) }));
 				throw error;
 			}
 		},

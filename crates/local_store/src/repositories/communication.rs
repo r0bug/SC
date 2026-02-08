@@ -1,10 +1,10 @@
+use crate::db::DbPool;
 use chrono::{DateTime, Utc};
 use core_domain::{
     Communication, CommunicationAttempt, CommunicationDirection, CommunicationHistoryStatus,
     CommunicationStatus, CommunicationType, DomainError, DomainResult,
 };
 use sqlx::FromRow;
-use crate::db::DbPool;
 use uuid::Uuid;
 
 pub struct CommunicationRepository<'a> {

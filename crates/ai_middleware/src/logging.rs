@@ -5,6 +5,18 @@ use sqlx::{Pool, Sqlite};
 use tracing::{error, info};
 use uuid::Uuid;
 
+/// Parameters for logging an AI interaction, reducing argument count.
+struct LogInteractionParams<'a> {
+    user_id: Uuid,
+    interaction_type: &'a str,
+    prompt: &'a str,
+    response: &'a str,
+    confidence: f32,
+    model: &'a str,
+    entity_type: Option<String>,
+    entity_id: Option<Uuid>,
+}
+
 /// Wrapper around SegmindClient that logs all interactions
 pub struct LoggingSegmindClient {
     client: SegmindClient,
@@ -30,16 +42,16 @@ impl LoggingSegmindClient {
 
         // Log the interaction
         if let Err(e) = self
-            .log_interaction(
+            .log_interaction(LogInteractionParams {
                 user_id,
                 interaction_type,
                 prompt,
-                &response.text,
-                response.confidence,
-                &response.model,
+                response: &response.text,
+                confidence: response.confidence,
+                model: &response.model,
                 entity_type,
                 entity_id,
-            )
+            })
             .await
         {
             error!("Failed to log AI interaction: {}", e);
@@ -60,23 +72,25 @@ impl LoggingSegmindClient {
         let response = self.client.analyze_contact_data(contact_data).await?;
 
         // Log the interaction
+        let response_text = format!(
+            "Tags: {:?}, Strength: {}, Frequency: {}, Next: {}",
+            response.suggested_tags,
+            response.relationship_strength,
+            response.communication_frequency,
+            response.next_action
+        );
+        let prompt_text = format!("Analyze contact: {}", contact_data);
         if let Err(e) = self
-            .log_interaction(
+            .log_interaction(LogInteractionParams {
                 user_id,
-                "ContactAnalysis",
-                &format!("Analyze contact: {}", contact_data),
-                &format!(
-                    "Tags: {:?}, Strength: {}, Frequency: {}, Next: {}",
-                    response.suggested_tags,
-                    response.relationship_strength,
-                    response.communication_frequency,
-                    response.next_action
-                ),
-                response.relationship_strength,
-                "segmind-contact-analyzer",
-                Some("Contact".to_string()),
-                Some(contact_id),
-            )
+                interaction_type: "ContactAnalysis",
+                prompt: &prompt_text,
+                response: &response_text,
+                confidence: response.relationship_strength,
+                model: "segmind-contact-analyzer",
+                entity_type: Some("Contact".to_string()),
+                entity_id: Some(contact_id),
+            })
             .await
         {
             error!("Failed to log AI interaction: {}", e);
@@ -149,17 +163,7 @@ impl LoggingSegmindClient {
     }
 
     /// Private helper to log an interaction
-    async fn log_interaction(
-        &self,
-        user_id: Uuid,
-        interaction_type: &str,
-        prompt: &str,
-        response: &str,
-        confidence: f32,
-        model: &str,
-        entity_type: Option<String>,
-        entity_id: Option<Uuid>,
-    ) -> Result<Uuid> {
+    async fn log_interaction(&self, params: LogInteractionParams<'_>) -> Result<Uuid> {
         let id = Uuid::new_v4();
         let created_at = Utc::now();
 
@@ -168,14 +172,14 @@ impl LoggingSegmindClient {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(id.to_string())
-        .bind(user_id.to_string())
-        .bind(interaction_type)
-        .bind(prompt)
-        .bind(response)
-        .bind(confidence)
-        .bind(model)
-        .bind(&entity_type)
-        .bind(entity_id.map(|id| id.to_string()))
+        .bind(params.user_id.to_string())
+        .bind(params.interaction_type)
+        .bind(params.prompt)
+        .bind(params.response)
+        .bind(params.confidence)
+        .bind(params.model)
+        .bind(&params.entity_type)
+        .bind(params.entity_id.map(|id| id.to_string()))
         .bind(None::<i32>) // feedback_helpful
         .bind(0) // feedback_applied
         .bind(serde_json::to_string(&serde_json::json!({}))?)
@@ -186,7 +190,7 @@ impl LoggingSegmindClient {
 
         info!(
             "Logged AI interaction {}: type={}, model={}",
-            id, interaction_type, model
+            id, params.interaction_type, params.model
         );
 
         Ok(id)

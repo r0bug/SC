@@ -57,8 +57,8 @@ impl<'a> ConceptMatcherRepository<'a> {
 
         let mut groups = Vec::new();
         for row in group_rows {
-            let group_id = Uuid::parse_str(&row.id)
-                .map_err(|e| DomainError::Internal(e.to_string()))?;
+            let group_id =
+                Uuid::parse_str(&row.id).map_err(|e| DomainError::Internal(e.to_string()))?;
             let matchers = self.list_matchers_by_group(group_id).await?;
             groups.push(ConceptMatcherGroup {
                 id: group_id,
@@ -191,9 +191,7 @@ impl<'a> ConceptMatcherRepository<'a> {
     }
 
     /// Load all concepts that have at least one matcher group, with their matchers
-    pub async fn load_all_concepts_with_matchers(
-        &self,
-    ) -> DomainResult<Vec<ConceptWithMatchers>> {
+    pub async fn load_all_concepts_with_matchers(&self) -> DomainResult<Vec<ConceptWithMatchers>> {
         // Find all concept_ids that have matcher groups
         let rows = sqlx::query_as::<_, ConceptIdNameRow>(
             "SELECT DISTINCT c.id, c.name
@@ -207,8 +205,8 @@ impl<'a> ConceptMatcherRepository<'a> {
 
         let mut results = Vec::new();
         for row in rows {
-            let concept_id = Uuid::parse_str(&row.id)
-                .map_err(|e| DomainError::Internal(e.to_string()))?;
+            let concept_id =
+                Uuid::parse_str(&row.id).map_err(|e| DomainError::Internal(e.to_string()))?;
             let groups = self.list_groups_by_concept(concept_id).await?;
             results.push(ConceptWithMatchers {
                 concept_id,
@@ -248,19 +246,18 @@ struct MatcherRow {
 impl MatcherRow {
     fn into_matcher(self) -> DomainResult<ConceptMatcher> {
         Ok(ConceptMatcher {
-            id: Uuid::parse_str(&self.id)
-                .map_err(|e| DomainError::Internal(e.to_string()))?,
+            id: Uuid::parse_str(&self.id).map_err(|e| DomainError::Internal(e.to_string()))?,
             group_id: Uuid::parse_str(&self.group_id)
                 .map_err(|e| DomainError::Internal(e.to_string()))?,
             element_type: self
                 .element_type
                 .parse::<MatcherElementType>()
-                .map_err(|e| DomainError::Internal(e))?,
+                .map_err(DomainError::Internal)?,
             match_value: self.match_value,
             match_mode: self
                 .match_mode
                 .parse::<MatchMode>()
-                .map_err(|e| DomainError::Internal(e))?,
+                .map_err(DomainError::Internal)?,
             negate: self.negate != 0,
             case_sensitive: self.case_sensitive != 0,
             position: self.position,

@@ -18,10 +18,10 @@ pub struct UpdateInfo {
     pub published_at: Option<String>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct GitHubRelease {
     tag_name: String,
+    #[allow(dead_code)]
     name: String,
     body: String,
     published_at: String,
@@ -29,11 +29,11 @@ struct GitHubRelease {
     html_url: String,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct GitHubAsset {
     name: String,
     browser_download_url: String,
+    #[allow(dead_code)]
     size: u64,
 }
 
@@ -161,7 +161,7 @@ impl UpdateChecker {
         Ok(())
     }
 
-    /// Apply update by replacing current binary
+    /// Apply update by replacing current binary (wired up in future update workflow)
     #[allow(dead_code)]
     pub fn apply_update(&self, update_path: &Path) -> Result<()> {
         let current_exe = std::env::current_exe()?;
@@ -189,7 +189,7 @@ impl UpdateChecker {
         Ok(())
     }
 
-    /// Rollback to previous version
+    /// Rollback to previous version (wired up in future update workflow)
     #[allow(dead_code)]
     pub fn rollback(&self) -> Result<()> {
         let current_exe = std::env::current_exe()?;
@@ -205,7 +205,7 @@ impl UpdateChecker {
         Ok(())
     }
 
-    /// Verify checksum of downloaded file
+    /// Verify checksum of downloaded file (wired up in future update workflow)
     #[allow(dead_code)]
     pub fn verify_checksum(&self, file_path: &Path, expected_checksum: &str) -> Result<bool> {
         use sha2::{Digest, Sha256};

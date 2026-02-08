@@ -18,10 +18,11 @@
 	onMount(async () => {
 		await loadConcepts();
 		api.onWebSocketMessage('concept_updated', (data) => {
-			concepts = concepts.map(c => c.id === data.id ? data : c);
+			const updated = data as Concept;
+		concepts = concepts.map(c => c.id === updated.id ? updated : c);
 		});
 		api.onWebSocketMessage('concept_created', (data) => {
-			concepts = [data, ...concepts];
+			concepts = [data as Concept, ...concepts];
 		});
 	});
 
@@ -53,7 +54,7 @@
 
 	async function handleSubmit() {
 		try {
-			const data: any = {
+			const data: Partial<Concept> = {
 				name: formName,
 				description: formDescription || undefined,
 				parent_id: formParentId || undefined
@@ -66,8 +67,8 @@
 				concepts = [created, ...concepts];
 			}
 			showModal = false;
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -77,8 +78,8 @@
 			await api.deleteConcept(id);
 			concepts = concepts.filter(c => c.id !== id);
 			if (selectedConcept?.id === id) selectedConcept = null;
-		} catch (error: any) {
-			alert('Failed: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -99,8 +100,8 @@
 			});
 			selectedConcept = concepts.find(c => c.id === selectedConcept!.id) || null;
 			newKeyword = '';
-		} catch (error: any) {
-			alert('Failed to add keyword: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to add keyword: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -115,8 +116,8 @@
 				return c;
 			});
 			selectedConcept = concepts.find(c => c.id === selectedConcept!.id) || null;
-		} catch (error: any) {
-			alert('Failed to remove keyword: ' + error.message);
+		} catch (error: unknown) {
+			alert('Failed to remove keyword: ' + (error instanceof Error ? error.message : String(error)));
 		}
 	}
 
@@ -160,7 +161,10 @@
 					{#each rootConcepts as concept}
 						<div class="tree-node">
 							<div class="node-row" class:selected={selectedConcept?.id === concept.id}
-								on:click={() => selectConcept(concept)}>
+								role="button"
+								tabindex="0"
+								on:click={() => selectConcept(concept)}
+								on:keydown={(e) => e.key === 'Enter' && selectConcept(concept)}>
 								<span class="node-name">{concept.name}</span>
 								{#if concept.keywords.length > 0}
 									<span class="kw-count">{concept.keywords.length} kw</span>
@@ -175,8 +179,9 @@
 								<div class="children">
 									{#each getChildren(concept.id) as child}
 										<div class="tree-node child">
-											<div class="node-row" class:selected={selectedConcept?.id === child.id}
-												on:click={() => selectConcept(child)}>
+											<div class="node-row" role="button" tabindex="0" class:selected={selectedConcept?.id === child.id}
+												on:click={() => selectConcept(child)}
+												on:keydown={(e) => e.key === 'Enter' && selectConcept(child)}>
 												<span class="node-name">{child.name}</span>
 												{#if child.keywords.length > 0}
 													<span class="kw-count">{child.keywords.length} kw</span>
@@ -191,8 +196,9 @@
 												<div class="children">
 													{#each getChildren(child.id) as grandchild}
 														<div class="tree-node child">
-															<div class="node-row" class:selected={selectedConcept?.id === grandchild.id}
-																on:click={() => selectConcept(grandchild)}>
+															<div class="node-row" role="button" tabindex="0" class:selected={selectedConcept?.id === grandchild.id}
+																on:click={() => selectConcept(grandchild)}
+																on:keydown={(e) => e.key === 'Enter' && selectConcept(grandchild)}>
 																<span class="node-name">{grandchild.name}</span>
 																{#if grandchild.keywords.length > 0}
 																	<span class="kw-count">{grandchild.keywords.length} kw</span>
@@ -254,7 +260,7 @@
 	{/if}
 
 	{#if showModal}
-		<div class="modal-overlay" on:click|self={() => showModal = false}>
+		<div class="modal-overlay" role="button" tabindex="0" on:click|self={() => showModal = false} on:keydown={(e) => e.key === 'Enter' && (showModal = false)}>
 			<div class="modal">
 				<h2>{editing ? 'Edit Concept' : 'New Concept'}</h2>
 				<form on:submit|preventDefault={handleSubmit}>
@@ -312,7 +318,7 @@
 	.btn-xs.btn-danger { color: #dc2626; border-color: #fca5a5; }
 
 	/* Detail panel */
-	.detail-panel { }
+	.detail-panel { display: block; }
 	.detail-card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; }
 	.detail-card h2 { margin: 0 0 0.5rem; font-size: 1.25rem; }
 	.detail-desc { color: #6b7280; margin: 0 0 0.5rem; }

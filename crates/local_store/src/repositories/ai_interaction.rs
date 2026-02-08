@@ -1,5 +1,5 @@
-use core_domain::{AiInteraction, DomainError, DomainResult};
 use crate::db::DbPool;
+use core_domain::{AiInteraction, DomainError, DomainResult};
 use uuid::Uuid;
 
 pub struct AiInteractionRepository<'a> {

@@ -20,7 +20,7 @@ impl DataMapper {
         for mapping in &self.mappings {
             let value = source_row
                 .get(&mapping.source_column)
-                .or_else(|| mapping.default_value.as_ref())
+                .or(mapping.default_value.as_ref())
                 .cloned();
 
             if value.is_none() && mapping.required {
@@ -54,10 +54,10 @@ impl DataMapper {
             }
             Transform::PhoneFormat => {
                 // Remove non-numeric characters except + at the beginning
-                let cleaned = if value.starts_with('+') {
+                let cleaned = if let Some(stripped) = value.strip_prefix('+') {
                     format!(
                         "+{}",
-                        value[1..]
+                        stripped
                             .chars()
                             .filter(|c| c.is_ascii_digit())
                             .collect::<String>()

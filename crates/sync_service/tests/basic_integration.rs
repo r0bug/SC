@@ -63,7 +63,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_auth_service_signup_login() {
-        std::env::set_var("JWT_SECRET", "test-secret-key-for-integration-tests-only-32chars!");
+        std::env::set_var(
+            "JWT_SECRET",
+            "test-secret-key-for-integration-tests-only-32chars!",
+        );
         let pool = setup_test_db().await;
         let auth_service = AuthService::new(pool);
 

@@ -8,8 +8,7 @@ use axum::{
 };
 use core_domain::{Contact, ShareEntityType};
 use import_service::{
-    create_default_registry, ConnectorMetadata,
-    DuplicateStrategy, MatchCriteria,
+    create_default_registry, ConnectorMetadata, DuplicateStrategy, MatchCriteria,
 };
 use local_store::repositories::ContactRepository;
 use serde::{Deserialize, Serialize};
@@ -150,7 +149,7 @@ pub async fn execute_import(
         let field_name = field.name().unwrap_or("").to_string();
 
         if field.file_name().is_some() {
-            file_name = field.file_name().unwrap().to_string();
+            file_name = field.file_name().unwrap_or("unknown").to_string();
             let data = field
                 .bytes()
                 .await
@@ -209,7 +208,15 @@ pub async fn execute_import(
     let state_clone = state.clone();
     let request_clone = request.clone();
     tokio::spawn(async move {
-        process_import(state_clone, job_id, file_data, file_name, request_clone, user_id).await;
+        process_import(
+            state_clone,
+            job_id,
+            file_data,
+            file_name,
+            request_clone,
+            user_id,
+        )
+        .await;
     });
 
     Ok(Json(serde_json::json!({
@@ -241,7 +248,11 @@ pub async fn list_jobs(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let jobs = state.import_jobs.read().await;
-    let job_list: Vec<_> = jobs.iter().filter(|j| j.user_id == user.id).cloned().collect();
+    let job_list: Vec<_> = jobs
+        .iter()
+        .filter(|j| j.user_id == user.id)
+        .cloned()
+        .collect();
     Ok(Json(job_list))
 }
 
@@ -276,7 +287,12 @@ async fn process_import(
     let start_time = std::time::Instant::now();
 
     // Update job status helper
-    let update_job = |state: AppState, job_id: Uuid, status: JobStatus, phase: String, current: usize, total: usize| {
+    let update_job = |state: AppState,
+                      job_id: Uuid,
+                      status: JobStatus,
+                      phase: String,
+                      current: usize,
+                      total: usize| {
         async move {
             let mut jobs = state.import_jobs.write().await;
             if let Some(job) = jobs.iter_mut().find(|j| j.id == job_id) {
@@ -294,36 +310,84 @@ async fn process_import(
     let temp_path = temp_dir.join(format!("import_{}_{}", job_id, file_name));
     if let Err(e) = tokio::fs::write(&temp_path, &file_data).await {
         tracing::error!("Failed to write temp file: {}", e);
-        update_job(state.clone(), job_id, JobStatus::Failed, "File write error".to_string(), 0, 0).await;
+        update_job(
+            state.clone(),
+            job_id,
+            JobStatus::Failed,
+            "File write error".to_string(),
+            0,
+            0,
+        )
+        .await;
         return;
     }
 
     // Find connector
-    update_job(state.clone(), job_id, JobStatus::Validating, "Detecting format".to_string(), 0, 0).await;
+    update_job(
+        state.clone(),
+        job_id,
+        JobStatus::Validating,
+        "Detecting format".to_string(),
+        0,
+        0,
+    )
+    .await;
     let registry = create_default_registry();
     let connector = match registry.find_connector(&temp_path) {
         Some(c) => c,
         None => {
-            update_job(state.clone(), job_id, JobStatus::Failed, "No suitable connector found".to_string(), 0, 0).await;
+            update_job(
+                state.clone(),
+                job_id,
+                JobStatus::Failed,
+                "No suitable connector found".to_string(),
+                0,
+                0,
+            )
+            .await;
             let _ = tokio::fs::remove_file(&temp_path).await;
             return;
         }
     };
 
     // Parse file
-    update_job(state.clone(), job_id, JobStatus::Parsing, "Parsing file".to_string(), 0, 0).await;
+    update_job(
+        state.clone(),
+        job_id,
+        JobStatus::Parsing,
+        "Parsing file".to_string(),
+        0,
+        0,
+    )
+    .await;
     let parse_result = match connector.parse(&temp_path).await {
         Ok(r) => r,
         Err(e) => {
             tracing::error!("Parse error: {}", e);
-            update_job(state.clone(), job_id, JobStatus::Failed, format!("Parse error: {}", e), 0, 0).await;
+            update_job(
+                state.clone(),
+                job_id,
+                JobStatus::Failed,
+                format!("Parse error: {}", e),
+                0,
+                0,
+            )
+            .await;
             let _ = tokio::fs::remove_file(&temp_path).await;
             return;
         }
     };
 
     let total_rows = parse_result.rows.len();
-    update_job(state.clone(), job_id, JobStatus::Deduplicating, "Checking duplicates".to_string(), 0, total_rows).await;
+    update_job(
+        state.clone(),
+        job_id,
+        JobStatus::Deduplicating,
+        "Checking duplicates".to_string(),
+        0,
+        total_rows,
+    )
+    .await;
 
     // Check for existing contacts in database (fetch all user's contacts for dedup)
     let contact_repo = ContactRepository::new(state.store.pool());
@@ -362,7 +426,15 @@ async fn process_import(
     };
 
     // Import contacts
-    update_job(state.clone(), job_id, JobStatus::Importing, "Importing contacts".to_string(), 0, total_rows).await;
+    update_job(
+        state.clone(),
+        job_id,
+        JobStatus::Importing,
+        "Importing contacts".to_string(),
+        0,
+        total_rows,
+    )
+    .await;
 
     let mut imported = 0;
     let mut skipped = 0;
@@ -372,7 +444,15 @@ async fn process_import(
     for (index, row) in parse_result.rows.iter().enumerate() {
         // Update progress every 10 rows
         if index % 10 == 0 {
-            update_job(state.clone(), job_id, JobStatus::Importing, format!("Importing {} of {}", index, total_rows), index, total_rows).await;
+            update_job(
+                state.clone(),
+                job_id,
+                JobStatus::Importing,
+                format!("Importing {} of {}", index, total_rows),
+                index,
+                total_rows,
+            )
+            .await;
         }
 
         // Convert row to contact
@@ -380,22 +460,29 @@ async fn process_import(
 
         // Check for duplicates
         let is_duplicate = match match_criteria {
-            MatchCriteria::Email => {
-                contact.email.as_ref().map_or(false, |e| existing_by_email.contains_key(&e.to_lowercase()))
-            }
-            MatchCriteria::Phone => {
-                contact.phone.as_ref().map_or(false, |p| existing_by_phone.contains_key(&normalize_phone(p)))
-            }
-            MatchCriteria::FullName => {
-                existing_contacts.iter().any(|c| {
-                    c.first_name.to_lowercase() == contact.first_name.to_lowercase() &&
-                    c.last_name.as_ref().map(|l| l.to_lowercase()) == contact.last_name.as_ref().map(|l| l.to_lowercase())
-                })
-            }
+            MatchCriteria::Email => contact
+                .email
+                .as_ref()
+                .is_some_and(|e| existing_by_email.contains_key(&e.to_lowercase())),
+            MatchCriteria::Phone => contact
+                .phone
+                .as_ref()
+                .is_some_and(|p| existing_by_phone.contains_key(&normalize_phone(p))),
+            MatchCriteria::FullName => existing_contacts.iter().any(|c| {
+                c.first_name.to_lowercase() == contact.first_name.to_lowercase()
+                    && c.last_name.as_ref().map(|l| l.to_lowercase())
+                        == contact.last_name.as_ref().map(|l| l.to_lowercase())
+            }),
             MatchCriteria::EmailOrPhone | MatchCriteria::Custom(_) => {
                 // Default: match by email or phone
-                contact.email.as_ref().map_or(false, |e| existing_by_email.contains_key(&e.to_lowercase())) ||
-                contact.phone.as_ref().map_or(false, |p| existing_by_phone.contains_key(&normalize_phone(p)))
+                contact
+                    .email
+                    .as_ref()
+                    .is_some_and(|e| existing_by_email.contains_key(&e.to_lowercase()))
+                    || contact
+                        .phone
+                        .as_ref()
+                        .is_some_and(|p| existing_by_phone.contains_key(&normalize_phone(p)))
             }
         };
 
@@ -428,7 +515,10 @@ async fn process_import(
         match contact_repo.create(&contact).await {
             Ok(_) => {
                 // Create ACL for the contact
-                let _ = state.acl_service.create_acl(&user_id, ShareEntityType::Contact, &contact.id).await;
+                let _ = state
+                    .acl_service
+                    .create_acl(&user_id, ShareEntityType::Contact, &contact.id)
+                    .await;
                 imported += 1;
             }
             Err(e) => {
@@ -459,7 +549,11 @@ async fn process_import(
 
     tracing::info!(
         "Import job {} completed: {} imported, {} skipped, {} failed, {} duplicates",
-        job_id, imported, skipped, failed, duplicates_found
+        job_id,
+        imported,
+        skipped,
+        failed,
+        duplicates_found
     );
 
     // Cleanup
@@ -471,14 +565,64 @@ fn row_to_contact(row: &HashMap<String, String>, user_id: Uuid) -> Contact {
     let now = chrono::Utc::now();
 
     // Standard field mappings (handles common variations)
-    let first_name = get_field(row, &["first_name", "firstName", "First Name", "given_name", "Given Name", "name"])
-        .unwrap_or_else(|| "Unknown".to_string());
-    let last_name = get_field(row, &["last_name", "lastName", "Last Name", "family_name", "Family Name", "surname"]);
-    let email = get_field(row, &["email", "Email", "E-mail", "email_address", "Email Address"]);
-    let phone = get_field(row, &["phone", "Phone", "phone_number", "Phone Number", "mobile", "Mobile", "cell"]);
-    let organization = get_field(row, &["organization", "Organization", "company", "Company", "org"]);
-    let title = get_field(row, &["title", "Title", "job_title", "Job Title", "position", "Position"]);
-    let notes = get_field(row, &["notes", "Notes", "description", "Description", "bio", "Bio"]);
+    let first_name = get_field(
+        row,
+        &[
+            "first_name",
+            "firstName",
+            "First Name",
+            "given_name",
+            "Given Name",
+            "name",
+        ],
+    )
+    .unwrap_or_else(|| "Unknown".to_string());
+    let last_name = get_field(
+        row,
+        &[
+            "last_name",
+            "lastName",
+            "Last Name",
+            "family_name",
+            "Family Name",
+            "surname",
+        ],
+    );
+    let email = get_field(
+        row,
+        &["email", "Email", "E-mail", "email_address", "Email Address"],
+    );
+    let phone = get_field(
+        row,
+        &[
+            "phone",
+            "Phone",
+            "phone_number",
+            "Phone Number",
+            "mobile",
+            "Mobile",
+            "cell",
+        ],
+    );
+    let organization = get_field(
+        row,
+        &["organization", "Organization", "company", "Company", "org"],
+    );
+    let title = get_field(
+        row,
+        &[
+            "title",
+            "Title",
+            "job_title",
+            "Job Title",
+            "position",
+            "Position",
+        ],
+    );
+    let notes = get_field(
+        row,
+        &["notes", "Notes", "description", "Description", "bio", "Bio"],
+    );
 
     Contact {
         id: Uuid::new_v4(),

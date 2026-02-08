@@ -1,5 +1,5 @@
-use core_domain::{DomainError, DomainResult, Location};
 use crate::db::DbPool;
+use core_domain::{DomainError, DomainResult, Location};
 use uuid::Uuid;
 
 pub struct LocationRepository<'a> {

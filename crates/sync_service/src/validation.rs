@@ -6,20 +6,12 @@ use axum::Json;
 pub const MAX_NAME_LENGTH: usize = 100;
 pub const MAX_EMAIL_LENGTH: usize = 255;
 pub const MAX_QUERY_LENGTH: usize = 1000;
-#[allow(dead_code)]
-pub const MAX_MESSAGE_LENGTH: usize = 10000;
 pub const MAX_DESCRIPTION_LENGTH: usize = 5000;
 pub const MAX_TITLE_LENGTH: usize = 200;
 pub const MAX_LOCATION_LENGTH: usize = 500;
 pub const MAX_FILENAME_LENGTH: usize = 255;
 pub const MAX_PAGINATION_LIMIT: i64 = 1000;
-#[allow(dead_code)]
-pub const MAX_REQUEST_BODY_SIZE: usize = 10 * 1024 * 1024; // 10MB
 pub const MAX_ATTACHMENT_SIZE: usize = 100 * 1024 * 1024; // 100MB
-#[allow(dead_code)]
-pub const MAX_TAG_LENGTH: usize = 50;
-#[allow(dead_code)]
-pub const MAX_TAGS_COUNT: usize = 50;
 pub const MAX_CONTACTS_COUNT: usize = 1000;
 
 #[derive(Debug, Clone)]
@@ -258,150 +250,6 @@ pub fn validate_location(location: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Validate a filename
-#[allow(dead_code)]
-pub fn validate_filename(filename: &str) -> Result<(), ValidationError> {
-    if filename.is_empty() {
-        return Err(ValidationError("Filename cannot be empty".to_string()));
-    }
-    if filename.len() > MAX_FILENAME_LENGTH {
-        return Err(ValidationError(format!(
-            "Filename too long (max {} characters)",
-            MAX_FILENAME_LENGTH
-        )));
-    }
-    // Check for path traversal attempts
-    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
-        return Err(ValidationError(
-            "Filename contains invalid path characters".to_string(),
-        ));
-    }
-    // Check for null bytes
-    if filename.contains('\0') {
-        return Err(ValidationError(
-            "Filename contains invalid characters".to_string(),
-        ));
-    }
-    Ok(())
-}
-
-/// Validate file size
-#[allow(dead_code)]
-pub fn validate_file_size(size: usize, max_size: usize) -> Result<(), ValidationError> {
-    if size > max_size {
-        return Err(ValidationError(format!(
-            "File too large (max {} bytes)",
-            max_size
-        )));
-    }
-    if size == 0 {
-        return Err(ValidationError("File cannot be empty".to_string()));
-    }
-    Ok(())
-}
-
-/// Allowed file extensions for uploads (security whitelist)
-#[allow(dead_code)]
-const ALLOWED_EXTENSIONS: &[&str] = &[
-    // Images
-    "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", // Documents
-    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "rtf", "odt", "ods", "odp",
-    // Archives
-    "zip", "tar", "gz", "7z", "rar", // Data
-    "csv", "json", "xml", "yaml", "yml", // Media
-    "mp3", "mp4", "wav", "avi", "mkv", "mov", "flac", // Code (for development use cases)
-    "rs", "toml", "js", "ts", "py", "go", "java", "c", "cpp", "h",
-];
-
-/// Validate file type based on extension and MIME type
-#[allow(dead_code)]
-pub fn validate_file_type(filename: &str, content_type: &str) -> Result<(), ValidationError> {
-    // Extract file extension
-    let extension = std::path::Path::new(filename)
-        .extension()
-        .and_then(|e| e.to_str())
-        .ok_or_else(|| ValidationError("File has no extension".to_string()))?
-        .to_lowercase();
-
-    // Check if extension is allowed
-    if !ALLOWED_EXTENSIONS.contains(&extension.as_str()) {
-        return Err(ValidationError(format!(
-            "File type '.{}' is not allowed. Allowed types: {}",
-            extension,
-            ALLOWED_EXTENSIONS.join(", ")
-        )));
-    }
-
-    // Validate MIME type matches extension (basic check)
-    let mime_valid = match extension.as_str() {
-        "jpg" | "jpeg" => content_type.starts_with("image/jpeg"),
-        "png" => content_type.starts_with("image/png"),
-        "gif" => content_type.starts_with("image/gif"),
-        "pdf" => content_type.starts_with("application/pdf"),
-        "zip" => {
-            content_type.starts_with("application/zip")
-                || content_type.starts_with("application/x-zip")
-        }
-        "json" => content_type.starts_with("application/json"),
-        "xml" => {
-            content_type.starts_with("application/xml") || content_type.starts_with("text/xml")
-        }
-        "txt" | "md" => {
-            content_type.starts_with("text/plain") || content_type.starts_with("text/markdown")
-        }
-        "csv" => {
-            content_type.starts_with("text/csv") || content_type.starts_with("application/csv")
-        }
-        // For other types, accept application/octet-stream or allow pass-through
-        _ => content_type.starts_with("application/octet-stream") || !content_type.is_empty(),
-    };
-
-    if !mime_valid {
-        return Err(ValidationError(format!(
-            "MIME type '{}' does not match file extension '.{}'",
-            content_type, extension
-        )));
-    }
-
-    Ok(())
-}
-
-/// Validate a tag
-#[allow(dead_code)]
-pub fn validate_tag(tag: &str) -> Result<(), ValidationError> {
-    if tag.is_empty() {
-        return Err(ValidationError("Tag cannot be empty".to_string()));
-    }
-    if tag.len() > MAX_TAG_LENGTH {
-        return Err(ValidationError(format!(
-            "Tag too long (max {} characters)",
-            MAX_TAG_LENGTH
-        )));
-    }
-    // Check for null bytes
-    if tag.contains('\0') {
-        return Err(ValidationError(
-            "Tag contains invalid characters".to_string(),
-        ));
-    }
-    Ok(())
-}
-
-/// Validate a list of tags
-#[allow(dead_code)]
-pub fn validate_tags(tags: &[String]) -> Result<(), ValidationError> {
-    if tags.len() > MAX_TAGS_COUNT {
-        return Err(ValidationError(format!(
-            "Too many tags (max {})",
-            MAX_TAGS_COUNT
-        )));
-    }
-    for tag in tags {
-        validate_tag(tag)?;
-    }
-    Ok(())
-}
-
 /// Validate a list of UUIDs (e.g., contact IDs)
 pub fn validate_uuid_list(
     uuids: &[uuid::Uuid],
@@ -474,31 +322,7 @@ mod tests {
         assert!(validate_query("test\0query").is_err());
     }
 
-    #[test]
-    fn test_validate_filename() {
-        assert!(validate_filename("document.pdf").is_ok());
-        assert!(validate_filename("").is_err());
-        assert!(validate_filename("../etc/passwd").is_err());
-        assert!(validate_filename("path/to/file").is_err());
-        assert!(validate_filename("C:\\Windows\\file.exe").is_err());
-    }
-
-    #[test]
-    fn test_validate_file_size() {
-        assert!(validate_file_size(1000, MAX_ATTACHMENT_SIZE).is_ok());
-        assert!(validate_file_size(0, MAX_ATTACHMENT_SIZE).is_err());
-        assert!(validate_file_size(MAX_ATTACHMENT_SIZE + 1, MAX_ATTACHMENT_SIZE).is_err());
-    }
-
-    #[test]
-    fn test_validate_tags() {
-        assert!(validate_tags(&["tag1".to_string(), "tag2".to_string()]).is_ok());
-        assert!(validate_tags(&vec!["tag".to_string(); MAX_TAGS_COUNT + 1]).is_err());
-        assert!(validate_tags(&["".to_string()]).is_err());
-        assert!(validate_tags(&["a".repeat(MAX_TAG_LENGTH + 1)]).is_err());
-    }
-
-    // Additional file validation tests from SEC-009
+    // File upload validation tests (SEC-009)
     #[test]
     fn test_validate_file_upload_valid() {
         assert!(validate_file_upload("test.pdf", "application/pdf", 1000).is_ok());

@@ -40,8 +40,8 @@
 			await api.addMatcherGroup(label.concept_id, criteria);
 			toasts.success(`Criteria added to "${label.name}"`);
 			dispatch('labelSelected', { conceptId: label.concept_id, isNew: false });
-		} catch (e: any) {
-			toasts.error(e.message || 'Failed to add criteria');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Failed to add criteria');
 		}
 	}
 
@@ -62,8 +62,8 @@
 
 			toasts.success(`Label "${concept.name}" created`);
 			dispatch('labelSelected', { conceptId: concept.id, isNew: true });
-		} catch (e: any) {
-			toasts.error(e.message || 'Failed to create label');
+		} catch (e: unknown) {
+			toasts.error(e instanceof Error ? e.message : 'Failed to create label');
 		} finally {
 			creating = false;
 		}

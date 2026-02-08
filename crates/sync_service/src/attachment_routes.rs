@@ -481,15 +481,15 @@ pub async fn upload_attachment(
     let share_entity_type = attachment_entity_to_share_entity(entity_type_for_audit);
     let _ = state
         .audit_service
-        .log_operation(
-            share_entity_type,
-            attachment.entity_id,
-            core_domain::AuditAction::Create,
-            user.id,
+        .log_operation(crate::audit::AuditEntry {
+            entity_type: share_entity_type,
+            entity_id: attachment.entity_id,
+            action: core_domain::AuditAction::Create,
+            user_id: user.id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await;
 
     tracing::info!(
@@ -639,15 +639,15 @@ pub async fn download_attachment(
     let share_entity_type = attachment_entity_to_share_entity(attachment_entity_type);
     let _ = state
         .audit_service
-        .log_operation(
-            share_entity_type,
-            attachment_entity_id,
-            core_domain::AuditAction::Read,
-            user.id,
+        .log_operation(crate::audit::AuditEntry {
+            entity_type: share_entity_type,
+            entity_id: attachment_entity_id,
+            action: core_domain::AuditAction::Read,
+            user_id: user.id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await;
 
     // Return file with appropriate headers
@@ -726,15 +726,15 @@ pub async fn delete_attachment(
     let share_entity_type = attachment_entity_to_share_entity(attachment_entity_type);
     let _ = state
         .audit_service
-        .log_operation(
-            share_entity_type,
-            attachment_entity_id,
-            core_domain::AuditAction::Delete,
-            user.id,
+        .log_operation(crate::audit::AuditEntry {
+            entity_type: share_entity_type,
+            entity_id: attachment_entity_id,
+            action: core_domain::AuditAction::Delete,
+            user_id: user.id,
             changes,
-            ip,
+            ip_address: ip,
             user_agent,
-        )
+        })
         .await;
 
     tracing::info!("Deleted attachment: {}", id);

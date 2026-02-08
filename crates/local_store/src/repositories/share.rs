@@ -1,5 +1,5 @@
-use core_domain::{DomainError, DomainResult, ShareInvite};
 use crate::db::DbPool;
+use core_domain::{DomainError, DomainResult, ShareInvite};
 use uuid::Uuid;
 
 pub struct ShareRepository<'a> {

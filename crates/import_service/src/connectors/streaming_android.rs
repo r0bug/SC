@@ -223,7 +223,7 @@ impl StreamingAndroidParser {
         let (first_name, last_name) = if let Some(name) = contact_name.as_ref() {
             if name != "(Unknown)" && !name.is_empty() {
                 let parts: Vec<&str> = name.splitn(2, ' ').collect();
-                let first = parts.get(0).map(|s| s.to_string()).unwrap_or_default();
+                let first = parts.first().map(|s| s.to_string()).unwrap_or_default();
                 let last = parts.get(1).map(|s| s.to_string());
                 (first, last)
             } else {
@@ -321,7 +321,7 @@ impl StreamingAndroidParser {
         let (first_name, last_name) = if let Some(name) = contact_name.as_ref() {
             if name != "(Unknown)" && !name.is_empty() {
                 let parts: Vec<&str> = name.splitn(2, ' ').collect();
-                let first = parts.get(0).map(|s| s.to_string()).unwrap_or_default();
+                let first = parts.first().map(|s| s.to_string()).unwrap_or_default();
                 let last = parts.get(1).map(|s| s.to_string());
                 (first, last)
             } else {
