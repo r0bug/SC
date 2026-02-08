@@ -1,0 +1,18 @@
+# Progress Tracker
+Created: 2026-02-08
+
+## Status: In Progress
+
+## Audit Summary
+- Backend: 204 tests pass, 64 clippy warnings, 28+ dead code items, 4 production unwrap() calls
+- Frontend: 0 type errors, 92 svelte-check warnings, 3 duplicate API clients, 45+ any usages
+- Build: Everything compiles and tests pass
+
+## Iteration 1 — US-001: Remove dead frontend files
+- Deleted 6 files (~993 lines of dead code): client.ts, enhanced-client.ts, websocket.ts, resilient-websocket.ts, ToastContainer.svelte, LoadingSpinner.svelte
+- Removed empty services/ directory
+- svelte-check: 0 errors, 92 warnings (unchanged — these were truly dead)
+- Learnings:
+  - client.ts was only imported by enhanced-client.ts (circular dead dependency)
+  - ui/LoadingSpinner.svelte is the canonical spinner, used in 4 places
+  - ui/Toast.svelte is the canonical toast, used in +layout.svelte
